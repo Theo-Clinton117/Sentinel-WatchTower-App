@@ -1,5 +1,6 @@
 services:
   - type: static_site
     name: sentinel-watchtower
-    staticPublishPath: public
+    buildCommand: npm run build
+    staticPublishPath: build
     pullRequestPreviewsEnabled: true
