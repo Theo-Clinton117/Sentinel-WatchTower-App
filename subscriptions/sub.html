@@ -1,0 +1,174 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Subscription Plans | Sentinel WatchTower</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script src="https://unpkg.com/feather-icons"></script>
+  <script src="https://cdn.jsdelivr.net/npm/feather-icons/dist/feather.min.js"></script>
+</head>
+
+<body class="bg-gray-900 text-gray-100 antialiased">
+  <custom-navbar></custom-navbar>
+
+  <main class="relative min-h-screen py-24 px-6">
+    <!-- Scan Effect Background -->
+    <div class="absolute inset-0 bg-[radial-gradient(circle_at_top,rgba(59,130,246,0.15),transparent_55%)]"></div>
+    <div id="scanLayer" class="absolute inset-0 scan-layer"></div>
+
+    <div class="relative z-10 max-w-7xl mx-auto">
+      <div class="text-center mb-16">
+        <h1 class="text-4xl font-bold mb-4">Choose Your Plan</h1>
+        <p class="text-xl text-gray-400 max-w-2xl mx-auto">Select the subscription that fits your security needs and budget</p>
+      </div>
+
+      <div class="grid md:grid-cols-3 gap-8">
+        <!-- Basic Plan -->
+        <div class="bg-gray-800/50 backdrop-blur-sm rounded-xl border border-gray-700 p-8 transition hover:border-blue-500">
+          <div class="mb-6">
+            <h3 class="text-2xl font-bold mb-2">Basic</h3>
+            <p class="text-gray-400 mb-4">Essential security features</p>
+            <div class="flex items-end">
+              <span class="text-4xl font-bold">$9</span>
+              <span class="text-gray-400 ml-1">/month</span>
+            </div>
+          </div>
+          <ul class="space-y-4 mb-8">
+            <li class="flex items-center">
+              <i data-feather="check" class="w-5 h-5 text-green-400 mr-2"></i>
+              <span>Real-time location tracking</span>
+            </li>
+            <li class="flex items-center">
+              <i data-feather="check" class="w-5 h-5 text-green-400 mr-2"></i>
+              <span>Basic threat alerts</span>
+            </li>
+            <li class="flex items-center">
+              <i data-feather="check" class="w-5 h-5 text-green-400 mr-2"></i>
+              <span>3 saved locations</span>
+            </li>
+            <li class="flex items-center text-gray-500">
+              <i data-feather="x" class="w-5 h-5 text-red-400 mr-2"></i>
+              <span>Advanced analytics</span>
+            </li>
+            <li class="flex items-center text-gray-500">
+              <i data-feather="x" class="w-5 h-5 text-red-400 mr-2"></i>
+              <span>Family sharing</span>
+            </li>
+          </ul>
+          <button class="w-full py-3 px-4 bg-gray-700 hover:bg-gray-600 text-white rounded-md transition">
+            Get Started
+          </button>
+        </div>
+
+        <!-- Pro Plan (Featured) -->
+        <div class="bg-gray-800/50 backdrop-blur-sm rounded-xl border-2 border-blue-500 p-8 transform hover:scale-[1.02] transition relative">
+          <div class="absolute top-0 right-0 bg-blue-500 text-white text-xs font-bold px-3 py-1 rounded-bl-lg rounded-tr-lg">
+            POPULAR
+          </div>
+          <div class="mb-6">
+            <h3 class="text-2xl font-bold mb-2">Pro</h3>
+            <p class="text-gray-400 mb-4">Complete security solution</p>
+            <div class="flex items-end">
+              <span class="text-4xl font-bold">$19</span>
+              <span class="text-gray-400 ml-1">/month</span>
+            </div>
+          </div>
+          <ul class="space-y-4 mb-8">
+            <li class="flex items-center">
+              <i data-feather="check" class="w-5 h-5 text-green-400 mr-2"></i>
+              <span>Real-time location tracking</span>
+            </li>
+            <li class="flex items-center">
+              <i data-feather="check" class="w-5 h-5 text-green-400 mr-2"></i>
+              <span>Advanced threat alerts</span>
+            </li>
+            <li class="flex items-center">
+              <i data-feather="check" class="w-5 h-5 text-green-400 mr-2"></i>
+              <span>10 saved locations</span>
+            </li>
+            <li class="flex items-center">
+              <i data-feather="check" class="w-5 h-5 text-green-400 mr-2"></i>
+              <span>Advanced analytics</span>
+            </li>
+            <li class="flex items-center">
+              <i data-feather="check" class="w-5 h-5 text-green-400 mr-2"></i>
+              <span>Family sharing (up to 5)</span>
+            </li>
+          </ul>
+          <button class="w-full py-3 px-4 bg-blue-600 hover:bg-blue-500 text-white rounded-md transition">
+            Get Started
+          </button>
+        </div>
+
+        <!-- Enterprise Plan -->
+        <div class="bg-gray-800/50 backdrop-blur-sm rounded-xl border border-gray-700 p-8 transition hover:border-purple-500">
+          <div class="mb-6">
+            <h3 class="text-2xl font-bold mb-2">Enterprise</h3>
+            <p class="text-gray-400 mb-4">For businesses and organizations</p>
+            <div class="flex items-end">
+              <span class="text-4xl font-bold">$49</span>
+              <span class="text-gray-400 ml-1">/month</span>
+            </div>
+          </div>
+          <ul class="space-y-4 mb-8">
+            <li class="flex items-center">
+              <i data-feather="check" class="w-5 h-5 text-green-400 mr-2"></i>
+              <span>Unlimited location tracking</span>
+            </li>
+            <li class="flex items-center">
+              <i data-feather="check" class="w-5 h-5 text-green-400 mr-2"></i>
+              <span>Priority threat alerts</span>
+            </li>
+            <li class="flex items-center">
+              <i data-feather="check" class="w-5 h-5 text-green-400 mr-2"></i>
+              <span>Unlimited saved locations</span>
+            </li>
+            <li class="flex items-center">
+              <i data-feather="check" class="w-5 h-5 text-green-400 mr-2"></i>
+              <span>Advanced analytics dashboard</span>
+            </li>
+            <li class="flex items-center">
+              <i data-feather="check" class="w-5 h-5 text-green-400 mr-2"></i>
+              <span>Team management (up to 25)</span>
+            </li>
+          </ul>
+          <button class="w-full py-3 px-4 bg-purple-600 hover:bg-purple-500 text-white rounded-md transition">
+            Contact Sales
+          </button>
+        </div>
+      </div>
+
+      <div class="mt-16 bg-gray-800/50 backdrop-blur-sm rounded-xl border border-gray-700 p-8">
+        <h3 class="text-2xl font-bold mb-6">Frequently Asked Questions</h3>
+        <div class="space-y-4">
+          <div class="border-b border-gray-700 pb-4">
+            <h4 class="font-medium text-lg mb-2">Can I change my plan later?</h4>
+            <p class="text-gray-400">Yes, you can upgrade or downgrade your plan at any time from your account settings.</p>
+          </div>
+          <div class="border-b border-gray-700 pb-4">
+            <h4 class="font-medium text-lg mb-2">Is there a free trial available?</h4>
+            <p class="text-gray-400">We offer a 14-day free trial for all new users. No credit card required.</p>
+          </div>
+          <div class="border-b border-gray-700 pb-4">
+            <h4 class="font-medium text-lg mb-2">What payment methods do you accept?</h4>
+            <p class="text-gray-400">We accept all major credit cards, PayPal, and bank transfers for enterprise accounts.</p>
+          </div>
+          <div>
+            <h4 class="font-medium text-lg mb-2">How do I cancel my subscription?</h4>
+            <p class="text-gray-400">You can cancel anytime from your account settings. No cancellation fees.</p>
+          </div>
+        </div>
+      </div>
+    </div>
+  </main>
+
+  <custom-footer></custom-footer>
+
+  <script src="components/navbar.js"></script>
+  <script src="components/footer.js"></script>
+  <script>
+    feather.replace();
+  </script>
+</body>
+</html>
