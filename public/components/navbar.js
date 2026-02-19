@@ -1,6 +1,22 @@
 class CustomNavbar extends HTMLElement {
-  connectedCallback() {
+  async connectedCallback() {
     const path = window.location.pathname.toLowerCase();
+    const authState = await this.getAuthState();
+    const authLink = authState.isSignedIn
+      ? {
+          href: "#",
+          label: "Log out",
+          match: [],
+          isLogout: true,
+          icon: `<svg width="18" height="18" viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M14 17L9 12L14 7" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"/><path d="M9 12H20" stroke="currentColor" stroke-width="1.9" stroke-linecap="round"/><path d="M12 3H5a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h7" stroke="currentColor" stroke-width="1.9" stroke-linecap="round"/></svg>`
+        }
+      : {
+          href: "./login.html",
+          label: "Sign in",
+          match: ["login.html"],
+          icon: `<svg width="18" height="18" viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M10 17L15 12L10 7" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"/><path d="M15 12H4" stroke="currentColor" stroke-width="1.9" stroke-linecap="round"/><path d="M12 3H19a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H12" stroke="currentColor" stroke-width="1.9" stroke-linecap="round"/></svg>`
+        };
+
     const links = [
       {
         href: "./home.html",
@@ -21,23 +37,22 @@ class CustomNavbar extends HTMLElement {
         icon: `<svg width="18" height="18" viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M8 7h12M8 12h12M8 17h12M4 7h.01M4 12h.01M4 17h.01" stroke="currentColor" stroke-width="1.9" stroke-linecap="round"/></svg>`
       },
       {
-        href: "./login.html",
-        label: "Sign in",
-        match: ["login.html"],
-        icon: `<svg width="18" height="18" viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M10 17L15 12L10 7" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"/><path d="M15 12H4" stroke="currentColor" stroke-width="1.9" stroke-linecap="round"/><path d="M12 3H19a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H12" stroke="currentColor" stroke-width="1.9" stroke-linecap="round"/></svg>`
+        ...authLink
       }
     ];
 
     const desktopLinkHtml = links.map(link => {
       const active = link.match.some(m => path.endsWith(m)) || (path === "/" && link.href.includes("home"));
       const activeClass = active ? "bg-blue-600 text-white" : "bg-gray-700/50 text-gray-200 hover:bg-gray-700";
-      return `<a href="${link.href}" class="px-3 py-2 rounded text-xs ${activeClass}" aria-current="${active ? "page" : "false"}">${link.label}</a>`;
+      const authAction = link.isLogout ? ` data-auth-action="logout"` : "";
+      return `<a href="${link.href}" class="px-3 py-2 rounded text-xs ${activeClass}" aria-current="${active ? "page" : "false"}"${authAction}>${link.label}</a>`;
     }).join("");
 
     const mobileLinkHtml = links.map(link => {
       const active = link.match.some(m => path.endsWith(m)) || (path === "/" && link.href.includes("home"));
+      const authAction = link.isLogout ? ` data-auth-action="logout"` : "";
       return `
-        <a href="${link.href}" class="mobile-nav-item ${active ? "active" : ""}" aria-current="${active ? "page" : "false"}">
+        <a href="${link.href}" class="mobile-nav-item ${active ? "active" : ""}" aria-current="${active ? "page" : "false"}"${authAction}>
           <span class="mobile-nav-item-icon">${link.icon}</span>
           <span>${link.label}</span>
         </a>
@@ -110,9 +125,55 @@ class CustomNavbar extends HTMLElement {
     });
     backdrop?.addEventListener("click", closeMenu);
     this.querySelectorAll(".mobile-nav-links a").forEach(link => link.addEventListener("click", closeMenu));
+    const logoutLinks = this.querySelectorAll("[data-auth-action='logout']");
+    logoutLinks.forEach(link => {
+      link.addEventListener("click", async evt => {
+        evt.preventDefault();
+        closeMenu();
+        await this.logout(authState.supabaseClient);
+      });
+    });
     document.addEventListener("keydown", evt => {
       if (evt.key === "Escape" && panel.classList.contains("open")) closeMenu();
     });
+  }
+
+  async getAuthState() {
+    const AUTH_CONTEXT_KEY = "authUserContext";
+    const storedContext = sessionStorage.getItem(AUTH_CONTEXT_KEY) || localStorage.getItem(AUTH_CONTEXT_KEY);
+    let supabaseClient = null;
+    let hasSupabaseSession = false;
+
+    try {
+      const { createClient } = await import("https://cdn.jsdelivr.net/npm/@supabase/supabase-js/+esm");
+      const SUPABASE_URL = "https://bjmliqvtjjntkgxpwwkp.supabase.co";
+      const SUPABASE_ANON_KEY = "sb_publishable_P3c1Q3lJqNyGYobS5wy-EA_xKDOetei";
+      supabaseClient = createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+      const { data } = await supabaseClient.auth.getSession();
+      hasSupabaseSession = !!data?.session;
+    } catch (_) {
+      hasSupabaseSession = false;
+    }
+
+    return {
+      isSignedIn: hasSupabaseSession || !!storedContext,
+      supabaseClient
+    };
+  }
+
+  async logout(supabaseClient) {
+    const AUTH_CONTEXT_KEY = "authUserContext";
+    try {
+      if (supabaseClient) await supabaseClient.auth.signOut();
+    } catch (_) {
+      // Continue clearing local auth context even if remote sign-out fails.
+    } finally {
+      sessionStorage.removeItem(AUTH_CONTEXT_KEY);
+      localStorage.removeItem(AUTH_CONTEXT_KEY);
+      sessionStorage.removeItem("userEmail");
+      localStorage.removeItem("userEmail");
+      window.location.href = "./login.html";
+    }
   }
 }
 

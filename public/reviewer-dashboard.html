@@ -37,6 +37,14 @@
   .bg-gray-700\/30 {
     background: linear-gradient(145deg, rgba(51,65,85,.30), rgba(30,41,59,.24));
   }
+  .review-help {
+    font-size: 0.78rem;
+    color: #cbd5e1;
+    background: rgba(30, 64, 175, 0.16);
+    border: 1px solid rgba(59, 130, 246, 0.35);
+    border-radius: 0.5rem;
+    padding: 0.6rem 0.75rem;
+  }
 </style>
 </head>
 <body class="bg-gray-900 text-gray-100 antialiased relative">
@@ -68,13 +76,18 @@
       </section>
     </div>
 
+    <section class="bg-gray-800/50 backdrop-blur-sm rounded-xl border border-gray-700 p-4">
+      <h3 class="font-semibold mb-2 flex items-center gap-2"><i data-feather="check-circle"></i> Quick Review Flow</h3>
+      <p class="review-help">1) Open pending report. 2) Check location and details. 3) Choose one clear action. Use Zone Controls only when needed.</p>
+    </section>
+
     <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
       <section class="lg:col-span-2 bg-gray-800/50 backdrop-blur-sm rounded-xl border border-gray-700 p-6">
         <div class="flex justify-between items-center mb-4">
-          <h3 class="font-semibold flex items-center gap-2"><i data-feather="map"></i> Confirmed Incident Heatmap</h3>
+          <h3 class="font-semibold flex items-center gap-2"><i data-feather="map"></i> Incident Map</h3>
           <div class="flex items-center gap-2">
             <button id="pinpointReviewerMap" class="text-xs bg-blue-600/50 px-3 py-1 rounded hover:bg-blue-600">Pinpoint Me</button>
-            <button id="refreshAll" class="text-xs bg-gray-700/50 px-3 py-1 rounded hover:bg-gray-700">Refresh</button>
+            <button id="refreshAll" class="text-xs bg-gray-700/50 px-3 py-1 rounded hover:bg-gray-700">Refresh Data</button>
           </div>
         </div>
         <div id="map" class="h-64 rounded-lg"></div>
@@ -82,21 +95,25 @@
       </section>
 
       <section class="bg-gray-800/50 backdrop-blur-sm rounded-xl border border-gray-700 p-6">
-        <h3 class="font-semibold mb-3 flex items-center gap-2"><i data-feather="sliders"></i> Zone Controls</h3>
-        <div class="space-y-3">
-          <input id="zoneKeyInput" class="w-full p-2 rounded bg-gray-700 text-white" placeholder="Zone key (e.g. 6.52:3.37)" />
-          <div class="flex gap-2">
-            <button id="increaseZoneBtn" class="flex-1 px-3 py-2 bg-yellow-600 rounded hover:bg-yellow-500 text-sm">Increase +1</button>
-            <button id="resolveZoneBtn" class="flex-1 px-3 py-2 bg-green-600 rounded hover:bg-green-500 text-sm">Resolve</button>
-          </div>
-          <p class="text-xs text-gray-400">Tip: use Confirm on a report to auto-increase its zone risk.</p>
+        <div class="flex items-center justify-between mb-3">
+          <h3 class="font-semibold flex items-center gap-2"><i data-feather="sliders"></i> Advanced Zone Controls</h3>
+          <button id="toggleAdvancedZoneControls" class="text-xs bg-gray-700/50 px-3 py-1 rounded hover:bg-gray-700">Show</button>
         </div>
-        <div id="zonesList" class="mt-4 space-y-2"></div>
+        <div id="advancedZoneControlsBody" class="space-y-3 hidden">
+          <input id="zoneKeyInput" class="w-full p-2 rounded bg-gray-700 text-white" placeholder="Zone key (example: 6.52:3.37)" />
+          <div class="flex gap-2">
+            <button id="increaseZoneBtn" class="flex-1 px-3 py-2 bg-yellow-600 rounded hover:bg-yellow-500 text-sm">Increase Risk</button>
+            <button id="resolveZoneBtn" class="flex-1 px-3 py-2 bg-green-600 rounded hover:bg-green-500 text-sm">Mark Resolved</button>
+          </div>
+          <p class="text-xs text-gray-400">Usually not needed. Confirming/likely actions update zone risk automatically.</p>
+          <div id="zonesList" class="mt-4 space-y-2"></div>
+        </div>
       </section>
     </div>
 
     <section class="bg-gray-800/50 backdrop-blur-sm rounded-xl border border-gray-700 p-6">
-      <h3 class="font-semibold mb-4 flex items-center gap-2"><i data-feather="clipboard"></i> Pending Review</h3>
+      <h3 class="font-semibold mb-1 flex items-center gap-2"><i data-feather="clipboard"></i> Pending Reports</h3>
+      <p class="text-xs text-gray-400 mb-4">Use one action per report: confirm, likely, needs proof, or false alarm.</p>
       <div id="pendingReportsList" class="space-y-3"></div>
     </section>
   </div>
@@ -191,6 +208,8 @@ const pendingCount = document.getElementById('pendingCount');
 const activeZonesCount = document.getElementById('activeZonesCount');
 const pendingReportsList = document.getElementById('pendingReportsList');
 const zonesList = document.getElementById('zonesList');
+const toggleAdvancedZoneControls = document.getElementById('toggleAdvancedZoneControls');
+const advancedZoneControlsBody = document.getElementById('advancedZoneControlsBody');
 const pinpointReviewerMap = document.getElementById('pinpointReviewerMap');
 const refreshAll = document.getElementById('refreshAll');
 const zoneKeyInput = document.getElementById('zoneKeyInput');
@@ -451,6 +470,10 @@ async function requestReviewerLocationAndCenter() {
 
 function renderPendingReports() {
   pendingCount.textContent = String(pendingReports.length);
+  if (!pendingReports.length) {
+    pendingReportsList.innerHTML = '<p class="text-sm text-gray-400">No reports waiting. Good work.</p>';
+    return;
+  }
   pendingReportsList.innerHTML = pendingReports.map(report => `
     <div class="p-3 rounded-lg bg-gray-700/30 border border-gray-700">
       <div class="flex items-start justify-between gap-3">
@@ -458,15 +481,16 @@ function renderPendingReports() {
           <p class="font-medium">${report.type} <span class="text-xs text-gray-400">(${report.severity})</span></p>
           <p class="text-xs text-gray-400 mt-1">${report.description || 'No details'}</p>
           <p class="text-xs text-gray-500 mt-1">Zone: ${getZoneKey(report.lat, report.lng)} | ${new Date(report.created_at).toLocaleString()}</p>
+          <p class="text-xs text-gray-500 mt-1">Tip: if details are weak, choose "Need More Proof".</p>
         </div>
         <div class="flex gap-2">
-          <button data-action="confirmed" data-id="${report.id}" class="px-2 py-1 bg-green-600 rounded hover:bg-green-500 text-xs">Confirmed</button>
-          <button data-action="likely" data-id="${report.id}" class="px-2 py-1 bg-amber-600 rounded hover:bg-amber-500 text-xs">Likely</button>
-          <button data-action="unverified" data-id="${report.id}" class="px-2 py-1 bg-gray-600 rounded hover:bg-gray-500 text-xs">Unverified</button>
-          <button data-action="false" data-id="${report.id}" class="px-2 py-1 bg-red-600 rounded hover:bg-red-500 text-xs">False</button>
+          <button data-action="confirmed" data-id="${report.id}" class="px-2 py-1 bg-green-600 rounded hover:bg-green-500 text-xs">Confirm Incident</button>
+          <button data-action="likely" data-id="${report.id}" class="px-2 py-1 bg-amber-600 rounded hover:bg-amber-500 text-xs">Mark as Likely</button>
+          <button data-action="unverified" data-id="${report.id}" class="px-2 py-1 bg-gray-600 rounded hover:bg-gray-500 text-xs">Need More Proof</button>
+          <button data-action="false" data-id="${report.id}" class="px-2 py-1 bg-red-600 rounded hover:bg-red-500 text-xs">False Alarm</button>
         </div>
       </div>
-      <input data-note-id="${report.id}" class="mt-2 w-full p-2 rounded bg-gray-800 text-sm" placeholder="Review note (optional)" />
+      <input data-note-id="${report.id}" class="mt-2 w-full p-2 rounded bg-gray-800 text-sm" placeholder="Short note (optional): what made you choose this action?" />
     </div>
   `).join('');
   feather.replace();
@@ -875,6 +899,11 @@ resolveZoneBtn.addEventListener('click', async () => {
 });
 
 refreshAll.addEventListener('click', loadData);
+toggleAdvancedZoneControls.addEventListener('click', () => {
+  const expanded = !advancedZoneControlsBody.classList.contains('hidden');
+  advancedZoneControlsBody.classList.toggle('hidden', expanded);
+  toggleAdvancedZoneControls.textContent = expanded ? 'Show' : 'Hide';
+});
 pinpointReviewerMap.addEventListener('click', () => {
   pinpointReviewerLocation().catch(err => {
     reviewerLocalRiskStatus.textContent = `Location unavailable: ${err?.message || 'permission denied'}`;
