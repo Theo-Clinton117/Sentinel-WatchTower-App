@@ -15,6 +15,12 @@ class CustomNavbar extends HTMLElement {
         icon: `<svg width="18" height="18" viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M12 12a4 4 0 1 0 0-8a4 4 0 0 0 0 8Zm-7 8a7 7 0 0 1 14 0" stroke="currentColor" stroke-width="1.9" stroke-linecap="round"/></svg>`
       },
       {
+        href: "./risk-log.html",
+        label: "Risk Log",
+        match: ["risk-log.html"],
+        icon: `<svg width="18" height="18" viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M8 7h12M8 12h12M8 17h12M4 7h.01M4 12h.01M4 17h.01" stroke="currentColor" stroke-width="1.9" stroke-linecap="round"/></svg>`
+      },
+      {
         href: "./login.html",
         label: "Sign in",
         match: ["login.html"],
