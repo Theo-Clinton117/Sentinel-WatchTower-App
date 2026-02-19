@@ -10,7 +10,7 @@ class CustomFooter extends HTMLElement {
             <span>·</span>
             <a href="./dashboard.html" class="hover:text-gray-200">Profile</a>
             <span>·</span>
-            <a href="./login.html" class="hover:text-gray-200">Login</a>
+            <a href="./login.html" class="hover:text-gray-200">Sign in</a>
           </div>
         </div>
       </footer>

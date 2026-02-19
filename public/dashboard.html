@@ -108,6 +108,9 @@
               <i data-feather="map"></i> Risk Heatmap
             </h3>
             <div class="flex items-center gap-2">
+              <button id="pinpointMap" class="text-xs bg-blue-600/50 px-2 py-1 rounded hover:bg-blue-600">
+                Pinpoint Me
+              </button>
               <button id="refreshMap" class="text-xs bg-gray-700/50 px-2 py-1 rounded hover:bg-gray-700">
                 <i data-feather="refresh-cw" class="w-3 h-3"></i>
               </button>
@@ -257,6 +260,7 @@ document.addEventListener('DOMContentLoaded', async () => {
   const userStatus = document.getElementById('userStatus');
   const alertsContainer = document.querySelector('.alerts-list');
   const nearbyVerificationList = document.getElementById('nearbyVerificationList');
+  const pinpointBtn = document.getElementById('pinpointMap');
   const refreshBtn = document.getElementById('refreshMap');
   const routeDestinationInput = document.getElementById('routeDestinationInput');
   const routeGoBtn = document.getElementById('routeGoBtn');
@@ -292,7 +296,7 @@ document.addEventListener('DOMContentLoaded', async () => {
   const NEARBY_RADIUS_KM = 5;
   const NIGERIA_BOUNDS = [[4.0, 2.5], [14.8, 15.0]];
 
-  let map, userMarker, heatLayer, routePolyline = null, destinationMarker = null;
+  let map, userMarker, userAccuracyCircle, heatLayer, routePolyline = null, destinationMarker = null;
   let currentUser = null;
   let reports = [];
   let alerts = [];
@@ -303,14 +307,25 @@ document.addEventListener('DOMContentLoaded', async () => {
   let alertsChannel = null;
   let nearbyReportsChannel = null;
   let riskZonesChannel = null;
+  let zoneNotificationsChannel = null;
   let contactsChannel = null;
   let watchSessionsChannel = null;
   let stopLocationWatch = null;
   let hasCenteredMap = false;
   let userLat = 0, userLng = 0;
+  let lastLocationUpdateTs = 0;
   let lastNearbyLoadAt = 0;
   const reverseCache = new Map();
   const riskProfileCache = new Map();
+  const REPORT_QUEUE_KEY = 'sentinel_report_queue_v1';
+  const REPORT_SUBMIT_GUARD_KEY = 'sentinel_report_guard_v1';
+  const MAX_IN_APP_NOTIFICATIONS = 40;
+  let notificationButton = null;
+  let notificationPanel = null;
+  let notificationList = null;
+  let notificationBadge = null;
+  let notificationCount = 0;
+  let notificationOpen = false;
 
   function createStableTileLayer(options = {}) {
     const urls = [
@@ -345,11 +360,26 @@ document.addEventListener('DOMContentLoaded', async () => {
   async function reverseGeocode(lat, lng) {
     const key = `${Number(lat).toFixed(4)},${Number(lng).toFixed(4)}`;
     if (reverseCache.has(key)) return reverseCache.get(key);
-    const res = await fetch(`https://nominatim.openstreetmap.org/reverse?format=jsonv2&lat=${lat}&lon=${lng}&addressdetails=1&accept-language=en`);
+    const res = await fetch(`https://nominatim.openstreetmap.org/reverse?format=jsonv2&lat=${lat}&lon=${lng}&addressdetails=1&accept-language=en&zoom=18&namedetails=1`);
     if (!res.ok) throw new Error('reverse geocode failed');
     const data = await res.json();
     reverseCache.set(key, data);
     return data;
+  }
+
+  function formatPreciseLocation(address = {}, lat, lng) {
+    const street = [address.house_number, address.road].filter(Boolean).join(' ').trim();
+    const locality = [
+      address.neighbourhood,
+      address.suburb,
+      address.city_district,
+      address.city || address.town || address.village
+    ].filter(Boolean);
+    const region = [address.state, address.postcode].filter(Boolean);
+    const lead = street || locality[0] || address.county || 'Current location';
+    const tail = [...(street ? locality : locality.slice(1)), ...region].join(', ');
+    const coords = `${Number(lat).toFixed(5)}, ${Number(lng).toFixed(5)}`;
+    return tail ? `${lead}, ${tail} (${coords})` : `${lead} (${coords})`;
   }
 
   async function geocodePlace(query) {
@@ -381,6 +411,109 @@ document.addEventListener('DOMContentLoaded', async () => {
     const h = Math.floor(mins / 60);
     const m = mins % 60;
     return m ? `${h}h ${m}m` : `${h}h`;
+  }
+
+  function ensureNotificationCenterUI() {
+    if (notificationButton) return;
+    const mount = document.createElement('div');
+    mount.style.position = 'fixed';
+    mount.style.left = '1rem';
+    mount.style.bottom = '1rem';
+    mount.style.zIndex = '1300';
+    mount.innerHTML = `
+      <button id="zoneNotifyToggle" class="bg-gray-800 border border-gray-700 text-gray-100 px-3 py-2 rounded-lg text-xs">
+        Zone Alerts <span id="zoneNotifyBadge" class="bg-red-600 text-white rounded-full px-2 py-[1px] ml-1">0</span>
+      </button>
+      <div id="zoneNotifyPanel" class="hidden mt-2 bg-gray-800/95 border border-gray-700 rounded-lg p-2" style="width:min(88vw,360px);max-height:42vh;overflow:auto;">
+        <p class="text-xs text-gray-300 mb-2">Live zone notifications</p>
+        <div id="zoneNotifyList" class="space-y-2"></div>
+      </div>
+    `;
+    document.body.appendChild(mount);
+    notificationButton = mount.querySelector('#zoneNotifyToggle');
+    notificationPanel = mount.querySelector('#zoneNotifyPanel');
+    notificationList = mount.querySelector('#zoneNotifyList');
+    notificationBadge = mount.querySelector('#zoneNotifyBadge');
+    notificationButton.addEventListener('click', () => {
+      notificationOpen = !notificationOpen;
+      notificationPanel.classList.toggle('hidden', !notificationOpen);
+      if (notificationOpen) {
+        notificationCount = 0;
+        notificationBadge.textContent = '0';
+      }
+    });
+  }
+
+  function pushZoneNotification(title, message, tone = 'neutral') {
+    ensureNotificationCenterUI();
+    const toneClass =
+      tone === 'high' ? 'border-red-500/50' :
+      tone === 'medium' ? 'border-yellow-500/50' : 'border-blue-500/40';
+    const row = document.createElement('div');
+    row.className = `p-2 rounded border ${toneClass} bg-gray-700/30`;
+    row.innerHTML = `
+      <p class="text-xs font-semibold text-gray-100">${title}</p>
+      <p class="text-xs text-gray-300">${message}</p>
+      <p class="text-[10px] text-gray-500 mt-1">${new Date().toLocaleTimeString()}</p>
+    `;
+    notificationList.prepend(row);
+    while (notificationList.children.length > MAX_IN_APP_NOTIFICATIONS) {
+      notificationList.removeChild(notificationList.lastChild);
+    }
+    if (!notificationOpen) {
+      notificationCount += 1;
+      notificationBadge.textContent = String(notificationCount);
+    }
+    if ('Notification' in window && Notification.permission === 'granted') {
+      new Notification(title, { body: message, tag: `${title}-${Date.now()}` });
+    }
+  }
+
+  function runReportSpamGuard(payload) {
+    const now = Date.now();
+    const raw = localStorage.getItem(REPORT_SUBMIT_GUARD_KEY);
+    const guard = raw ? JSON.parse(raw) : { lastAt: 0, seen: {} };
+    if (now - Number(guard.lastAt || 0) < 15000) {
+      throw new Error('Please wait a few seconds before sending another report.');
+    }
+    const zone = getZoneKey(Number(payload.lat), Number(payload.lng));
+    const sig = `${zone}|${payload.type}|${payload.severity}|${String(payload.description || '').trim().toLowerCase()}`;
+    const seenAt = Number(guard.seen?.[sig] || 0);
+    if (now - seenAt < 120000) {
+      throw new Error('Duplicate report detected for this zone. Please wait before resubmitting.');
+    }
+    guard.lastAt = now;
+    guard.seen = guard.seen || {};
+    guard.seen[sig] = now;
+    for (const [k, ts] of Object.entries(guard.seen)) {
+      if (now - Number(ts) > 6 * 3600000) delete guard.seen[k];
+    }
+    localStorage.setItem(REPORT_SUBMIT_GUARD_KEY, JSON.stringify(guard));
+  }
+
+  function queueOfflineReport(payload) {
+    const raw = localStorage.getItem(REPORT_QUEUE_KEY);
+    const queue = raw ? JSON.parse(raw) : [];
+    queue.push({ payload, queuedAt: new Date().toISOString() });
+    localStorage.setItem(REPORT_QUEUE_KEY, JSON.stringify(queue.slice(-60)));
+  }
+
+  async function flushQueuedReports() {
+    const raw = localStorage.getItem(REPORT_QUEUE_KEY);
+    const queue = raw ? JSON.parse(raw) : [];
+    if (!queue.length) return;
+    const remaining = [];
+    for (const item of queue) {
+      try {
+        await submitReportAPI(item.payload);
+      } catch {
+        remaining.push(item);
+      }
+    }
+    localStorage.setItem(REPORT_QUEUE_KEY, JSON.stringify(remaining));
+    if (queue.length && !remaining.length) {
+      pushZoneNotification('Queued Reports Sent', `${queue.length} offline report(s) delivered.`, 'neutral');
+    }
   }
 
   function watchLocation(options = {}) {
@@ -490,6 +623,13 @@ document.addEventListener('DOMContentLoaded', async () => {
     createStableTileLayer({ maxZoom: 19 }).addTo(map);
     applyNigeriaMapBounds(map);
     userMarker = L.marker([lat || 0, lng || 0]).addTo(map).bindPopup('You are here');
+    userAccuracyCircle = L.circle([lat || 0, lng || 0], {
+      radius: 0,
+      color: '#60a5fa',
+      weight: 1,
+      fillColor: '#60a5fa',
+      fillOpacity: 0.15
+    }).addTo(map);
     heatLayer = L.heatLayer([], { radius: 25, blur: 15, maxZoom: 17 }).addTo(map);
   }
 
@@ -536,6 +676,7 @@ document.addEventListener('DOMContentLoaded', async () => {
         { lat: destination.lat, lng: destination.lng },
         'driving'
       );
+      const routeRisk = await estimateRouteRisk(route.coordinates);
 
       clearRouteLayers();
       routePolyline = L.polyline(route.coordinates, { color: '#60a5fa', weight: 5, opacity: 0.9 }).addTo(map);
@@ -543,12 +684,32 @@ document.addEventListener('DOMContentLoaded', async () => {
       map.fitBounds(routePolyline.getBounds(), { padding: [24, 24] });
 
       const km = (route.distanceMeters / 1000).toFixed(1);
-      setRouteStatus(`Route ready: ${km} km • ${formatDuration(route.durationSeconds)}`, 'success');
+      setRouteStatus(`Route ready: ${km} km • ${formatDuration(route.durationSeconds)} • risk ${routeRisk.label} (${routeRisk.score})`, 'success');
     } catch (err) {
       setRouteStatus(err?.message || 'Could not build route.', 'error');
     } finally {
       routeGoBtn.disabled = false;
     }
+  }
+
+  async function estimateRouteRisk(routeCoordinates) {
+    if (!Array.isArray(routeCoordinates) || !routeCoordinates.length) return { score: 0, label: 'Low' };
+    const sampled = [];
+    for (let i = 0; i < routeCoordinates.length; i += 18) sampled.push(routeCoordinates[i]);
+    sampled.push(routeCoordinates[routeCoordinates.length - 1]);
+    const uniqueKeys = Array.from(new Set(sampled.map(([lat, lng]) => getZoneKey(Number(lat), Number(lng)))));
+    if (!uniqueKeys.length) return { score: 0, label: 'Low' };
+
+    const { data, error } = await supabase
+      .from('risk_zones')
+      .select('zone_key,risk_level')
+      .in('zone_key', uniqueKeys);
+    if (error) return { score: 0, label: 'Low' };
+    const levels = (data || []).map(r => Number(r.risk_level || 0));
+    const avg = levels.length ? levels.reduce((a, b) => a + b, 0) / levels.length : 0;
+    const score = Number(avg.toFixed(2));
+    const label = score >= 4 ? 'High' : score >= 2 ? 'Medium' : 'Low';
+    return { score, label };
   }
 
   function updateMap(){
@@ -847,9 +1008,7 @@ document.addEventListener('DOMContentLoaded', async () => {
         getRiskLevelForLocation(lat, lng)
       ]);
       const address = locationData?.address || {};
-      dashboardLocation.textContent = address.road && address.city
-        ? `${address.road}, ${address.city}`
-        : address.suburb || address.city || address.county || "Your current location";
+      dashboardLocation.textContent = formatPreciseLocation(address, lat, lng);
       const risk = mapRiskLevelToLabel(riskProfile.riskLevel);
       dashboardRisk.textContent = `${risk.label} (${riskProfile.riskLevel}) • ${riskProfile.incidentCount} alerts • ext ${riskProfile.externalRisk}`;
       dashboardRisk.className = `font-medium ${risk.className}`;
@@ -921,6 +1080,12 @@ document.addEventListener('DOMContentLoaded', async () => {
     userLng = lng;
     if (!map) initMap(lat, lng);
     userMarker.setLatLng([lat, lng]);
+    if (userAccuracyCircle) {
+      userAccuracyCircle.setLatLng([lat, lng]);
+      userAccuracyCircle.setRadius(Number.isFinite(accuracy) ? Math.max(8, accuracy) : 0);
+    }
+    const coordsText = `${lat.toFixed(5)}, ${lng.toFixed(5)}`;
+    userMarker.bindPopup(`You are here<br/><span style="font-size:11px;">${coordsText}</span>`);
     if (centerIfNeeded || !hasCenteredMap) {
       map.setView([lat, lng], 13);
       hasCenteredMap = true;
@@ -928,10 +1093,20 @@ document.addEventListener('DOMContentLoaded', async () => {
 
     const accuracyText = Number.isFinite(accuracy) ? `${Math.round(accuracy)}m` : '?';
     userStatus.textContent = `GPS active • ${accuracyText} • ${new Date().toLocaleTimeString()}`;
+    lastLocationUpdateTs = Date.now();
 
     updateDashboard(lat, lng);
     loadNearbyReports();
     updateActiveWatchSessionLocation(lat, lng);
+  }
+
+  function pinpointUserOnMap() {
+    if (!map || !Number.isFinite(userLat) || !Number.isFinite(userLng)) {
+      refreshPosition();
+      return;
+    }
+    map.setView([userLat, userLng], 17);
+    userMarker.openPopup();
   }
 
   function refreshPosition() {
@@ -1064,6 +1239,40 @@ document.addEventListener('DOMContentLoaded', async () => {
       .subscribe();
   }
 
+  function subscribeToZoneNotifications() {
+    zoneNotificationsChannel = supabase
+      .channel(`zone-notify-${currentUser?.id || 'anon'}`)
+      .on(
+        'postgres_changes',
+        { event: 'INSERT', schema: 'public', table: 'reports' },
+        payload => {
+          if (!Number.isFinite(userLat) || !Number.isFinite(userLng)) return;
+          const myZone = getZoneKey(userLat, userLng);
+          const eventZone = getZoneKey(Number(payload.new.lat), Number(payload.new.lng));
+          if (eventZone !== myZone) return;
+          const sev = payload.new.severity || 'Unknown';
+          pushZoneNotification(
+            'New Zone Report',
+            `${payload.new.type || 'Incident'} (${sev}) reported in your zone.`,
+            sev === 'High' ? 'high' : sev === 'Medium' ? 'medium' : 'neutral'
+          );
+        }
+      )
+      .on(
+        'postgres_changes',
+        { event: 'UPDATE', schema: 'public', table: 'risk_zones' },
+        payload => {
+          if (!Number.isFinite(userLat) || !Number.isFinite(userLng)) return;
+          const myZone = getZoneKey(userLat, userLng);
+          if (payload.new.zone_key !== myZone) return;
+          const level = Number(payload.new.risk_level || 0);
+          const label = level >= 4 ? 'High' : level >= 2 ? 'Medium' : 'Low';
+          pushZoneNotification('Zone Risk Update', `Risk changed to ${label} (${level}) in your zone.`, label.toLowerCase());
+        }
+      )
+      .subscribe();
+  }
+
   function subscribeToNearbyReports() {
     nearbyReportsChannel = supabase
       .channel('reports-nearby-live')
@@ -1165,6 +1374,14 @@ document.addEventListener('DOMContentLoaded', async () => {
         status: 'pending'
       };
       try {
+        runReportSpamGuard(newReport);
+        if (!navigator.onLine) {
+          queueOfflineReport(newReport);
+          reportStatusMessage.className = 'text-xs text-yellow-400 mb-3';
+          reportStatusMessage.textContent = 'Offline detected. Report queued and will send automatically.';
+          submitReport.disabled = false;
+          return;
+        }
         await submitReportAPI(newReport);
         reportStatusMessage.className = 'text-xs text-green-400 mb-3';
         reportStatusMessage.textContent = 'Report submitted and queued for reviewer verification.';
@@ -1358,6 +1575,7 @@ document.addEventListener('DOMContentLoaded', async () => {
   });
 
   refreshBtn.addEventListener('click', refreshPosition);
+  pinpointBtn.addEventListener('click', pinpointUserOnMap);
   routeGoBtn.addEventListener('click', buildRouteToDestination);
   routeClearBtn.addEventListener('click', clearRouteLayers);
   routeDestinationInput.addEventListener('keydown', event => {
@@ -1369,12 +1587,15 @@ document.addEventListener('DOMContentLoaded', async () => {
 
   const user = await hydrateUserIdentity();
   if (!user) return;
+  ensureNotificationCenterUI();
   await enableBrowserNotifications();
+  await flushQueuedReports();
   await Promise.all([loadReports(), loadAlerts()]);
   subscribeToReports();
   subscribeToNearbyReports();
   subscribeToRiskZones();
   subscribeToAlerts();
+  subscribeToZoneNotifications();
   subscribeToContacts();
   subscribeToWatchSessions();
   refreshPosition();
@@ -1386,10 +1607,21 @@ document.addEventListener('DOMContentLoaded', async () => {
     if (alertsChannel) supabase.removeChannel(alertsChannel);
     if (nearbyReportsChannel) supabase.removeChannel(nearbyReportsChannel);
     if (riskZonesChannel) supabase.removeChannel(riskZonesChannel);
+    if (zoneNotificationsChannel) supabase.removeChannel(zoneNotificationsChannel);
     if (contactsChannel) supabase.removeChannel(contactsChannel);
     if (watchSessionsChannel) supabase.removeChannel(watchSessionsChannel);
     if (typeof stopLocationWatch === 'function') stopLocationWatch();
   });
+  window.addEventListener('online', () => {
+    flushQueuedReports().catch(err => console.error('Failed flushing offline queue', err));
+  });
+  setInterval(() => {
+    if (!lastLocationUpdateTs) return;
+    const age = Date.now() - lastLocationUpdateTs;
+    if (age > 90000) {
+      userStatus.textContent = `GPS stale • last update ${Math.round(age / 1000)}s ago`;
+    }
+  }, 15000);
 });
 </script>
 </body>

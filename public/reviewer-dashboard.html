@@ -72,7 +72,10 @@
       <section class="lg:col-span-2 bg-gray-800/50 backdrop-blur-sm rounded-xl border border-gray-700 p-6">
         <div class="flex justify-between items-center mb-4">
           <h3 class="font-semibold flex items-center gap-2"><i data-feather="map"></i> Confirmed Incident Heatmap</h3>
-          <button id="refreshAll" class="text-xs bg-gray-700/50 px-3 py-1 rounded hover:bg-gray-700">Refresh</button>
+          <div class="flex items-center gap-2">
+            <button id="pinpointReviewerMap" class="text-xs bg-blue-600/50 px-3 py-1 rounded hover:bg-blue-600">Pinpoint Me</button>
+            <button id="refreshAll" class="text-xs bg-gray-700/50 px-3 py-1 rounded hover:bg-gray-700">Refresh</button>
+          </div>
         </div>
         <div id="map" class="h-64 rounded-lg"></div>
         <p id="reviewerLocalRiskStatus" class="text-xs text-gray-400 mt-2">Waiting for location permission...</p>
@@ -188,6 +191,7 @@ const pendingCount = document.getElementById('pendingCount');
 const activeZonesCount = document.getElementById('activeZonesCount');
 const pendingReportsList = document.getElementById('pendingReportsList');
 const zonesList = document.getElementById('zonesList');
+const pinpointReviewerMap = document.getElementById('pinpointReviewerMap');
 const refreshAll = document.getElementById('refreshAll');
 const zoneKeyInput = document.getElementById('zoneKeyInput');
 const increaseZoneBtn = document.getElementById('increaseZoneBtn');
@@ -229,10 +233,19 @@ let reportsChannel = null;
 let zonesChannel = null;
 let contactsChannel = null;
 let watchSessionsChannel = null;
+let zoneNotificationsChannel = null;
 let reloadTimer = null;
 const NIGERIA_BOUNDS = [[4.0, 2.5], [14.8, 15.0]];
 let reviewerLat = null;
 let reviewerLng = null;
+let reviewerAccuracy = null;
+let reviewerLastLocationAt = 0;
+let reviewerNotifyButton = null;
+let reviewerNotifyPanel = null;
+let reviewerNotifyList = null;
+let reviewerNotifyBadge = null;
+let reviewerNotifyCount = 0;
+let reviewerNotifyOpen = false;
 
 function createStableTileLayer(options = {}) {
   const urls = [
@@ -351,11 +364,67 @@ function mapRiskLabel(score) {
   return score >= 4 ? 'High' : score >= 2 ? 'Medium' : 'Low';
 }
 
+function ensureReviewerNotificationCenter() {
+  if (reviewerNotifyButton) return;
+  const mount = document.createElement('div');
+  mount.style.position = 'fixed';
+  mount.style.left = '1rem';
+  mount.style.bottom = '1rem';
+  mount.style.zIndex = '1300';
+  mount.innerHTML = `
+    <button id="reviewerNotifyToggle" class="bg-gray-800 border border-gray-700 text-gray-100 px-3 py-2 rounded-lg text-xs">
+      Zone Alerts <span id="reviewerNotifyBadge" class="bg-red-600 text-white rounded-full px-2 py-[1px] ml-1">0</span>
+    </button>
+    <div id="reviewerNotifyPanel" class="hidden mt-2 bg-gray-800/95 border border-gray-700 rounded-lg p-2" style="width:min(88vw,360px);max-height:42vh;overflow:auto;">
+      <p class="text-xs text-gray-300 mb-2">Live zone notifications</p>
+      <div id="reviewerNotifyList" class="space-y-2"></div>
+    </div>
+  `;
+  document.body.appendChild(mount);
+  reviewerNotifyButton = mount.querySelector('#reviewerNotifyToggle');
+  reviewerNotifyPanel = mount.querySelector('#reviewerNotifyPanel');
+  reviewerNotifyList = mount.querySelector('#reviewerNotifyList');
+  reviewerNotifyBadge = mount.querySelector('#reviewerNotifyBadge');
+  reviewerNotifyButton.addEventListener('click', () => {
+    reviewerNotifyOpen = !reviewerNotifyOpen;
+    reviewerNotifyPanel.classList.toggle('hidden', !reviewerNotifyOpen);
+    if (reviewerNotifyOpen) {
+      reviewerNotifyCount = 0;
+      reviewerNotifyBadge.textContent = '0';
+    }
+  });
+}
+
+function pushReviewerNotification(title, message, tone = 'neutral') {
+  ensureReviewerNotificationCenter();
+  const toneClass =
+    tone === 'high' ? 'border-red-500/50' :
+    tone === 'medium' ? 'border-yellow-500/50' : 'border-blue-500/40';
+  const row = document.createElement('div');
+  row.className = `p-2 rounded border ${toneClass} bg-gray-700/30`;
+  row.innerHTML = `
+    <p class="text-xs font-semibold text-gray-100">${title}</p>
+    <p class="text-xs text-gray-300">${message}</p>
+    <p class="text-[10px] text-gray-500 mt-1">${new Date().toLocaleTimeString()}</p>
+  `;
+  reviewerNotifyList.prepend(row);
+  while (reviewerNotifyList.children.length > 40) reviewerNotifyList.removeChild(reviewerNotifyList.lastChild);
+  if (!reviewerNotifyOpen) {
+    reviewerNotifyCount += 1;
+    reviewerNotifyBadge.textContent = String(reviewerNotifyCount);
+  }
+  if ('Notification' in window && Notification.permission === 'granted') {
+    new Notification(title, { body: message, tag: `${title}-${Date.now()}` });
+  }
+}
+
 async function updateReviewerLocalStatus(lat, lng) {
   try {
     const risk = await computeLocalRisk(lat, lng);
     const label = mapRiskLabel(risk.score);
-    reviewerLocalRiskStatus.textContent = `Your area risk: ${label} (${risk.score}) • ${risk.alerts} alerts • ext ${risk.external}`;
+    const coordsText = Number.isFinite(lat) && Number.isFinite(lng) ? ` • ${lat.toFixed(5)}, ${lng.toFixed(5)}` : '';
+    const accuracyText = Number.isFinite(reviewerAccuracy) ? ` ±${Math.round(reviewerAccuracy)}m` : '';
+    reviewerLocalRiskStatus.textContent = `Your area risk: ${label} (${risk.score}) • ${risk.alerts} alerts • ext ${risk.external}${coordsText}${accuracyText}`;
   } catch (err) {
     reviewerLocalRiskStatus.textContent = 'Unable to compute local risk right now.';
   }
@@ -366,9 +435,14 @@ async function requestReviewerLocationAndCenter() {
     const coords = await getCurrentCoordinates();
     reviewerLat = coords.lat;
     reviewerLng = coords.lng;
+    reviewerAccuracy = coords.accuracy;
     if (!map) initMap();
     reviewerMarker.setLatLng([reviewerLat, reviewerLng]);
-    map.setView([reviewerLat, reviewerLng], 13);
+    const coordsText = `${reviewerLat.toFixed(5)}, ${reviewerLng.toFixed(5)}`;
+    const accuracyText = Number.isFinite(reviewerAccuracy) ? ` ±${Math.round(reviewerAccuracy)}m` : '';
+    reviewerMarker.bindPopup(`Your location<br/><span style="font-size:11px;">${coordsText}${accuracyText}</span>`);
+    map.setView([reviewerLat, reviewerLng], 16);
+    reviewerLastLocationAt = Date.now();
     await updateReviewerLocalStatus(reviewerLat, reviewerLng);
   } catch (err) {
     reviewerLocalRiskStatus.textContent = `Location unavailable: ${err?.message || 'permission denied'}`;
@@ -480,6 +554,40 @@ function subscribeRealtime() {
     .subscribe();
 }
 
+function subscribeZoneNotifications() {
+  zoneNotificationsChannel = supabase
+    .channel('reviewer-zone-notify')
+    .on(
+      'postgres_changes',
+      { event: 'INSERT', schema: 'public', table: 'reports' },
+      payload => {
+        if (!Number.isFinite(reviewerLat) || !Number.isFinite(reviewerLng)) return;
+        const myZone = getZoneKey(reviewerLat, reviewerLng);
+        const zone = getZoneKey(Number(payload.new.lat), Number(payload.new.lng));
+        if (myZone !== zone) return;
+        const sev = payload.new.severity || 'Unknown';
+        pushReviewerNotification(
+          'New Zone Report',
+          `${payload.new.type || 'Incident'} (${sev}) reported in your zone.`,
+          sev === 'High' ? 'high' : sev === 'Medium' ? 'medium' : 'neutral'
+        );
+      }
+    )
+    .on(
+      'postgres_changes',
+      { event: 'UPDATE', schema: 'public', table: 'risk_zones' },
+      payload => {
+        if (!Number.isFinite(reviewerLat) || !Number.isFinite(reviewerLng)) return;
+        const myZone = getZoneKey(reviewerLat, reviewerLng);
+        if (payload.new.zone_key !== myZone) return;
+        const level = Number(payload.new.risk_level || 0);
+        const label = mapRiskLabel(level);
+        pushReviewerNotification('Zone Risk Update', `Risk changed to ${label} (${level}) in your zone.`, label.toLowerCase());
+      }
+    )
+    .subscribe();
+}
+
 function setContactActionStatus(message, tone = 'neutral') {
   const cls = tone === 'success' ? 'text-xs text-green-400 mt-2' : tone === 'error' ? 'text-xs text-red-400 mt-2' : 'text-xs text-gray-300 mt-2';
   reviewerContactActionStatus.className = cls;
@@ -581,10 +689,53 @@ async function getCurrentCoordinates() {
   return new Promise((resolve, reject) => {
     if (!navigator.geolocation) return reject(new Error('Geolocation unavailable'));
     navigator.geolocation.getCurrentPosition(
-      pos => resolve({ lat: pos.coords.latitude, lng: pos.coords.longitude }),
+      pos => resolve({ lat: pos.coords.latitude, lng: pos.coords.longitude, accuracy: pos.coords.accuracy }),
       err => reject(err)
     );
   });
+}
+
+async function pinpointReviewerLocation() {
+  await requestReviewerLocationAndCenter();
+  if (map && reviewerMarker) reviewerMarker.openPopup();
+}
+
+function runReviewerSpamGuard(payload) {
+  const now = Date.now();
+  const raw = localStorage.getItem('sentinel_reviewer_guard_v1');
+  const guard = raw ? JSON.parse(raw) : { lastAt: 0, seen: {} };
+  if (now - Number(guard.lastAt || 0) < 12000) throw new Error('Please wait before sending another report.');
+  const zone = `${Number(payload.lat).toFixed(2)}:${Number(payload.lng).toFixed(2)}`;
+  const sig = `${zone}|${payload.type}|${payload.severity}|${String(payload.description || '').trim().toLowerCase()}`;
+  if (now - Number(guard.seen?.[sig] || 0) < 120000) throw new Error('Duplicate report detected in this zone.');
+  guard.lastAt = now;
+  guard.seen = guard.seen || {};
+  guard.seen[sig] = now;
+  localStorage.setItem('sentinel_reviewer_guard_v1', JSON.stringify(guard));
+}
+
+function queueReviewerReport(payload) {
+  const raw = localStorage.getItem('sentinel_reviewer_queue_v1');
+  const queue = raw ? JSON.parse(raw) : [];
+  queue.push({ payload, queuedAt: new Date().toISOString() });
+  localStorage.setItem('sentinel_reviewer_queue_v1', JSON.stringify(queue.slice(-60)));
+}
+
+async function flushReviewerReportQueue() {
+  const raw = localStorage.getItem('sentinel_reviewer_queue_v1');
+  const queue = raw ? JSON.parse(raw) : [];
+  if (!queue.length) return;
+  const remaining = [];
+  for (const item of queue) {
+    let { error } = await supabase.from('reports').insert(item.payload);
+    if (error) {
+      const legacy = { ...item.payload };
+      delete legacy.report_source;
+      const retry = await supabase.from('reports').insert(legacy);
+      if (retry.error) remaining.push(item);
+    }
+  }
+  localStorage.setItem('sentinel_reviewer_queue_v1', JSON.stringify(remaining));
 }
 
 async function increaseZoneRisk(zoneKey, increment = 1, lat = null, lng = null) {
@@ -724,6 +875,11 @@ resolveZoneBtn.addEventListener('click', async () => {
 });
 
 refreshAll.addEventListener('click', loadData);
+pinpointReviewerMap.addEventListener('click', () => {
+  pinpointReviewerLocation().catch(err => {
+    reviewerLocalRiskStatus.textContent = `Location unavailable: ${err?.message || 'permission denied'}`;
+  });
+});
 
 reviewerReportBtn.addEventListener('click', () => {
   reviewerReportStatus.className = 'text-xs text-gray-300 mb-3 hidden';
@@ -747,6 +903,13 @@ reviewerSubmitReport.addEventListener('click', async () => {
       report_source: 'authenticated',
       status: 'pending'
     };
+    runReviewerSpamGuard(payload);
+    if (!navigator.onLine) {
+      queueReviewerReport(payload);
+      reviewerReportStatus.className = 'text-xs text-yellow-400 mb-3';
+      reviewerReportStatus.textContent = 'Offline detected. Report queued for automatic delivery.';
+      return;
+    }
     let { error } = await supabase.from('reports').insert(payload);
     if (error) {
       const rawMessage = String(error?.message || '').toLowerCase();
@@ -857,18 +1020,35 @@ reviewerCopyWatchLinkBtn.addEventListener('click', async () => {
 
 (async () => {
   feather.replace();
+  ensureReviewerNotificationCenter();
+  if ('Notification' in window && Notification.permission === 'default') {
+    try { await Notification.requestPermission(); } catch {}
+  }
   const allowed = await requireReviewer();
   if (!allowed) return;
   await loadData();
   await requestReviewerLocationAndCenter();
   subscribeRealtime();
+  subscribeZoneNotifications();
   subscribeSocialRealtime();
+  await flushReviewerReportQueue();
+  window.addEventListener('online', () => {
+    flushReviewerReportQueue().catch(() => {});
+  });
+  setInterval(() => {
+    if (!reviewerLastLocationAt) return;
+    const age = Date.now() - reviewerLastLocationAt;
+    if (age > 90000) {
+      reviewerLocalRiskStatus.textContent = `Location stale (${Math.round(age / 1000)}s since update). Tap Pinpoint Me.`;
+    }
+  }, 15000);
 })();
 
 window.addEventListener('beforeunload', () => {
   if (reloadTimer) window.clearTimeout(reloadTimer);
   if (reportsChannel) supabase.removeChannel(reportsChannel);
   if (zonesChannel) supabase.removeChannel(zonesChannel);
+  if (zoneNotificationsChannel) supabase.removeChannel(zoneNotificationsChannel);
   if (contactsChannel) supabase.removeChannel(contactsChannel);
   if (watchSessionsChannel) supabase.removeChannel(watchSessionsChannel);
 });
