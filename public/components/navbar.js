@@ -2,6 +2,7 @@ class CustomNavbar extends HTMLElement {
   async connectedCallback() {
     const path = window.location.pathname.toLowerCase();
     const authState = await this.getAuthState();
+    const planLabel = await this.getPlanLabel(authState);
     const authLink = authState.isSignedIn
       ? {
           href: "#",
@@ -36,6 +37,18 @@ class CustomNavbar extends HTMLElement {
         match: ["risk-log.html"],
         icon: `<svg width="18" height="18" viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M8 7h12M8 12h12M8 17h12M4 7h.01M4 12h.01M4 17h.01" stroke="currentColor" stroke-width="1.9" stroke-linecap="round"/></svg>`
       },
+      {
+        href: "./sub.html",
+        label: "Plans",
+        match: ["sub.html", "org-contact.html", "success.html"],
+        icon: `<svg width="18" height="18" viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M4 7h16M4 12h16M4 17h10" stroke="currentColor" stroke-width="1.9" stroke-linecap="round"/></svg>`
+      },
+      ...(planLabel ? [{
+        href: "./sub.html",
+        label: planLabel,
+        match: ["sub.html", "org-contact.html", "success.html"],
+        icon: `<svg width="18" height="18" viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M12 3l3 6 6 .9-4.3 4.2 1 6-5.7-3-5.7 3 1-6L3 9.9 9 9l3-6z" stroke="currentColor" stroke-width="1.9" stroke-linejoin="round"/></svg>`
+      }] : []),
       {
         ...authLink
       }
@@ -173,6 +186,25 @@ class CustomNavbar extends HTMLElement {
       sessionStorage.removeItem("userEmail");
       localStorage.removeItem("userEmail");
       window.location.href = "./login.html";
+    }
+  }
+
+  async getPlanLabel(authState) {
+    if (!authState?.isSignedIn) return null;
+    const contextKey = "authUserContext";
+    const storedContext = sessionStorage.getItem(contextKey) || localStorage.getItem(contextKey);
+    const user = storedContext ? JSON.parse(storedContext) : null;
+    if (!user?.id) return null;
+    try {
+      const response = await fetch(`/api/subscriptions/user/${user.id}`);
+      const data = await response.json();
+      if (!response.ok || !data?.plan || data.status !== "success") return null;
+      if (data.plan === "individual") return "Individual";
+      if (data.plan === "family") return "Family";
+      if (data.plan === "organization") return "Organization";
+      return null;
+    } catch (_) {
+      return null;
     }
   }
 }

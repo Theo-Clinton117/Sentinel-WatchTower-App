@@ -74,6 +74,11 @@
               <p id="dashboardRisk" class="font-medium">-</p>
             </div>
             <div>
+              <p class="text-xs text-gray-400">Subscription</p>
+              <p id="dashboardPlan" class="font-medium">Free</p>
+              <p id="dashboardPlanMeta" class="text-xs text-gray-500">No active paid plan</p>
+            </div>
+            <div>
               <p class="text-xs text-gray-400">Alerts Today</p>
               <p id="dashboardAlertsCount" class="font-medium">0</p>
             </div>
@@ -257,6 +262,8 @@ document.addEventListener('DOMContentLoaded', async () => {
   const dashboardAlertsCount = document.getElementById('dashboardAlertsCount');
   const dashboardUserName = document.getElementById('dashboardUserName');
   const dashboardUserId = document.getElementById('dashboardUserId');
+  const dashboardPlan = document.getElementById('dashboardPlan');
+  const dashboardPlanMeta = document.getElementById('dashboardPlanMeta');
   const userStatus = document.getElementById('userStatus');
   const alertsContainer = document.querySelector('.alerts-list');
   const nearbyVerificationList = document.getElementById('nearbyVerificationList');
@@ -1195,6 +1202,25 @@ document.addEventListener('DOMContentLoaded', async () => {
     updateAlertsList();
   }
 
+  async function loadSubscriptionStatus() {
+    if (!currentUser?.id) return;
+    try {
+      const response = await fetch(`/api/subscriptions/user/${currentUser.id}`);
+      const data = await response.json();
+      if (!response.ok || !data?.plan) return;
+      const label = data.plan === 'individual' ? 'Individual'
+        : data.plan === 'family' ? 'Family'
+          : data.plan === 'organization' ? 'Organization'
+            : 'Free';
+      dashboardPlan.textContent = label;
+      dashboardPlanMeta.textContent = data.status === 'success'
+        ? `Active • ₦${Number(data.amount || 0).toLocaleString()}/month`
+        : 'Payment pending';
+    } catch (err) {
+      console.warn('Subscription status lookup failed', err);
+    }
+  }
+
   function subscribeToReports() {
     reportsChannel = supabase
       .channel('reports-live')
@@ -1591,6 +1617,7 @@ document.addEventListener('DOMContentLoaded', async () => {
   await enableBrowserNotifications();
   await flushQueuedReports();
   await Promise.all([loadReports(), loadAlerts()]);
+  await loadSubscriptionStatus();
   subscribeToReports();
   subscribeToNearbyReports();
   subscribeToRiskZones();
