@@ -1,7 +1,17 @@
-const SUPABASE_URL = "https://bjmliqvtjjntkgxpwwkp.supabase.co";
-const SUPABASE_ANON_KEY = "sb_publishable_P3c1Q3lJqNyGYobS5wy-EA_xKDOetei";
+import "react-native-gesture-handler";
+import React from "react";
+import { NavigationContainer } from "@react-navigation/native";
+import { SafeAreaProvider } from "react-native-safe-area-context";
+import { StatusBar } from "expo-status-bar";
+import { AppNavigator } from "./src/navigation/AppNavigator";
 
-const supabase = window.supabase.createClient(
-  SUPABASE_URL,
-  SUPABASE_ANON_KEY
-);
+export default function App() {
+  return (
+    <SafeAreaProvider>
+      <NavigationContainer>
+        <StatusBar style="light" />
+        <AppNavigator />
+      </NavigationContainer>
+    </SafeAreaProvider>
+  );
+}

@@ -7,5 +7,10 @@ yarn-debug.log*
 yarn-error.log*
 dist/
 build/
+.expo/
+.expo-shared/
+.gradle/
+android/
+ios/
 .DS_Store
 Thumbs.db
