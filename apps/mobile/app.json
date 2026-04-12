@@ -1,0 +1,29 @@
+{
+  "expo": {
+    "name": "Sentinel-Watchtower",
+    "slug": "sentinel-watchtower",
+    "scheme": "sentinel",
+    "version": "0.1.0",
+    "orientation": "portrait",
+    "splash": {
+      "backgroundColor": "#07101F"
+    },
+    "platforms": [
+      "ios",
+      "android"
+    ],
+    "plugins": [
+      [
+        "expo-location",
+        {
+          "locationAlwaysAndWhenInUsePermission": "Allow Sentinel to access your location for emergency tracking.",
+          "locationAlwaysPermission": "Allow Sentinel to access your location in the background for emergency tracking."
+        }
+      ],
+      "expo-secure-store"
+    ],
+    "android": {
+      "package": "com.sentinel.watchtower"
+    }
+  }
+}
