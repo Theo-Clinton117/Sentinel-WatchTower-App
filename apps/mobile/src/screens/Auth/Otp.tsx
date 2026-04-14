@@ -4,18 +4,32 @@ import {
   KeyboardAvoidingView,
   Platform,
   Pressable,
+  ScrollView,
   StyleSheet,
   Text,
   TextInput,
   View,
 } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
-import { AuthArtPanel } from '../../components/AuthArtPanel';
 import { MotionView } from '../../components/MotionView';
-import { useAppStore } from '../../store/useAppStore';
 import { ApiError } from '../../services/api';
 import { isOtpValid, requestOtp, verifyOtp } from '../../services/auth';
+import { useAppStore } from '../../store/useAppStore';
 import { useAppTheme } from '../../theme';
+
+const maskEmail = (email: string) => {
+  const [localPart = '', domain = ''] = email.split('@');
+
+  if (!localPart || !domain) {
+    return email;
+  }
+
+  if (localPart.length <= 2) {
+    return `${localPart[0] || ''}***@${domain}`;
+  }
+
+  return `${localPart.slice(0, 2)}***${localPart.slice(-1)}@${domain}`;
+};
 
 export const OtpScreen = () => {
   const theme = useAppTheme();
@@ -25,7 +39,9 @@ export const OtpScreen = () => {
     onboardingComplete,
     otpDevCode,
     otpRequestedAt,
-    pendingPhone,
+    pendingEmail,
+    pendingName,
+    authFlow,
     markOtpRequested,
     resetNavigation,
     setAuthSession,
@@ -52,17 +68,11 @@ export const OtpScreen = () => {
     return () => clearInterval(timer);
   }, [otpRequestedAt]);
 
-  const maskedPhone = useMemo(() => {
-    if (!pendingPhone) {
-      return '';
-    }
-
-    return `${pendingPhone.slice(0, 4)} ${pendingPhone.slice(4, 7)} ${pendingPhone.slice(7)}`;
-  }, [pendingPhone]);
+  const maskedEmail = useMemo(() => maskEmail(pendingEmail), [pendingEmail]);
 
   const handleVerify = async () => {
-    if (!pendingPhone) {
-      setError('Start with your phone number first.');
+    if (!pendingEmail) {
+      setError('Start with your email address first.');
       return;
     }
 
@@ -74,7 +84,15 @@ export const OtpScreen = () => {
     try {
       setLoading(true);
       setError('');
-      const result = await verifyOtp(pendingPhone, code.trim(), deviceId);
+      const result = await verifyOtp(
+        {
+          email: pendingEmail,
+          name: authFlow === 'signup' ? pendingName : undefined,
+          mode: authFlow,
+          code: code.trim(),
+        },
+        deviceId,
+      );
       setAuthSession({
         accessToken: result.accessToken,
         refreshToken: result.refreshToken,
@@ -93,14 +111,21 @@ export const OtpScreen = () => {
   };
 
   const handleResend = async () => {
-    if (!pendingPhone || remainingSeconds > 0) {
+    if (!pendingEmail || remainingSeconds > 0) {
       return;
     }
 
     try {
       setResending(true);
       setError('');
-      const result = await requestOtp(pendingPhone, deviceId);
+      const result = await requestOtp(
+        {
+          email: pendingEmail,
+          name: authFlow === 'signup' ? pendingName : undefined,
+          mode: authFlow,
+        },
+        deviceId,
+      );
       markOtpRequested({
         requestedAt: Date.now(),
         devCode: result.devCode,
@@ -119,154 +144,208 @@ export const OtpScreen = () => {
   return (
     <KeyboardAvoidingView
       style={styles.container}
-      behavior={Platform.OS === 'ios' ? 'padding' : undefined}
+      behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
     >
-      <MotionView delay={20}>
-        <AuthArtPanel
-          eyebrow="Verification"
-          title="Confirm it’s really you."
-          caption="One final code keeps the WatchTower session personal, private, and ready for emergencies."
-          chipA="ONE-TIME CODE"
-          chipB="TRUSTED DEVICE"
-        />
-      </MotionView>
-      <MotionView delay={60} style={[styles.cardWrap, theme.shadow.card]}>
-      <LinearGradient colors={theme.gradients.card} style={styles.card}>
-        <Text style={styles.eyebrow}>Verify Number</Text>
-        <Text style={styles.title}>Enter OTP</Text>
-        <Text style={styles.subtitle}>
-          {pendingPhone
-            ? `We sent a one-time code to ${maskedPhone}.`
-            : 'Go back and enter your phone number to continue.'}
-        </Text>
-
-        <TextInput
-          keyboardType="number-pad"
-          placeholder="123456"
-          placeholderTextColor={theme.colors.muted}
-          style={styles.input}
-          value={code}
-          onChangeText={(value) => {
-            setCode(value.replace(/[^\d]/g, ''));
-            if (error) {
-              setError('');
-            }
-          }}
-          maxLength={8}
-        />
-
-        {otpDevCode ? <Text style={styles.devHint}>Dev code: {otpDevCode}</Text> : null}
-        {error ? <Text style={styles.error}>{error}</Text> : null}
-
-        <Pressable
-          style={[styles.button, loading && styles.buttonDisabled]}
-          onPress={handleVerify}
-          disabled={loading}
-        >
-          {loading ? <ActivityIndicator color={theme.colors.text} /> : <Text style={styles.buttonText}>Verify</Text>}
-        </Pressable>
-
-        <Pressable
-          style={styles.secondary}
-          onPress={handleResend}
-          disabled={resending || remainingSeconds > 0}
-        >
-          <Text style={styles.secondaryText}>
-            {resending
-              ? 'Sending...'
-              : remainingSeconds > 0
-                ? `Resend in ${remainingSeconds}s`
-                : 'Resend code'}
+      <ScrollView
+        style={styles.scroll}
+        contentContainerStyle={styles.content}
+        keyboardShouldPersistTaps="handled"
+        showsVerticalScrollIndicator={false}
+      >
+        <MotionView delay={20} style={styles.heroBlock}>
+          <Text style={styles.eyebrow}>
+            {authFlow === 'signup' ? 'Complete Sign Up' : 'Complete Log In'}
           </Text>
-        </Pressable>
-      </LinearGradient>
-      </MotionView>
+          <Text style={styles.title}>Enter your code</Text>
+          <Text style={styles.subtitle}>
+            {pendingEmail
+              ? `We sent a verification code to ${maskedEmail}.`
+              : 'Go back and enter your email address to continue.'}
+          </Text>
+        </MotionView>
+
+        <MotionView delay={60} style={[styles.cardWrap, theme.shadow.card]}>
+          <LinearGradient colors={theme.gradients.card} style={styles.card}>
+            <View style={styles.badgeRow}>
+              <View style={styles.badge}>
+                <Text style={styles.badgeText}>4 to 8 digits</Text>
+              </View>
+            </View>
+
+            <View style={styles.fieldBlock}>
+              <Text style={styles.label}>Verification code</Text>
+              <TextInput
+                keyboardType="number-pad"
+                placeholder="123456"
+                placeholderTextColor={theme.colors.muted}
+                style={styles.input}
+                value={code}
+                onChangeText={(value) => {
+                  setCode(value.replace(/[^\d]/g, ''));
+                  if (error) {
+                    setError('');
+                  }
+                }}
+                maxLength={8}
+              />
+            </View>
+
+            {otpDevCode ? <Text style={styles.devHint}>Dev code: {otpDevCode}</Text> : null}
+            {error ? <Text style={styles.error}>{error}</Text> : null}
+
+            <Pressable
+              style={[styles.button, loading && styles.buttonDisabled]}
+              onPress={handleVerify}
+              disabled={loading}
+            >
+              {loading ? (
+                <ActivityIndicator color={theme.colors.text} />
+              ) : (
+                <Text style={styles.buttonText}>Verify and continue</Text>
+              )}
+            </Pressable>
+
+            <Pressable
+              style={styles.secondary}
+              onPress={handleResend}
+              disabled={resending || remainingSeconds > 0}
+            >
+              <Text style={styles.secondaryText}>
+                {resending
+                  ? 'Sending...'
+                  : remainingSeconds > 0
+                    ? `Resend in ${remainingSeconds}s`
+                    : 'Resend code'}
+              </Text>
+            </Pressable>
+          </LinearGradient>
+        </MotionView>
+      </ScrollView>
     </KeyboardAvoidingView>
   );
 };
 
-const createStyles = (theme: ReturnType<typeof useAppTheme>) => StyleSheet.create({
-  container: {
-    flex: 1,
-    padding: 20,
-    backgroundColor: 'transparent',
-    justifyContent: 'center',
-  },
-  cardWrap: {
-    borderRadius: 28,
-    overflow: 'hidden',
-  },
-  card: {
-    borderRadius: 28,
-    padding: 22,
-    borderWidth: 1,
-    borderColor: theme.colors.border,
-  },
-  eyebrow: {
-    color: theme.colors.blueGlow,
-    fontSize: 12,
-    fontWeight: '700',
-    letterSpacing: 1,
-    textTransform: 'uppercase',
-    marginBottom: 10,
-  },
-  title: {
-    color: theme.colors.text,
-    fontSize: 28,
-    fontWeight: '800',
-  },
-  subtitle: {
-    color: theme.colors.muted,
-    lineHeight: 20,
-    marginTop: 10,
-    marginBottom: 18,
-  },
-  input: {
-    borderWidth: 1,
-    borderColor: theme.colors.border,
-    borderRadius: 16,
-    paddingHorizontal: 14,
-    paddingVertical: 14,
-    color: theme.colors.text,
-    fontSize: 22,
-    letterSpacing: 8,
-    textAlign: 'center',
-    backgroundColor: theme.colors.backgroundElevated,
-  },
-  devHint: {
-    marginTop: 12,
-    color: theme.colors.blueGlow,
-    fontSize: 13,
-  },
-  error: {
-    marginTop: 12,
-    color: theme.colors.red,
-    lineHeight: 19,
-  },
-  button: {
-    backgroundColor: theme.colors.blue,
-    padding: 14,
-    borderRadius: 16,
-    alignItems: 'center',
-    minHeight: 52,
-    justifyContent: 'center',
-    marginTop: 16,
-    ...theme.shadow.glow,
-  },
-  buttonDisabled: {
-    opacity: 0.7,
-  },
-  secondary: {
-    paddingVertical: 14,
-    alignItems: 'center',
-  },
-  buttonText: {
-    color: theme.colors.text,
-    fontWeight: '600',
-    fontSize: 15,
-  },
-  secondaryText: {
-    color: theme.colors.muted,
-    fontWeight: '600',
-  },
-});
+const createStyles = (theme: ReturnType<typeof useAppTheme>) =>
+  StyleSheet.create({
+    container: {
+      flex: 1,
+      backgroundColor: 'transparent',
+    },
+    scroll: {
+      flex: 1,
+    },
+    content: {
+      flexGrow: 1,
+      justifyContent: 'center',
+      paddingHorizontal: 20,
+      paddingTop: 40,
+      paddingBottom: 32,
+    },
+    heroBlock: {
+      marginBottom: 18,
+    },
+    cardWrap: {
+      borderRadius: 28,
+      overflow: 'hidden',
+    },
+    card: {
+      borderRadius: 28,
+      padding: 22,
+      borderWidth: 1,
+      borderColor: theme.colors.border,
+    },
+    badgeRow: {
+      marginBottom: 16,
+    },
+    badge: {
+      alignSelf: 'flex-start',
+      paddingHorizontal: 12,
+      paddingVertical: 7,
+      borderRadius: 999,
+      backgroundColor: theme.colors.blueSoft,
+      borderWidth: 1,
+      borderColor: theme.colors.borderStrong,
+    },
+    badgeText: {
+      color: theme.colors.text,
+      fontSize: 12,
+      fontWeight: '700',
+    },
+    eyebrow: {
+      color: theme.colors.blueGlow,
+      fontSize: 12,
+      fontWeight: '700',
+      letterSpacing: 1,
+      textTransform: 'uppercase',
+      marginBottom: 10,
+    },
+    title: {
+      color: theme.colors.text,
+      fontSize: 28,
+      fontWeight: '800',
+    },
+    subtitle: {
+      color: theme.colors.muted,
+      lineHeight: 20,
+      marginTop: 10,
+      marginBottom: 4,
+      maxWidth: 420,
+    },
+    fieldBlock: {
+      marginTop: 2,
+    },
+    label: {
+      color: theme.colors.text,
+      fontSize: 14,
+      fontWeight: '700',
+      marginBottom: 8,
+    },
+    input: {
+      borderWidth: 1,
+      borderColor: theme.colors.border,
+      borderRadius: 16,
+      paddingHorizontal: 14,
+      paddingVertical: 14,
+      color: theme.colors.text,
+      fontSize: 22,
+      letterSpacing: 8,
+      textAlign: 'center',
+      backgroundColor: theme.colors.backgroundElevated,
+    },
+    devHint: {
+      marginTop: 12,
+      color: theme.colors.muted,
+      fontSize: 12,
+    },
+    error: {
+      marginTop: 12,
+      color: theme.colors.red,
+      lineHeight: 19,
+    },
+    button: {
+      backgroundColor: theme.colors.blue,
+      padding: 14,
+      borderRadius: 16,
+      alignItems: 'center',
+      minHeight: 52,
+      justifyContent: 'center',
+      marginTop: 16,
+      ...theme.shadow.glow,
+    },
+    buttonDisabled: {
+      opacity: 0.7,
+    },
+    secondary: {
+      paddingTop: 16,
+      alignItems: 'center',
+    },
+    buttonText: {
+      color: theme.colors.text,
+      fontWeight: '600',
+      fontSize: 15,
+    },
+    secondaryText: {
+      color: theme.colors.muted,
+      fontWeight: '600',
+    },
+  });

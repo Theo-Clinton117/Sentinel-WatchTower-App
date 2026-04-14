@@ -32,7 +32,11 @@ Base URL: `/api`
 
 ## Alerts & Sessions
 - `POST /alerts` (rate limit: 5/hour)
+  - Supports `triggerSource`, `stage`, `riskScore`, `riskSnapshot`, `detectionSummary`, and `cancelWindowSeconds`.
+  - Stage tiers: `monitoring`, `suspicious`, `soft_alert`, `high_alert`, `critical`
 - `POST /alerts/:id/cancel`
+- `POST /alerts/:id/escalate`
+  - Supports `stage`, `riskScore`, `riskSnapshot`, and `detectionSummary`.
 - `GET /sessions/active`
 - `GET /sessions/:id`
 - `POST /sessions/:id/close`

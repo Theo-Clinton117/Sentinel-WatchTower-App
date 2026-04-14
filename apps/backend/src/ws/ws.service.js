@@ -15,8 +15,12 @@ let WsService = class WsService {
     emitSessionLocation(sessionId, locations) {
         this.server?.to(sessionId).emit('location:update', { sessionId, locations });
     }
-    emitSessionStatus(sessionId, status) {
-        this.server?.to(sessionId).emit('session:status', { sessionId, status });
+    emitSessionStatus(sessionId, status, stage) {
+        this.server?.to(sessionId).emit('session:status', {
+            sessionId,
+            status,
+            stage: stage || status,
+        });
     }
 };
 exports.WsService = WsService;

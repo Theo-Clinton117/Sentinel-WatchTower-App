@@ -22,6 +22,12 @@ type ThemePalette = {
   overlay: string;
 };
 
+type GradientColors = readonly [string, string, ...string[]];
+
+function gradient(...colors: GradientColors): GradientColors {
+  return colors;
+}
+
 const palettes: Record<ThemeMode, ThemePalette> = {
   light: {
     background: '#F4F8FF',
@@ -79,24 +85,24 @@ export function buildTheme(mode: ThemeMode) {
     gradients: {
       appBackground:
         mode === 'dark'
-          ? ['#07101F', '#0A1730', '#050914']
-          : ['#F8FBFF', '#E8F1FF', '#DCE9FF'],
+          ? gradient('#07101F', '#0A1730', '#050914')
+          : gradient('#F8FBFF', '#E8F1FF', '#DCE9FF'),
       hero:
         mode === 'dark'
-          ? ['rgba(38,94,255,0.25)', 'rgba(18,38,74,0.65)']
-          : ['rgba(105,162,255,0.22)', 'rgba(255,255,255,0.95)'],
+          ? gradient('rgba(38,94,255,0.25)', 'rgba(18,38,74,0.65)')
+          : gradient('rgba(105,162,255,0.22)', 'rgba(255,255,255,0.95)'),
       card:
         mode === 'dark'
-          ? ['rgba(18,35,69,0.95)', 'rgba(10,19,37,0.85)']
-          : ['rgba(255,255,255,0.98)', 'rgba(238,245,255,0.88)'],
+          ? gradient('rgba(18,35,69,0.95)', 'rgba(10,19,37,0.85)')
+          : gradient('rgba(255,255,255,0.98)', 'rgba(238,245,255,0.88)'),
       primary:
         mode === 'dark'
-          ? ['#3175FF', '#1649C8']
-          : ['#3F84FF', '#1E63FF'],
+          ? gradient('#3175FF', '#1649C8')
+          : gradient('#3F84FF', '#1E63FF'),
       emergency:
         mode === 'dark'
-          ? ['#2A0D1A', '#120714']
-          : ['#FFF2F5', '#FFD7E1'],
+          ? gradient('#2A0D1A', '#120714')
+          : gradient('#FFF2F5', '#FFD7E1'),
     },
     radii: {
       xl: 28,

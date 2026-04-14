@@ -8,7 +8,7 @@ let socket: Socket | null = null;
 type SessionSocketHandlers = {
   onConnected?: () => void;
   onLocationUpdate?: (locations: EmergencyLocation[]) => void;
-  onStatus?: (status: string) => void;
+  onStatus?: (payload: { status: string; stage?: string }) => void;
 };
 
 export const connectSessionSocket = (sessionId: string, handlers: SessionSocketHandlers = {}) => {
@@ -25,9 +25,9 @@ export const connectSessionSocket = (sessionId: string, handlers: SessionSocketH
       handlers.onLocationUpdate?.(payload.locations || []);
     }
   });
-  socket.on('session:status', (payload: { sessionId: string; status: string }) => {
+  socket.on('session:status', (payload: { sessionId: string; status: string; stage?: string }) => {
     if (payload?.sessionId === sessionId && payload?.status) {
-      handlers.onStatus?.(payload.status);
+      handlers.onStatus?.({ status: payload.status, stage: payload.stage });
     }
   });
   socket.emit('join', { sessionId });

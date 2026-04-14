@@ -24,6 +24,9 @@ let AlertsController = class AlertsController {
     create(req, body) {
         return this.alertsService.create(req.user.sub, body);
     }
+    escalate(req, id, body) {
+        return this.alertsService.escalate(req.user.sub, id, body);
+    }
     cancel(req, id) {
         return this.alertsService.cancel(req.user.sub, id);
     }
@@ -38,6 +41,15 @@ __decorate([
     __metadata("design:paramtypes", [Object, Object]),
     __metadata("design:returntype", void 0)
 ], AlertsController.prototype, "create", null);
+__decorate([
+    (0, common_1.Post)(':id/escalate'),
+    __param(0, (0, common_1.Req)()),
+    __param(1, (0, common_1.Param)('id')),
+    __param(2, (0, common_1.Body)()),
+    __metadata("design:type", Function),
+    __metadata("design:paramtypes", [Object, String, Object]),
+    __metadata("design:returntype", void 0)
+], AlertsController.prototype, "escalate", null);
 __decorate([
     (0, common_1.Post)(':id/cancel'),
     __param(0, (0, common_1.Req)()),

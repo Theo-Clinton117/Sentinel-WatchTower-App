@@ -100,7 +100,7 @@ export const ProfileScreen = () => {
 
       <MotionView delay={110} style={[styles.heroCard, theme.shadow.card]}>
         <Text style={styles.heroLabel}>Signed in as</Text>
-        <Text style={styles.heroName}>{user?.name || user?.phone || 'Unknown user'}</Text>
+        <Text style={styles.heroName}>{user?.name || user?.email || user?.phone || 'Unknown user'}</Text>
         {user?.email ? <Text style={styles.heroMeta}>{user.email}</Text> : null}
         <View style={styles.roleRow}>
           {roles.map((role) => (

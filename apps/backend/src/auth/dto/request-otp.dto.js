@@ -15,10 +15,19 @@ class RequestOtpDto {
 }
 exports.RequestOtpDto = RequestOtpDto;
 __decorate([
-    (0, class_validator_1.IsString)(),
+    (0, class_validator_1.IsEmail)(),
     (0, class_validator_1.IsNotEmpty)(),
     __metadata("design:type", String)
-], RequestOtpDto.prototype, "phone", void 0);
+], RequestOtpDto.prototype, "email", void 0);
+__decorate([
+    (0, class_validator_1.IsString)(),
+    (0, class_validator_1.IsOptional)(),
+    __metadata("design:type", String)
+], RequestOtpDto.prototype, "name", void 0);
+__decorate([
+    (0, class_validator_1.IsIn)(['login', 'signup']),
+    __metadata("design:type", String)
+], RequestOtpDto.prototype, "mode", void 0);
 __decorate([
     (0, class_validator_1.IsString)(),
     (0, class_validator_1.IsNotEmpty)(),
@@ -26,6 +35,7 @@ __decorate([
 ], RequestOtpDto.prototype, "deviceId", void 0);
 __decorate([
     (0, class_validator_1.IsString)(),
+    (0, class_validator_1.IsOptional)(),
     __metadata("design:type", String)
 ], RequestOtpDto.prototype, "platform", void 0);
 //# sourceMappingURL=request-otp.dto.js.map

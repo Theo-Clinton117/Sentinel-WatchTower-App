@@ -1,9 +1,11 @@
 import { Platform } from 'react-native';
 import { apiPost } from './api';
 
+export type AuthFlow = 'login' | 'signup';
+
 export type AuthUser = {
   id: string;
-  phone: string;
+  phone?: string | null;
   name?: string | null;
   email?: string | null;
   status?: string | null;
@@ -42,7 +44,8 @@ export type AuthUser = {
 
 type RequestOtpResponse = {
   success: boolean;
-  phone: string;
+  email: string;
+  mode: AuthFlow;
   devCode?: string;
 };
 
@@ -55,38 +58,50 @@ type VerifyOtpResponse = {
 
 const defaultDeviceId = `expo-${Platform.OS}-sentinel`;
 
-export function normalizePhoneInput(value: string) {
-  const trimmed = value.trim();
-  const hasPlus = trimmed.startsWith('+');
-  const digits = trimmed.replace(/[^\d]/g, '');
-
-  if (!digits) {
-    return '';
-  }
-
-  return `${hasPlus ? '+' : '+'}${digits}`;
+export function normalizeEmailInput(value: string) {
+  return value.trim().toLowerCase();
 }
 
-export function isPhoneValid(value: string) {
-  return /^\+[1-9]\d{9,14}$/.test(value);
+export function isEmailValid(value: string) {
+  return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(normalizeEmailInput(value));
 }
 
 export function isOtpValid(value: string) {
   return /^\d{4,8}$/.test(value.trim());
 }
 
-export async function requestOtp(phone: string, deviceId = defaultDeviceId) {
+type RequestOtpPayload = {
+  email: string;
+  name?: string;
+  mode: AuthFlow;
+};
+
+type VerifyOtpPayload = RequestOtpPayload & {
+  code: string;
+};
+
+export async function requestOtp(
+  payload: RequestOtpPayload,
+  deviceId = defaultDeviceId,
+) {
   return apiPost<RequestOtpResponse>('/auth/otp/request', {
-    phone,
+    email: normalizeEmailInput(payload.email),
+    name: payload.name?.trim() || undefined,
+    mode: payload.mode,
     deviceId,
     platform: Platform.OS,
   });
 }
 
-export async function verifyOtp(phone: string, code: string, deviceId = defaultDeviceId) {
+export async function verifyOtp(
+  payload: VerifyOtpPayload,
+  deviceId = defaultDeviceId,
+) {
   return apiPost<VerifyOtpResponse>('/auth/otp/verify', {
-    phone,
-    code,
+    email: normalizeEmailInput(payload.email),
+    name: payload.name?.trim() || undefined,
+    mode: payload.mode,
+    code: payload.code,
     deviceId,
   });
 }

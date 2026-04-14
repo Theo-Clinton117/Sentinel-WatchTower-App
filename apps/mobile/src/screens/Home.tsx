@@ -17,11 +17,14 @@ import {
 } from '../constants/rapid-alerts';
 import { ApiError } from '../services/api';
 import { createAlert } from '../services/alerts';
+import { evaluateGuardianRisk } from '../services/guardian';
+import { getAppPermissionSnapshot } from '../services/permissions';
 import {
   flushQueuedRapidReports,
   getQueuedRapidReportCount,
   queueRapidReport,
 } from '../services/report-queue';
+import { listRiskZones } from '../services/risk-zones';
 import { createRapidReport } from '../services/reports';
 import { getCurrentLocation } from '../services/location';
 import { getActiveSession } from '../services/sessions';
@@ -48,6 +51,10 @@ export const HomeScreen = () => {
   const [rapidStatus, setRapidStatus] = useState('');
   const [queuedReportsCount, setQueuedReportsCount] = useState(0);
   const [selectedTag, setSelectedTag] = useState<RapidAlertTag>(DEFAULT_RAPID_ALERT_TAG);
+  const [guardianLoading, setGuardianLoading] = useState(false);
+  const [guardianStage, setGuardianStage] = useState<'safe' | 'armed' | 'verifying'>('safe');
+  const [guardianStatus, setGuardianStatus] = useState('Guardian is ready to score route risk quietly in the background.');
+  const [guardianScore, setGuardianScore] = useState<number | null>(null);
 
   useEffect(() => {
     let active = true;
@@ -124,6 +131,93 @@ export const HomeScreen = () => {
     };
   }, [authStatus]);
 
+  useEffect(() => {
+    let active = true;
+
+    const runGuardianCheck = async () => {
+      if (authStatus !== 'authenticated' || activeSession || sessionStatus === 'active' || sessionStatus === 'soft_alert') {
+        return;
+      }
+
+      try {
+        setGuardianLoading(true);
+        const permissions = await getAppPermissionSnapshot();
+        if (!permissions.foregroundLocation.granted) {
+          if (active) {
+            setGuardianStage('safe');
+            setGuardianScore(null);
+            setGuardianStatus('Enable location permission so Guardian can score your route and arm passive checks.');
+          }
+          return;
+        }
+
+        const [riskZones, location] = await Promise.all([listRiskZones(), getCurrentLocation()]);
+        const assessment = evaluateGuardianRisk(location, riskZones, activeWatchSession);
+
+        if (!active) {
+          return;
+        }
+
+        setGuardianScore(assessment.riskScore);
+
+        if (assessment.stage === 'soft_alert') {
+          const alert = await createAlert({
+            triggerSource: 'passive_detection',
+            stage: 'soft_alert',
+            riskScore: assessment.riskScore,
+            riskSnapshot: assessment.snapshot,
+            detectionSummary: assessment.summary,
+            cancelWindowSeconds: 10,
+          });
+
+          if (!active) {
+            return;
+          }
+
+          setGuardianStage('verifying');
+          setGuardianStatus('Guardian opened a silent verification window because your context crossed the passive risk threshold.');
+          setActiveSession({
+            alertId: alert.alertId,
+            sessionId: alert.sessionId,
+            status: alert.status,
+            triggerSource: alert.triggerSource,
+            startedAt: alert.startedAt || new Date().toISOString(),
+            alertStage: alert.alertStage,
+            escalationLevel: alert.escalationLevel,
+            alertStatus: alert.alertStatus,
+            riskScore: alert.riskScore ?? assessment.riskScore,
+            cancelExpiresAt: alert.cancelExpiresAt,
+            riskSnapshot: alert.riskSnapshot ?? assessment.snapshot,
+            detectionSummary: alert.detectionSummary ?? assessment.summary,
+          });
+          return;
+        }
+
+        setGuardianStage(assessment.stage === 'suspicious' ? 'armed' : 'safe');
+        setGuardianStatus(
+          assessment.stage === 'suspicious'
+            ? `Guardian is armed. Current passive score is ${assessment.riskScore}/100 and will escalate if stronger signals appear.`
+            : 'Guardian sees a low-risk context right now and is staying passive.',
+        );
+      } catch {
+        if (active) {
+          setGuardianStage('safe');
+          setGuardianStatus('Guardian could not finish its passive check right now, but the panic path and rapid reports are still available.');
+        }
+      } finally {
+        if (active) {
+          setGuardianLoading(false);
+        }
+      }
+    };
+
+    void runGuardianCheck();
+
+    return () => {
+      active = false;
+    };
+  }, [activeSession, activeWatchSession, authStatus, sessionStatus, setActiveSession]);
+
   const handleStartEmergency = async () => {
     try {
       setLoading(true);
@@ -134,7 +228,14 @@ export const HomeScreen = () => {
         sessionId: alert.sessionId,
         status: alert.status,
         triggerSource: alert.triggerSource,
-        startedAt: new Date().toISOString(),
+        startedAt: alert.startedAt || new Date().toISOString(),
+        alertStage: alert.alertStage,
+        escalationLevel: alert.escalationLevel,
+        alertStatus: alert.alertStatus,
+        riskScore: alert.riskScore ?? 100,
+        cancelExpiresAt: alert.cancelExpiresAt,
+        riskSnapshot: alert.riskSnapshot ?? {},
+        detectionSummary: alert.detectionSummary ?? [],
       });
     } catch (requestError) {
       const message =
@@ -203,6 +304,12 @@ export const HomeScreen = () => {
 
   const mapLat = lastKnownLocation?.lat ?? emergencyLocations[emergencyLocations.length - 1]?.lat ?? 6.5244;
   const mapLng = lastKnownLocation?.lng ?? emergencyLocations[emergencyLocations.length - 1]?.lng ?? 3.3792;
+  const statusIndicator =
+    sessionStatus === 'active' || sessionStatus === 'soft_alert'
+      ? 'active'
+      : guardianStage === 'armed' || sessionStatus === 'monitoring'
+        ? 'armed'
+        : 'safe';
 
   return (
     <ScrollView style={styles.container} contentContainerStyle={styles.content}>
@@ -211,7 +318,7 @@ export const HomeScreen = () => {
           <Text style={styles.eyebrow}>Home Base</Text>
           <Text style={styles.title}>Watch over your route in real time.</Text>
         </View>
-        <StatusIndicator status={sessionStatus === 'active' ? 'active' : 'safe'} />
+        <StatusIndicator status={statusIndicator} />
       </MotionView>
 
       <MotionView delay={90} style={styles.mapShell}>
@@ -276,6 +383,36 @@ export const HomeScreen = () => {
       </MotionView>
 
       <MotionView delay={220} style={[styles.alertCard, theme.shadow.card]}>
+        <Text style={styles.reportEyebrow}>Guardian</Text>
+        <Text style={styles.alertTitle}>Let the workflow verify danger before it fully escalates.</Text>
+        <Text style={styles.alertText}>
+          Guardian blends your route context, known risk zones, and time-of-day risk into a passive score.
+        </Text>
+        <View style={styles.guardianMetaRow}>
+          <Text style={styles.guardianMetaLabel}>Current posture</Text>
+          <Text style={styles.guardianMetaValue}>
+            {guardianLoading
+              ? 'Checking'
+              : guardianStage === 'verifying'
+                ? 'Silent verification'
+                : guardianStage === 'armed'
+                  ? 'Armed'
+                  : 'Passive'}
+          </Text>
+        </View>
+        <Text style={styles.guardianStatusText}>{guardianStatus}</Text>
+        {guardianScore !== null ? (
+          <Text style={styles.guardianScoreText}>Passive risk score: {guardianScore}/100</Text>
+        ) : null}
+        {guardianLoading ? (
+          <View style={styles.syncRow}>
+            <ActivityIndicator color={theme.colors.blueGlow} />
+            <Text style={styles.syncText}>Refreshing Guardian context...</Text>
+          </View>
+        ) : null}
+      </MotionView>
+
+      <MotionView delay={260} style={[styles.alertCard, theme.shadow.card]}>
         <Text style={styles.reportEyebrow}>Rapid Report</Text>
         <Text style={styles.alertTitle}>Send a nearby alert in one motion.</Text>
         <Text style={styles.alertText}>
@@ -317,7 +454,7 @@ export const HomeScreen = () => {
         ) : null}
       </MotionView>
 
-      <MotionView delay={260} style={[styles.alertCard, theme.shadow.card]}>
+      <MotionView delay={300} style={[styles.alertCard, theme.shadow.card]}>
         <Text style={styles.alertEyebrow}>SOS Access</Text>
         <Text style={styles.alertTitle}>The panic trigger still lives here.</Text>
         <Text style={styles.alertText}>
@@ -331,14 +468,17 @@ export const HomeScreen = () => {
         ) : null}
         {error ? <Text style={styles.error}>{error}</Text> : null}
         <View style={styles.panicWrap}>
-          <PanicButton disabled={sessionStatus === 'active' || loading} onPress={handleStartEmergency} />
+          <PanicButton
+            disabled={(sessionStatus === 'active' || sessionStatus === 'soft_alert') || loading}
+            onPress={handleStartEmergency}
+          />
           <Text style={styles.panicCaption}>
             {loading ? 'Starting emergency session...' : 'Hold only if you need emergency help right now.'}
           </Text>
         </View>
       </MotionView>
 
-      <MotionView delay={320} style={styles.bottomActions}>
+      <MotionView delay={340} style={styles.bottomActions}>
         <Pressable style={[styles.bottomCard, theme.shadow.card]} onPress={() => setScreen('contacts')}>
           <Text style={styles.bottomTitle}>Build your trusted circle</Text>
           <Text style={styles.bottomText}>Search, add contacts, and start timed watch sessions.</Text>
@@ -545,6 +685,40 @@ const createStyles = (theme: ReturnType<typeof useAppTheme>) =>
       marginTop: 10,
       lineHeight: 18,
       textAlign: 'center',
+    },
+    guardianMetaRow: {
+      flexDirection: 'row',
+      justifyContent: 'space-between',
+      alignItems: 'center',
+      marginTop: 16,
+      paddingVertical: 12,
+      paddingHorizontal: 14,
+      borderRadius: 18,
+      borderWidth: 1,
+      borderColor: theme.colors.borderStrong,
+      backgroundColor: theme.colors.blueSoft,
+    },
+    guardianMetaLabel: {
+      color: theme.colors.muted,
+      fontSize: 12,
+      fontWeight: '700',
+      textTransform: 'uppercase',
+      letterSpacing: 0.8,
+    },
+    guardianMetaValue: {
+      color: theme.colors.text,
+      fontSize: 14,
+      fontWeight: '800',
+    },
+    guardianStatusText: {
+      color: theme.colors.text,
+      lineHeight: 19,
+      marginTop: 14,
+    },
+    guardianScoreText: {
+      color: theme.colors.blue,
+      marginTop: 8,
+      fontWeight: '700',
     },
     panicWrap: {
       alignItems: 'center',

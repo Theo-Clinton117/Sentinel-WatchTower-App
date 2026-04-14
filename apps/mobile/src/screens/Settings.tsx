@@ -18,7 +18,7 @@ export const SettingsScreen = () => {
       </MotionView>
       <MotionView delay={120} style={[styles.profileCard, theme.shadow.card]}>
         <Text style={styles.profileLabel}>Signed in as</Text>
-        <Text style={styles.profileValue}>{user?.name || user?.phone || 'Unknown user'}</Text>
+        <Text style={styles.profileValue}>{user?.name || user?.email || user?.phone || 'Unknown user'}</Text>
         {user?.email ? <Text style={styles.profileMeta}>{user.email}</Text> : null}
       </MotionView>
       <MotionView delay={180} style={[styles.themeCard, theme.shadow.card]}>

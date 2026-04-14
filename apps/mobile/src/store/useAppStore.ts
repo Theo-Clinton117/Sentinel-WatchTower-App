@@ -5,7 +5,7 @@ import { createJSONStorage, persist } from 'zustand/middleware';
 
 export type Screen =
   | 'home'
-  | 'phone'
+  | 'auth'
   | 'otp'
   | 'onboarding-contacts'
   | 'onboarding-permissions'
@@ -15,13 +15,14 @@ export type Screen =
   | 'subscription'
   | 'settings';
 
-type SessionStatus = 'idle' | 'active';
+type SessionStatus = 'idle' | 'monitoring' | 'soft_alert' | 'active';
 type AuthStatus = 'unauthenticated' | 'authenticated';
 export type ThemePreference = 'system' | 'light' | 'dark';
+export type AuthFlow = 'login' | 'signup';
 
 export type AppUser = {
   id: string;
-  phone: string;
+  phone?: string | null;
   name?: string | null;
   email?: string | null;
   status?: string | null;
@@ -78,6 +79,11 @@ export type EmergencySession = {
   startedAt?: string | null;
   escalationLevel?: number | null;
   alertStatus?: string | null;
+  alertStage?: string | null;
+  riskScore?: number | null;
+  cancelExpiresAt?: string | null;
+  riskSnapshot?: Record<string, unknown> | null;
+  detectionSummary?: string[] | null;
 };
 
 export type EmergencyHistoryItem = EmergencySession & {
@@ -104,7 +110,9 @@ type AppState = {
   authStatus: AuthStatus;
   onboardingComplete: boolean;
   themePreference: ThemePreference;
-  pendingPhone: string;
+  pendingEmail: string;
+  pendingName: string;
+  authFlow: AuthFlow;
   deviceId: string;
   otpRequestedAt: number | null;
   otpDevCode: string | null;
@@ -127,7 +135,7 @@ type AppState = {
   setAuthStatus: (status: AuthStatus) => void;
   setOnboardingComplete: (value: boolean) => void;
   setThemePreference: (value: ThemePreference) => void;
-  setPendingPhone: (phone: string) => void;
+  setPendingAuth: (payload: { email: string; name?: string | null; mode: AuthFlow }) => void;
   markOtpRequested: (payload: { requestedAt: number; devCode?: string | null }) => void;
   setAuthSession: (payload: {
     accessToken: string;
@@ -136,6 +144,7 @@ type AppState = {
   }) => void;
   setUser: (user: AppUser | null) => void;
   setActiveSession: (session: EmergencySession) => void;
+  updateActiveSession: (patch: Partial<EmergencySession>) => void;
   startWatchSession: (payload: {
     contactId: string;
     contactName: string;
@@ -164,6 +173,25 @@ const isRootScreen = (screen: Screen) => rootScreens.includes(screen);
 const defaultDeviceId = `expo-${Platform.OS}-sentinel`;
 const MAX_ACTIVE_LOCATIONS = 250;
 
+const getSessionStatusFromStage = (stage?: string | null, status?: string | null): SessionStatus => {
+  if (status && status !== 'active') {
+    return 'idle';
+  }
+
+  switch ((stage || '').toLowerCase()) {
+    case 'monitoring':
+    case 'suspicious':
+      return 'monitoring';
+    case 'soft_alert':
+      return 'soft_alert';
+    case 'high_alert':
+    case 'critical':
+      return 'active';
+    default:
+      return status === 'active' ? 'active' : 'idle';
+  }
+};
+
 const locationIdentity = (location: EmergencyLocation) =>
   location.id ||
   `${location.recordedAt || ''}:${location.lat.toFixed(6)}:${location.lng.toFixed(6)}:${location.source || ''}`;
@@ -185,13 +213,15 @@ const mergeLocations = (current: EmergencyLocation[], incoming: EmergencyLocatio
 export const useAppStore = create<AppState>()(
   persist(
     (set) => ({
-      currentScreen: 'phone',
-      screenStack: ['phone'],
+      currentScreen: 'auth',
+      screenStack: ['auth'],
       sessionStatus: 'idle',
       authStatus: 'unauthenticated',
       onboardingComplete: false,
       themePreference: 'system',
-      pendingPhone: '',
+      pendingEmail: '',
+      pendingName: '',
+      authFlow: 'signup',
       deviceId: defaultDeviceId,
       otpRequestedAt: null,
       otpDevCode: null,
@@ -258,7 +288,12 @@ export const useAppStore = create<AppState>()(
       setAuthStatus: (status) => set({ authStatus: status }),
       setOnboardingComplete: (value) => set({ onboardingComplete: value }),
       setThemePreference: (value) => set({ themePreference: value }),
-      setPendingPhone: (phone) => set({ pendingPhone: phone }),
+      setPendingAuth: ({ email, name, mode }) =>
+        set({
+          pendingEmail: email,
+          pendingName: name ?? '',
+          authFlow: mode,
+        }),
       markOtpRequested: ({ requestedAt, devCode }) =>
         set({
           otpRequestedAt: requestedAt,
@@ -276,7 +311,23 @@ export const useAppStore = create<AppState>()(
       setActiveSession: (session) =>
         set({
           activeSession: session,
-          sessionStatus: 'active',
+          sessionStatus: getSessionStatusFromStage(session.alertStage, session.status || session.alertStatus),
+        }),
+      updateActiveSession: (patch) =>
+        set((state) => {
+          if (!state.activeSession) {
+            return state;
+          }
+
+          const nextSession = {
+            ...state.activeSession,
+            ...patch,
+          };
+
+          return {
+            activeSession: nextSession,
+            sessionStatus: getSessionStatusFromStage(nextSession.alertStage, nextSession.status || nextSession.alertStatus),
+          };
         }),
       startWatchSession: ({ contactId, contactName, contactPhone, durationMinutes, note }) => {
         const startedAt = new Date().toISOString();
@@ -358,7 +409,9 @@ export const useAppStore = create<AppState>()(
           accessToken: null,
           refreshToken: null,
           user: null,
-          pendingPhone: '',
+          pendingEmail: '',
+          pendingName: '',
+          authFlow: 'signup',
           otpRequestedAt: null,
           otpDevCode: null,
           authStatus: 'unauthenticated',
@@ -371,8 +424,8 @@ export const useAppStore = create<AppState>()(
           lastKnownLocation: null,
           sessionHistory: [],
           watchSessionHistory: [],
-          currentScreen: 'phone',
-          screenStack: ['phone'],
+          currentScreen: 'auth',
+          screenStack: ['auth'],
         })),
       setHasHydrated: (value) => set({ hasHydrated: value }),
       setHasSecureAuthHydrated: (value) => set({ hasSecureAuthHydrated: value }),
@@ -394,7 +447,9 @@ export const useAppStore = create<AppState>()(
         authStatus: state.authStatus,
         onboardingComplete: state.onboardingComplete,
         themePreference: state.themePreference,
-        pendingPhone: state.pendingPhone,
+        pendingEmail: state.pendingEmail,
+        pendingName: state.pendingName,
+        authFlow: state.authFlow,
         deviceId: state.deviceId,
         otpRequestedAt: state.otpRequestedAt,
         otpDevCode: state.otpDevCode,

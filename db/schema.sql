@@ -2,13 +2,16 @@ create extension if not exists pgcrypto;
 
 create table if not exists users (
   id uuid primary key default gen_random_uuid(),
-  phone_e164 text not null unique,
+  phone_e164 text unique,
   name text,
   email text,
   status text default 'active',
   created_at timestamptz default now(),
-  updated_at timestamptz default now()
+  updated_at timestamptz default now(),
+  constraint users_contact_identity_check check (phone_e164 is not null or email is not null)
 );
+
+create unique index if not exists users_email_lower_idx on users (lower(email)) where email is not null;
 
 create table if not exists user_devices (
   id uuid primary key default gen_random_uuid(),
@@ -78,7 +81,13 @@ create table if not exists alerts (
   user_id uuid references users(id) on delete cascade,
   status text default 'active',
   trigger_source text,
+  stage text default 'high_alert',
   escalation_level int default 0,
+  risk_score int default 0,
+  risk_snapshot jsonb default '{}'::jsonb,
+  detection_summary jsonb default '[]'::jsonb,
+  cancel_expires_at timestamptz,
+  escalated_at timestamptz,
   created_at timestamptz default now(),
   resolved_at timestamptz
 );

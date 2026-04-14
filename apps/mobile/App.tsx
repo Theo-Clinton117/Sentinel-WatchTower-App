@@ -22,7 +22,7 @@ import { ActiveEmergencyScreen } from './src/screens/ActiveEmergency';
 import { ContactsScreen } from './src/screens/Contacts';
 import { RiskLogScreen } from './src/screens/AlertHistory';
 import { ProfileScreen } from './src/screens/Profile';
-import { PhoneInputScreen } from './src/screens/Auth/PhoneInput';
+import { AuthEntryScreen } from './src/screens/Auth/PhoneInput';
 import { OtpScreen } from './src/screens/Auth/Otp';
 import { OnboardingContactsScreen } from './src/screens/Onboarding/Contacts';
 import { OnboardingPermissionsScreen } from './src/screens/Onboarding/Permissions';
@@ -37,12 +37,12 @@ const ScreenRouter = () => {
     onboardingComplete,
   } = useAppStore();
 
-  if (sessionStatus === 'active') {
+  if (sessionStatus === 'active' || sessionStatus === 'soft_alert') {
     return <ActiveEmergencyScreen />;
   }
 
   if (authStatus === 'unauthenticated') {
-    return currentScreen === 'otp' ? <OtpScreen /> : <PhoneInputScreen />;
+    return currentScreen === 'otp' ? <OtpScreen /> : <AuthEntryScreen />;
   }
 
   if (!onboardingComplete) {
@@ -266,14 +266,18 @@ const AppChrome = ({ showBootSplash }: { showBootSplash: boolean }) => {
 
   const canGoBack =
     sessionStatus !== 'active' &&
+    sessionStatus !== 'soft_alert' &&
     screenStack.length > 1 &&
     !['home', 'risk-log', 'contacts', 'profile'].includes(currentScreen);
   const showTabs =
-    sessionStatus !== 'active' && authStatus === 'authenticated' && onboardingComplete;
+    sessionStatus !== 'active' &&
+    sessionStatus !== 'soft_alert' &&
+    authStatus === 'authenticated' &&
+    onboardingComplete;
 
   React.useEffect(() => {
     const subscription = BackHandler.addEventListener('hardwareBackPress', () => {
-      if (sessionStatus === 'active') {
+      if (sessionStatus === 'active' || sessionStatus === 'soft_alert') {
         return true;
       }
 
@@ -356,7 +360,12 @@ const AlertTransition = () => {
     ]).start();
   }, [opacity, scale, sessionStatus]);
 
-  const backgroundColor = sessionStatus === 'active' ? theme.colors.red : theme.colors.blueGlow;
+  const backgroundColor =
+    sessionStatus === 'active'
+      ? theme.colors.red
+      : sessionStatus === 'soft_alert'
+        ? theme.colors.blue
+        : theme.colors.blueGlow;
 
   return (
     <Animated.View

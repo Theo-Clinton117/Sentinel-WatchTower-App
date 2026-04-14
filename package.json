@@ -10,5 +10,18 @@
     "dev:mobile": "npm --workspace apps/mobile run start",
     "build:backend": "npm --workspace apps/backend run build",
     "build:mobile": "npm --workspace apps/mobile run build"
+  },
+  "devDependencies": {
+    "@types/node": "25.6.0",
+    "@types/react": "~19.1.10",
+    "react": "19.1.0",
+    "react-native": "0.81.5"
+  },
+  "overrides": {
+    "@types/node": "25.6.0",
+    "@types/react": "~19.1.10",
+    "react": "19.1.0",
+    "react-native": "0.81.5",
+    "react-native-maps": "1.20.1"
   }
 }

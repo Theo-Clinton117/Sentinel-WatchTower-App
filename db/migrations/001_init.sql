@@ -2,13 +2,16 @@ create extension if not exists pgcrypto;
 
 create table if not exists users (
   id uuid primary key default gen_random_uuid(),
-  phone_e164 text not null unique,
+  phone_e164 text unique,
   name text,
   email text,
   status text default 'active',
   created_at timestamptz default now(),
-  updated_at timestamptz default now()
+  updated_at timestamptz default now(),
+  constraint users_contact_identity_check check (phone_e164 is not null or email is not null)
 );
+
+create unique index if not exists users_email_lower_idx on users (lower(email)) where email is not null;
 
 create table if not exists user_devices (
   id uuid primary key default gen_random_uuid(),

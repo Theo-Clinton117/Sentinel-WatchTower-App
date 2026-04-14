@@ -10,6 +10,8 @@ exports.SessionsService = void 0;
 const common_1 = require("@nestjs/common");
 const db_service_1 = require("../db/db.service");
 const queues_service_1 = require("../queues/queues.service");
+const ws_service_1 = require("../ws/ws.service");
+const alert_stages_1 = require("../alerts/alert-stages");
 function mapSessionRow(row) {
     return {
         id: row.id,
@@ -22,16 +24,30 @@ function mapSessionRow(row) {
         lastLocationAt: row.last_location_at,
         alertStatus: row.alert_status,
         triggerSource: row.trigger_source,
+        alertStage: (0, alert_stages_1.normalizeAlertStage)(row.stage),
+        riskScore: row.risk_score == null ? 0 : Number(row.risk_score),
+        cancelExpiresAt: row.cancel_expires_at || null,
+        riskSnapshot: row.risk_snapshot || {},
+        detectionSummary: Array.isArray(row.detection_summary) ? row.detection_summary : [],
     };
 }
 let SessionsService = class SessionsService {
-    constructor(db, queues) {
+    constructor(db, queues, ws) {
         this.db = db;
         this.queues = queues;
+        this.ws = ws;
     }
     async getActive(userId) {
         const result = await this.db.query(`
-      select s.*, a.status as alert_status, a.trigger_source
+      select
+        s.*,
+        a.status as alert_status,
+        a.trigger_source,
+        a.stage,
+        a.risk_score,
+        a.risk_snapshot,
+        a.detection_summary,
+        a.cancel_expires_at
       from watch_sessions s
       left join alerts a on a.id = s.alert_id
       where s.user_id = $1 and s.status = 'active'
@@ -43,7 +59,15 @@ let SessionsService = class SessionsService {
     }
     async getById(userId, id) {
         const result = await this.db.query(`
-      select s.*, a.status as alert_status, a.trigger_source
+      select
+        s.*,
+        a.status as alert_status,
+        a.trigger_source,
+        a.stage,
+        a.risk_score,
+        a.risk_snapshot,
+        a.detection_summary,
+        a.cancel_expires_at
       from watch_sessions s
       left join alerts a on a.id = s.alert_id
       where s.user_id = $1 and s.id = $2
@@ -73,7 +97,15 @@ let SessionsService = class SessionsService {
         where id = $1 and user_id = $2
       `, [session.alert_id, userId]);
             const hydrated = await client.query(`
-        select s.*, a.status as alert_status, a.trigger_source
+        select
+          s.*,
+          a.status as alert_status,
+          a.trigger_source,
+          a.stage,
+          a.risk_score,
+          a.risk_snapshot,
+          a.detection_summary,
+          a.cancel_expires_at
         from watch_sessions s
         left join alerts a on a.id = s.alert_id
         where s.id = $1
@@ -82,12 +114,13 @@ let SessionsService = class SessionsService {
             return hydrated.rows[0];
         });
         await this.queues.cancelEscalation(result.alert_id);
+        this.ws.emitSessionStatus(result.id, 'resolved', result.stage || 'resolved');
         return mapSessionRow(result);
     }
 };
 exports.SessionsService = SessionsService;
 exports.SessionsService = SessionsService = __decorate([
     (0, common_1.Injectable)(),
-    __metadata("design:paramtypes", [db_service_1.DbService, queues_service_1.QueuesService])
+    __metadata("design:paramtypes", [db_service_1.DbService, queues_service_1.QueuesService, ws_service_1.WsService])
 ], SessionsService);
 //# sourceMappingURL=sessions.service.js.map

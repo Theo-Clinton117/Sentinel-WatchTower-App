@@ -15,10 +15,19 @@ class VerifyOtpDto {
 }
 exports.VerifyOtpDto = VerifyOtpDto;
 __decorate([
-    (0, class_validator_1.IsString)(),
+    (0, class_validator_1.IsEmail)(),
     (0, class_validator_1.IsNotEmpty)(),
     __metadata("design:type", String)
-], VerifyOtpDto.prototype, "phone", void 0);
+], VerifyOtpDto.prototype, "email", void 0);
+__decorate([
+    (0, class_validator_1.IsString)(),
+    (0, class_validator_1.IsOptional)(),
+    __metadata("design:type", String)
+], VerifyOtpDto.prototype, "name", void 0);
+__decorate([
+    (0, class_validator_1.IsIn)(['login', 'signup']),
+    __metadata("design:type", String)
+], VerifyOtpDto.prototype, "mode", void 0);
 __decorate([
     (0, class_validator_1.IsString)(),
     (0, class_validator_1.IsNotEmpty)(),
@@ -26,6 +35,7 @@ __decorate([
 ], VerifyOtpDto.prototype, "code", void 0);
 __decorate([
     (0, class_validator_1.IsString)(),
+    (0, class_validator_1.IsOptional)(),
     __metadata("design:type", String)
 ], VerifyOtpDto.prototype, "deviceId", void 0);
 //# sourceMappingURL=verify-otp.dto.js.map

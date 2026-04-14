@@ -39,7 +39,7 @@ let flushInFlight = false;
 
 TaskManager.defineTask<LocationTaskData>(
   LOCATION_TASK_NAME,
-  ({ data, error }: TaskManager.TaskManagerTaskBody<LocationTaskData>) => {
+  async ({ data, error }: TaskManager.TaskManagerTaskBody<LocationTaskData>) => {
     if (error || !data?.locations?.length) {
       return;
     }

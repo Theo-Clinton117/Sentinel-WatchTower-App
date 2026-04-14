@@ -15,13 +15,22 @@ const jwt_1 = require("@nestjs/jwt");
 const db_service_1 = require("../db/db.service");
 const credibility_logic_1 = require("../credibility/credibility.logic");
 const roles_logic_1 = require("../roles/roles.logic");
-function normalizePhone(phone) {
-    return String(phone || '').trim().replace(/\s+/g, '');
+function normalizeEmail(email) {
+    return String(email || '').trim().toLowerCase();
+}
+function normalizeName(name) {
+    return String(name || '').trim();
+}
+function resolveOtpCode() {
+    if (process.env.NODE_ENV === 'production') {
+        return process.env.OTP_BYPASS_CODE || '';
+    }
+    return process.env.DEV_OTP_CODE || '123456';
 }
 function mapUserRow(user, extras) {
     return {
         id: user.id,
-        phone: user.phone_e164,
+        phone: user.phone_e164 || null,
         name: user.name,
         email: user.email,
         status: user.status,
@@ -38,12 +47,29 @@ let AuthService = class AuthService {
         this.jwt = jwt;
     }
     async requestOtp(dto) {
+        const email = normalizeEmail(dto.email);
+        const name = normalizeName(dto.name);
+        const mode = dto.mode === 'login' ? 'login' : 'signup';
+        if (mode === 'login') {
+            const existingUser = await this.db.query('select id from users where lower(email) = $1 limit 1', [email]);
+            if (!existingUser.rows[0]) {
+                throw new common_1.BadRequestException('No account found for this email. Switch to sign up first.');
+            }
+        }
+        const otpCode = resolveOtpCode();
+        if (this.isEmailDeliveryEnabled()) {
+            if (!otpCode) {
+                throw new common_1.InternalServerErrorException('OTP email delivery is not configured correctly.');
+            }
+            await this.sendOtpEmail({ email, name, code: otpCode, mode });
+        }
         const response = {
             success: true,
-            phone: normalizePhone(dto.phone),
+            email,
+            mode,
         };
         if (process.env.NODE_ENV !== 'production') {
-            response.devCode = process.env.DEV_OTP_CODE || '123456';
+            response.devCode = otpCode;
         }
         return response;
     }
@@ -51,13 +77,22 @@ let AuthService = class AuthService {
         if (!this.isOtpValid(dto.code)) {
             throw new common_1.UnauthorizedException('Invalid OTP code');
         }
-        const phone = normalizePhone(dto.phone);
+        const email = normalizeEmail(dto.email);
+        const name = normalizeName(dto.name);
+        const mode = dto.mode === 'login' ? 'login' : 'signup';
         const user = await this.db.transaction(async (client) => {
-            const existingUser = await client.query('select * from users where phone_e164 = $1 limit 1', [phone]);
+            const existingUser = await client.query('select * from users where lower(email) = $1 limit 1', [email]);
             let row = existingUser.rows[0];
+            if (!row && mode === 'login') {
+                throw new common_1.BadRequestException('No account found for this email. Switch to sign up first.');
+            }
             if (!row) {
-                const createdUser = await client.query("insert into users (phone_e164, status) values ($1, 'active') returning *", [phone]);
+                const createdUser = await client.query("insert into users (email, name, status) values ($1, $2, 'active') returning *", [email, name || null]);
                 row = createdUser.rows[0];
+            }
+            else if (name) {
+                const updatedUser = await client.query('update users set name = $2, updated_at = now() where id = $1 returning *', [row.id, name]);
+                row = updatedUser.rows[0];
             }
             if (dto.deviceId) {
                 const existingDevice = await client.query('select id from user_devices where user_id = $1 and device_id = $2 order by created_at desc limit 1', [row.id, dto.deviceId]);
@@ -74,7 +109,7 @@ let AuthService = class AuthService {
         const credibility = await (0, credibility_logic_1.ensureCredibilityProfile)(this.db, user.id);
         const roles = await (0, roles_logic_1.getUserRoleNames)(this.db, user.id);
         const reviewerRequest = await (0, roles_logic_1.getLatestReviewerRequest)(this.db, user.id);
-        const payload = { sub: user.id, phone: user.phone_e164 };
+        const payload = { sub: user.id, email: user.email };
         const accessToken = this.jwt.sign(payload);
         const refreshToken = this.jwt.sign(payload, {
             secret: process.env.JWT_REFRESH_SECRET || 'change-me',
@@ -101,7 +136,7 @@ let AuthService = class AuthService {
             const roles = await (0, roles_logic_1.getUserRoleNames)(this.db, user.id);
             const reviewerRequest = await (0, roles_logic_1.getLatestReviewerRequest)(this.db, user.id);
             return {
-                accessToken: this.jwt.sign({ sub: user.id, phone: user.phone_e164 }),
+                accessToken: this.jwt.sign({ sub: user.id, email: user.email }),
                 refreshToken,
                 userId: user.id,
                 user: mapUserRow(user, { credibility, roles, reviewerRequest }),
@@ -117,6 +152,30 @@ let AuthService = class AuthService {
             return Boolean(bypassCode) && code === bypassCode;
         }
         return /^[0-9]{4,8}$/.test(String(code || ''));
+    }
+    isEmailDeliveryEnabled() {
+        return Boolean(process.env.RESEND_API_KEY && process.env.OTP_EMAIL_FROM);
+    }
+    async sendOtpEmail({ email, name, code, mode }) {
+        const response = await fetch('https://api.resend.com/emails', {
+            method: 'POST',
+            headers: {
+                Authorization: `Bearer ${process.env.RESEND_API_KEY}`,
+                'Content-Type': 'application/json',
+            },
+            body: JSON.stringify({
+                from: process.env.OTP_EMAIL_FROM,
+                to: [email],
+                subject: mode === 'signup'
+                    ? 'Complete your Sentinel sign up'
+                    : 'Your Sentinel login code',
+                text: `Hello ${name || 'there'}, your Sentinel verification code is ${code}.`,
+                html: `<p>Hello ${name || 'there'},</p><p>Your Sentinel verification code is <strong>${code}</strong>.</p><p>If you did not request this, you can ignore this email.</p>`,
+            }),
+        });
+        if (!response.ok) {
+            throw new common_1.ServiceUnavailableException('Could not send verification email right now.');
+        }
     }
 };
 exports.AuthService = AuthService;

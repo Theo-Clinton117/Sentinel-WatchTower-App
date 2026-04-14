@@ -11,12 +11,13 @@ const common_1 = require("@nestjs/common");
 const queues_module_1 = require("../queues/queues.module");
 const sessions_controller_1 = require("./sessions.controller");
 const sessions_service_1 = require("./sessions.service");
+const ws_module_1 = require("../ws/ws.module");
 let SessionsModule = class SessionsModule {
 };
 exports.SessionsModule = SessionsModule;
 exports.SessionsModule = SessionsModule = __decorate([
     (0, common_1.Module)({
-        imports: [queues_module_1.QueuesModule],
+        imports: [queues_module_1.QueuesModule, ws_module_1.WsModule],
         controllers: [sessions_controller_1.SessionsController],
         providers: [sessions_service_1.SessionsService],
     })

@@ -53,7 +53,11 @@ export const RiskLogScreen = () => {
           sessionHistory.map((session) => (
             <View key={session.sessionId} style={styles.timelineRow}>
               <Text style={styles.timelineTitle}>
-                {session.triggerSource === 'panic' ? 'Panic alert' : 'Emergency session'}
+                {session.triggerSource === 'panic'
+                  ? 'Manual panic alert'
+                  : session.triggerSource === 'passive_detection'
+                    ? 'Guardian-triggered verification'
+                    : 'Emergency session'}
               </Text>
               <Text style={styles.timelineMeta}>
                 Started {new Date(session.startedAt || Date.now()).toLocaleString()}
@@ -61,6 +65,9 @@ export const RiskLogScreen = () => {
               <Text style={styles.timelineMeta}>
                 Ended {new Date(session.endedAt || Date.now()).toLocaleString()}
               </Text>
+              {session.alertStage ? (
+                <Text style={styles.timelineMeta}>Highest stage {session.alertStage.replace('_', ' ')}</Text>
+              ) : null}
               <Text style={styles.timelineNote}>{session.locationCount} location samples captured</Text>
             </View>
           ))

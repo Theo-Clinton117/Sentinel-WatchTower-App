@@ -5,6 +5,7 @@
     "scheme": "sentinel",
     "version": "0.1.0",
     "orientation": "portrait",
+    "icon": "./assets/icons/android-icon.png",
     "splash": {
       "backgroundColor": "#07101F"
     },
@@ -12,6 +13,9 @@
       "ios",
       "android"
     ],
+    "ios": {
+      "icon": "./assets/icons/ios-icon-liquid-glass.png"
+    },
     "plugins": [
       [
         "expo-location",
@@ -23,7 +27,8 @@
       "expo-secure-store"
     ],
     "android": {
-      "package": "com.sentinel.watchtower"
+      "package": "com.sentinel.watchtower",
+      "icon": "./assets/icons/android-icon.png"
     }
   }
 }

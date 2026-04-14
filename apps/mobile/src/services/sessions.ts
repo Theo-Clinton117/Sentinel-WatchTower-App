@@ -12,6 +12,11 @@ type SessionResponse = {
   lastLocationAt?: string | null;
   alertStatus?: string | null;
   triggerSource?: string | null;
+  alertStage?: string | null;
+  riskScore?: number | null;
+  cancelExpiresAt?: string | null;
+  riskSnapshot?: Record<string, unknown> | null;
+  detectionSummary?: string[] | null;
 };
 
 type SessionLocationsResponse = {
@@ -27,6 +32,11 @@ const mapSession = (session: SessionResponse): EmergencySession => ({
   startedAt: session.startedAt,
   escalationLevel: session.escalationLevel,
   alertStatus: session.alertStatus,
+  alertStage: session.alertStage,
+  riskScore: session.riskScore ?? 0,
+  cancelExpiresAt: session.cancelExpiresAt,
+  riskSnapshot: session.riskSnapshot ?? {},
+  detectionSummary: session.detectionSummary ?? [],
 });
 
 export async function getActiveSession() {
