@@ -17,7 +17,8 @@ Monorepo for the Sentinel WatchTower mobile app (Expo) and backend (NestJS).
 - `docs` API, WebSocket, deployment notes
 
 **Requirements Covered**
-- Panic alert flow, escalation timers, background location tracking
+- Guardian workflow with staged alerts, passive soft-alert verification, escalation timers, and background location tracking
 - Rate limiting and device binding
 - Google Maps, FCM, Twilio, Paystack/Flutterwave integration hooks
 - Black/blue theme with red blare animation overlay
+# Sentinel-WatchTower-App
