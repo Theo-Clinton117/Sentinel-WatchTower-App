@@ -15,8 +15,15 @@ const jwt_1 = require("@nestjs/jwt");
 const db_service_1 = require("../db/db.service");
 const credibility_logic_1 = require("../credibility/credibility.logic");
 const roles_logic_1 = require("../roles/roles.logic");
+const supabase_service_1 = require("../supabase/supabase.service");
 function normalizeEmail(email) {
     return String(email || '').trim().toLowerCase();
+}
+function normalizePhone(phone) {
+    return String(phone || '').trim();
+}
+function isPhoneValid(phone) {
+    return /^\+?[1-9]\d{7,14}$/.test(phone);
 }
 function normalizeName(name) {
     return String(name || '').trim();
@@ -42,52 +49,122 @@ function mapUserRow(user, extras) {
     };
 }
 let AuthService = class AuthService {
-    constructor(db, jwt) {
+    constructor(db, jwt, supabaseService) {
         this.db = db;
         this.jwt = jwt;
+        this.supabaseService = supabaseService;
     }
     async requestOtp(dto) {
         const email = normalizeEmail(dto.email);
+        const phone = normalizePhone(dto.phone);
         const name = normalizeName(dto.name);
         const mode = dto.mode === 'login' ? 'login' : 'signup';
+        if (!email && !phone) {
+            throw new common_1.BadRequestException('Email or phone is required.');
+        }
+        if (email && phone) {
+            throw new common_1.BadRequestException('Provide either email or phone, not both.');
+        }
+        if (phone && !isPhoneValid(phone)) {
+            throw new common_1.BadRequestException('Invalid phone number format.');
+        }
         if (mode === 'login') {
-            const existingUser = await this.db.query('select id from users where lower(email) = $1 limit 1', [email]);
-            if (!existingUser.rows[0]) {
-                throw new common_1.BadRequestException('No account found for this email. Switch to sign up first.');
+            const userExists = phone
+                ? await this.db.query('select id from users where phone_e164 = $1 limit 1', [phone])
+                : await this.db.query('select id from users where lower(email) = $1 limit 1', [email]);
+            if (!userExists.rows[0]) {
+                throw new common_1.BadRequestException(
+                    phone
+                        ? 'No account found for this phone number. Switch to sign up first.'
+                        : 'No account found for this email. Switch to sign up first.',
+                );
             }
         }
         const otpCode = resolveOtpCode();
-        if (this.isEmailDeliveryEnabled()) {
-            if (!otpCode) {
-                throw new common_1.InternalServerErrorException('OTP email delivery is not configured correctly.');
+        if (phone) {
+            await this.sendPhoneVerification(phone);
+        }
+        else {
+            if (this.supabaseService.isEnabled()) {
+                await this.supabaseService.sendOtp(email);
             }
-            await this.sendOtpEmail({ email, name, code: otpCode, mode });
+            else if (this.isEmailDeliveryEnabled()) {
+                if (!otpCode) {
+                    throw new common_1.InternalServerErrorException('OTP email delivery is not configured correctly.');
+                }
+                await this.sendOtpEmail({ email, name, code: otpCode, mode });
+            }
+            else {
+                throw new common_1.InternalServerErrorException('Email verification is not configured.');
+            }
         }
         const response = {
             success: true,
-            email,
             mode,
         };
+        if (email) {
+            response.email = email;
+        }
+        if (phone) {
+            response.phone = phone;
+        }
         if (process.env.NODE_ENV !== 'production') {
             response.devCode = otpCode;
         }
         return response;
     }
     async verifyOtp(dto) {
-        if (!this.isOtpValid(dto.code)) {
-            throw new common_1.UnauthorizedException('Invalid OTP code');
-        }
         const email = normalizeEmail(dto.email);
+        const phone = normalizePhone(dto.phone);
         const name = normalizeName(dto.name);
         const mode = dto.mode === 'login' ? 'login' : 'signup';
+        if (!email && !phone) {
+            throw new common_1.BadRequestException('Email or phone is required.');
+        }
+        if (email && phone) {
+            throw new common_1.BadRequestException('Provide either email or phone, not both.');
+        }
+        if (phone && !isPhoneValid(phone)) {
+            throw new common_1.BadRequestException('Invalid phone number format.');
+        }
+        const otpCode = String(dto.code || '').trim();
+        const bypassCode = resolveOtpCode();
+        const isBypass = Boolean(bypassCode && otpCode === bypassCode);
+        if (!isBypass && !/^[0-9]{4,8}$/.test(otpCode)) {
+            throw new common_1.UnauthorizedException('Invalid OTP code');
+        }
+        if (phone) {
+            if (!isBypass) {
+                await this.verifyPhoneCode(phone, otpCode);
+            }
+        }
+        else {
+            if (this.supabaseService.isEnabled()) {
+                if (!isBypass) {
+                    await this.supabaseService.verifyOtp(email, otpCode);
+                }
+            }
+            else if (!this.isOtpValid(otpCode)) {
+                throw new common_1.UnauthorizedException('Invalid OTP code');
+            }
+        }
         const user = await this.db.transaction(async (client) => {
-            const existingUser = await client.query('select * from users where lower(email) = $1 limit 1', [email]);
+            const existingUser = phone
+                ? await client.query('select * from users where phone_e164 = $1 limit 1', [phone])
+                : await client.query('select * from users where lower(email) = $1 limit 1', [email]);
             let row = existingUser.rows[0];
             if (!row && mode === 'login') {
-                throw new common_1.BadRequestException('No account found for this email. Switch to sign up first.');
+                throw new common_1.BadRequestException(
+                    phone
+                        ? 'No account found for this phone number. Switch to sign up first.'
+                        : 'No account found for this email. Switch to sign up first.',
+                );
             }
             if (!row) {
-                const createdUser = await client.query("insert into users (email, name, status) values ($1, $2, 'active') returning *", [email, name || null]);
+                const createdUser = await client.query(
+                    "insert into users (email, name, phone_e164, status) values ($1, $2, $3, 'active') returning *",
+                    [email || null, name || null, phone || null],
+                );
                 row = createdUser.rows[0];
             }
             else if (name) {
@@ -147,14 +224,50 @@ let AuthService = class AuthService {
         }
     }
     isOtpValid(code) {
-        if (process.env.NODE_ENV === 'production') {
-            const bypassCode = process.env.OTP_BYPASS_CODE || '';
-            return Boolean(bypassCode) && code === bypassCode;
+        const bypassCode = process.env.OTP_BYPASS_CODE || (process.env.NODE_ENV !== 'production' ? process.env.DEV_OTP_CODE || '123456' : '');
+        if (bypassCode && code === bypassCode) {
+            return true;
         }
         return /^[0-9]{4,8}$/.test(String(code || ''));
     }
     isEmailDeliveryEnabled() {
         return Boolean(process.env.RESEND_API_KEY && process.env.OTP_EMAIL_FROM);
+    }
+    async sendPhoneVerification(phone) {
+        if (!process.env.TWILIO_ACCOUNT_SID || !process.env.TWILIO_AUTH_TOKEN || !process.env.TWILIO_VERIFY_SERVICE_SID) {
+            throw new common_1.InternalServerErrorException('Twilio Verify is not configured.');
+        }
+        const auth = Buffer.from(`${process.env.TWILIO_ACCOUNT_SID}:${process.env.TWILIO_AUTH_TOKEN}`).toString('base64');
+        const response = await fetch(`https://verify.twilio.com/v2/Services/${process.env.TWILIO_VERIFY_SERVICE_SID}/Verifications`, {
+            method: 'POST',
+            headers: {
+                Authorization: `Basic ${auth}`,
+                'Content-Type': 'application/x-www-form-urlencoded',
+            },
+            body: new URLSearchParams({ To: phone, Channel: 'sms' }).toString(),
+        });
+        if (!response.ok) {
+            const errorBody = await response.text();
+            throw new common_1.ServiceUnavailableException(`Could not send phone verification code. ${errorBody || response.statusText}`);
+        }
+    }
+    async verifyPhoneCode(phone, code) {
+        if (!process.env.TWILIO_ACCOUNT_SID || !process.env.TWILIO_AUTH_TOKEN || !process.env.TWILIO_VERIFY_SERVICE_SID) {
+            throw new common_1.InternalServerErrorException('Twilio Verify is not configured.');
+        }
+        const auth = Buffer.from(`${process.env.TWILIO_ACCOUNT_SID}:${process.env.TWILIO_AUTH_TOKEN}`).toString('base64');
+        const response = await fetch(`https://verify.twilio.com/v2/Services/${process.env.TWILIO_VERIFY_SERVICE_SID}/VerificationCheck`, {
+            method: 'POST',
+            headers: {
+                Authorization: `Basic ${auth}`,
+                'Content-Type': 'application/x-www-form-urlencoded',
+            },
+            body: new URLSearchParams({ To: phone, Code: code }).toString(),
+        });
+        const result = await response.json();
+        if (!response.ok || result.status !== 'approved') {
+            throw new common_1.UnauthorizedException('Invalid verification code');
+        }
     }
     async sendOtpEmail({ email, name, code, mode }) {
         const response = await fetch('https://api.resend.com/emails', {
@@ -181,6 +294,6 @@ let AuthService = class AuthService {
 exports.AuthService = AuthService;
 exports.AuthService = AuthService = __decorate([
     (0, common_1.Injectable)(),
-    __metadata("design:paramtypes", [db_service_1.DbService, jwt_1.JwtService])
+    __metadata("design:paramtypes", [db_service_1.DbService, jwt_1.JwtService, supabase_service_1.SupabaseService])
 ], AuthService);
 //# sourceMappingURL=auth.service.js.map

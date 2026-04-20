@@ -16,9 +16,14 @@ class RequestOtpDto {
 exports.RequestOtpDto = RequestOtpDto;
 __decorate([
     (0, class_validator_1.IsEmail)(),
-    (0, class_validator_1.IsNotEmpty)(),
+    (0, class_validator_1.IsOptional)(),
     __metadata("design:type", String)
 ], RequestOtpDto.prototype, "email", void 0);
+__decorate([
+    (0, class_validator_1.IsString)(),
+    (0, class_validator_1.IsOptional)(),
+    __metadata("design:type", String)
+], RequestOtpDto.prototype, "phone", void 0);
 __decorate([
     (0, class_validator_1.IsString)(),
     (0, class_validator_1.IsOptional)(),

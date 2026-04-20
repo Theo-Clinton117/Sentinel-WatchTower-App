@@ -5,6 +5,8 @@ import { useAppStore, type EmergencyLocation } from '../store/useAppStore';
 
 export const LOCATION_TASK_NAME = 'sentinel-location-task';
 
+type CoordinateLike = Pick<EmergencyLocation, 'lat' | 'lng'>;
+
 type LocationTaskData = {
   locations: Location.LocationObject[];
 };
@@ -84,6 +86,47 @@ function getDistanceMeters(left: EmergencyLocation, right: EmergencyLocation) {
     Math.sin(dLng / 2) * Math.sin(dLng / 2) * Math.cos(lat1) * Math.cos(lat2);
 
   return 2 * earthRadius * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+}
+
+export function getCoordinateDistanceMeters(left: CoordinateLike, right: CoordinateLike) {
+  return getDistanceMeters(left as EmergencyLocation, right as EmergencyLocation);
+}
+
+function formatAddressLine(parts: Array<string | null | undefined>) {
+  return parts
+    .map((part) => part?.trim())
+    .filter((part): part is string => Boolean(part))
+    .filter((part, index, values) => values.indexOf(part) === index)
+    .join(', ');
+}
+
+export function formatLocationCoordinates(location: CoordinateLike) {
+  return `${location.lat.toFixed(5)}, ${location.lng.toFixed(5)}`;
+}
+
+export async function getReadableLocationLabel(location: CoordinateLike) {
+  const [address] = await Location.reverseGeocodeAsync({
+    latitude: location.lat,
+    longitude: location.lng,
+  });
+
+  if (!address) {
+    return null;
+  }
+
+  const primaryLine = formatAddressLine([
+    address.name,
+    address.street,
+    address.district,
+  ]);
+  const secondaryLine = formatAddressLine([
+    address.city,
+    address.region,
+    address.country,
+  ]);
+  const resolved = formatAddressLine([primaryLine, secondaryLine]);
+
+  return resolved || null;
 }
 
 function getRecordedAtMs(location: EmergencyLocation) {

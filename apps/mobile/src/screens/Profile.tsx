@@ -1,44 +1,82 @@
 import React from 'react';
 import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { shallow } from 'zustand/shallow';
 import { MotionView } from '../components/MotionView';
-import { ThemePreference, useAppStore } from '../store/useAppStore';
-import { ApiError } from '../services/api';
-import { requestReviewerRole } from '../services/roles';
+import { ProfileGlyph, ProfileGlyphName } from '../components/ProfileGlyph';
 import { getCurrentUser } from '../services/users';
+import { AppUser, Screen, useAppStore } from '../store/useAppStore';
 import { useAppTheme } from '../theme';
+
+const accountItems: Array<{ label: string; icon: ProfileGlyphName; screen: Screen }> = [
+  { label: 'Personal info', icon: 'user', screen: 'profile-personal-info' },
+  { label: 'Family profile', icon: 'users', screen: 'profile-family' },
+  { label: 'Safety', icon: 'shield', screen: 'profile-safety' },
+  { label: 'Login & security', icon: 'lock', screen: 'profile-login-security' },
+  { label: 'Privacy', icon: 'eye-off', screen: 'profile-privacy' },
+];
+
+const savedPlaceItems: Array<{ label: string; icon: ProfileGlyphName; screen: Screen }> = [
+  { label: 'Add home address', icon: 'home', screen: 'profile-home-address' },
+  { label: 'Add work address', icon: 'briefcase', screen: 'profile-work-address' },
+];
+
+const MenuRow = ({
+  icon,
+  label,
+  onPress,
+  isLast = false,
+}: {
+  icon: ProfileGlyphName;
+  label: string;
+  onPress: () => void;
+  isLast?: boolean;
+}) => {
+  const theme = useAppTheme();
+  const styles = createStyles(theme);
+
+  return (
+    <Pressable
+      onPress={onPress}
+      style={({ pressed }) => [
+        styles.menuRow,
+        !isLast && styles.menuRowBorder,
+        pressed && styles.menuRowPressed,
+      ]}
+    >
+      <View style={styles.menuLabelWrap}>
+        <View style={styles.menuIconWrap}>
+          <ProfileGlyph name={icon} size={19} color={theme.colors.muted} />
+        </View>
+        <Text style={styles.menuLabel}>{label}</Text>
+      </View>
+      <ProfileGlyph name="chevron-right" size={20} color={theme.colors.muted} />
+    </Pressable>
+  );
+};
+
+const resolveDisplayName = (user?: AppUser | null) =>
+  user?.name || user?.email || user?.phone || 'Sentinel member';
+
+const resolveProfileRating = (score?: number | null) => {
+  if (typeof score !== 'number') {
+    return '4.92';
+  }
+
+  return Math.max(4.1, Math.min(4.99, 4 + score / 100)).toFixed(2);
+};
 
 export const ProfileScreen = () => {
   const theme = useAppTheme();
   const styles = createStyles(theme);
-  const { clearAuthSession, setThemePreference, themePreference, user, setUser } = useAppStore();
-  const modes: ThemePreference[] = ['system', 'light', 'dark'];
-  const credibility = user?.credibility;
-  const roles = user?.roles || ['user'];
-  const reviewerRequest = user?.reviewerRequest;
-  const canRequestReviewer =
-    !roles.includes('reviewer') &&
-    !roles.includes('admin') &&
-    reviewerRequest?.status !== 'pending';
+  const { pushScreen, user, setUser } = useAppStore(
+    (state) => ({
+      pushScreen: state.pushScreen,
+      user: state.user,
+      setUser: state.setUser,
+    }),
+    shallow,
+  );
   const [isRefreshingUser, setIsRefreshingUser] = React.useState(false);
-  const [isRequestingReviewer, setIsRequestingReviewer] = React.useState(false);
-  const [reviewerMessage, setReviewerMessage] = React.useState('');
-  const trustTone =
-    credibility?.ratingTier === 'high'
-      ? theme.colors.blue
-      : credibility?.ratingTier === 'low'
-        ? theme.colors.red
-        : theme.colors.text;
-  const trustSummary = credibility
-    ? credibility.restrictionLevel === 'ban'
-      ? 'Account banned from sending new public reports.'
-      : credibility.restrictionLevel === 'shadow_restriction'
-        ? 'Reports are being quietly sandboxed pending stronger signals.'
-        : credibility.restrictionLevel === 'temporary_restriction'
-          ? 'New reports are temporarily throttled while trust recovers.'
-          : credibility.restrictionLevel === 'warning'
-            ? 'A warning is active because recent reports were marked false.'
-            : 'Consistent, corroborated reports move alerts faster through the network.'
-    : 'Your credibility score updates as your reports are reviewed and corroborated.';
 
   React.useEffect(() => {
     let active = true;
@@ -51,9 +89,7 @@ export const ProfileScreen = () => {
           setUser(freshUser);
         }
       } catch {
-        if (active) {
-          setReviewerMessage((current) => current || '');
-        }
+        // Keep the last hydrated session user when the refresh call is unavailable.
       } finally {
         if (active) {
           setIsRefreshingUser(false);
@@ -68,175 +104,78 @@ export const ProfileScreen = () => {
     };
   }, [setUser]);
 
-  const handleReviewerRequest = async () => {
-    try {
-      setIsRequestingReviewer(true);
-      setReviewerMessage('');
-      await requestReviewerRole(
-        'I want to help validate incoming community reports as a reviewer.',
-      );
-      const freshUser = await getCurrentUser();
-      setUser(freshUser);
-      setReviewerMessage('Reviewer request sent. An admin will review it.');
-    } catch (error) {
-      const message =
-        error instanceof ApiError
-          ? error.message
-          : 'Could not submit your reviewer request right now.';
-      setReviewerMessage(message);
-    } finally {
-      setIsRequestingReviewer(false);
-    }
-  };
+  const displayName = resolveDisplayName(user);
+  const profileRating = resolveProfileRating(user?.credibility?.score);
 
   return (
-    <ScrollView style={styles.container} contentContainerStyle={styles.content}>
-      <MotionView delay={40}>
-        <Text style={styles.title}>Profile</Text>
-        <Text style={styles.subtitle}>
-          Keep your account, plan, appearance, and personal controls in one place.
-        </Text>
-      </MotionView>
-
-      <MotionView delay={110} style={[styles.heroCard, theme.shadow.card]}>
-        <Text style={styles.heroLabel}>Signed in as</Text>
-        <Text style={styles.heroName}>{user?.name || user?.email || user?.phone || 'Unknown user'}</Text>
-        {user?.email ? <Text style={styles.heroMeta}>{user.email}</Text> : null}
-        <View style={styles.roleRow}>
-          {roles.map((role) => (
-            <View key={role} style={styles.roleChip}>
-              <Text style={styles.roleChipText}>{role.toUpperCase()}</Text>
-            </View>
-          ))}
+    <ScrollView style={styles.container} contentContainerStyle={styles.content} showsVerticalScrollIndicator={false}>
+      <MotionView delay={40} style={styles.heroBlock}>
+        <View style={styles.avatar}>
+          <ProfileGlyph name="user" size={34} color={theme.colors.muted} />
+        </View>
+        <Text style={styles.name}>{displayName}</Text>
+        <View style={styles.ratingRow}>
+          <ProfileGlyph name="star" size={16} color={theme.colors.success} />
+          <Text style={styles.ratingValue}>{profileRating}</Text>
+          <Text style={styles.ratingLabel}>Rating</Text>
         </View>
       </MotionView>
 
-      <MotionView delay={170} style={[styles.sectionCard, theme.shadow.card]}>
-        <Text style={styles.sectionTitle}>Credibility</Text>
-        <View style={styles.trustRow}>
-          <View style={styles.trustScoreBubble}>
-            <Text style={[styles.trustScoreValue, { color: trustTone }]}>
-              {credibility?.score ?? 50}
-            </Text>
-            <Text style={styles.trustScoreLabel}>out of 100</Text>
+      <MotionView delay={100}>
+        <Pressable
+          onPress={() => pushScreen('profile-personal-info')}
+          style={({ pressed }) => [
+            styles.verificationCard,
+            pressed && styles.verificationCardPressed,
+            theme.shadow.card,
+          ]}
+        >
+          <View style={styles.verificationIcon}>
+            <ProfileGlyph name="shield" size={22} color={theme.colors.success} />
           </View>
-          <View style={styles.trustMeta}>
-            <Text style={styles.trustTier}>
-              {credibility?.ratingTier
-                ? `${credibility.ratingTier.toUpperCase()} trust`
-                : 'Building trust'}
+          <View style={styles.verificationTextWrap}>
+            <Text style={styles.verificationTitle}>
+              Complete your verification for smoother access and safer alerts
             </Text>
-            <Text style={styles.trustText}>{trustSummary}</Text>
-            {credibility ? (
-              <Text style={styles.trustStats}>
-                {credibility.confirmedTrueReportsCount} confirmed
-                {'  •  '}
-                {credibility.likelyTrueReportsCount} likely true
-                {'  •  '}
-                {credibility.falseReportsCount + credibility.maliciousReportsCount} harmful
-              </Text>
-            ) : null}
+            <Text style={styles.verificationMeta}>Review your account details and keep your identity ready.</Text>
           </View>
-        </View>
-      </MotionView>
-
-      <MotionView delay={200} style={[styles.sectionCard, theme.shadow.card]}>
-        <Text style={styles.sectionTitle}>Subscription</Text>
-        <Text style={styles.planName}>Sentinel Pro</Text>
-        <Text style={styles.planMeta}>NGN 1000 / month</Text>
-        <Text style={styles.sectionText}>
-          Premium monitoring, escalation triggers, and safer live visibility for your trusted circle.
-        </Text>
-        <Pressable style={styles.primaryAction}>
-          <Text style={styles.primaryActionText}>Manage plan</Text>
         </Pressable>
       </MotionView>
 
-      <MotionView delay={260} style={[styles.sectionCard, theme.shadow.card]}>
-        <Text style={styles.sectionTitle}>Role Access</Text>
-        <Text style={styles.sectionText}>
-          All new accounts start as users. Reviewer access is requested here and approved by an
-          admin. Admin access is only granted directly in the database.
+      <MotionView delay={150} style={[styles.menuCard, theme.shadow.card]}>
+        {accountItems.map((item, index) => (
+          <MenuRow
+            key={item.label}
+            icon={item.icon}
+            label={item.label}
+            onPress={() => pushScreen(item.screen)}
+            isLast={index === accountItems.length - 1}
+          />
+        ))}
+      </MotionView>
+
+      <MotionView delay={210} style={styles.sectionHeader}>
+        <Text style={styles.sectionTitle}>Saved places</Text>
+      </MotionView>
+
+      <MotionView delay={240} style={[styles.menuCard, theme.shadow.card]}>
+        {savedPlaceItems.map((item, index) => (
+          <MenuRow
+            key={item.label}
+            icon={item.icon}
+            label={item.label}
+            onPress={() => pushScreen(item.screen)}
+            isLast={index === savedPlaceItems.length - 1}
+          />
+        ))}
+      </MotionView>
+
+      <MotionView delay={300}>
+        <Text style={styles.footerText}>
+          {isRefreshingUser
+            ? 'Refreshing your account details...'
+            : user?.email || user?.phone || 'Signed in on this device'}
         </Text>
-        {roles.includes('admin') ? (
-          <Text style={styles.roleStatus}>
-            You already have admin access from the system role table.
-          </Text>
-        ) : roles.includes('reviewer') ? (
-          <Text style={styles.roleStatus}>
-            Reviewer access is active on this account.
-          </Text>
-        ) : reviewerRequest?.status === 'pending' ? (
-          <Text style={styles.roleStatus}>
-            Reviewer request pending{reviewerRequest.requestedAt ? ` since ${new Date(reviewerRequest.requestedAt).toLocaleDateString()}` : ''}.
-          </Text>
-        ) : reviewerRequest?.status === 'rejected' ? (
-          <Text style={styles.roleStatus}>
-            Reviewer request declined{reviewerRequest.adminNote ? `: ${reviewerRequest.adminNote}` : '.'}
-          </Text>
-        ) : reviewerRequest?.status === 'approved' ? (
-          <Text style={styles.roleStatus}>Reviewer request approved. Refresh if the role chip has not updated yet.</Text>
-        ) : (
-          <Text style={styles.roleStatus}>
-            Ask for reviewer access when you are ready to help validate reports.
-          </Text>
-        )}
-        {canRequestReviewer ? (
-          <Pressable
-            style={[styles.primaryAction, isRequestingReviewer && styles.actionDisabled]}
-            onPress={handleReviewerRequest}
-            disabled={isRequestingReviewer}
-          >
-            <Text style={styles.primaryActionText}>
-              {isRequestingReviewer ? 'Submitting...' : 'Request reviewer role'}
-            </Text>
-          </Pressable>
-        ) : null}
-        {reviewerMessage ? <Text style={styles.helperText}>{reviewerMessage}</Text> : null}
-        {isRefreshingUser ? <Text style={styles.helperText}>Refreshing account roles...</Text> : null}
-      </MotionView>
-
-      <MotionView delay={320} style={[styles.sectionCard, theme.shadow.card]}>
-        <Text style={styles.sectionTitle}>Appearance</Text>
-        <View style={styles.modeRow}>
-          {modes.map((mode) => {
-            const active = themePreference === mode;
-
-            return (
-              <Pressable
-                key={mode}
-                onPress={() => setThemePreference(mode)}
-                style={[styles.modeChip, active && styles.modeChipActive]}
-              >
-                <Text style={[styles.modeText, active && styles.modeTextActive]}>
-                  {mode === 'system' ? 'System' : mode === 'light' ? 'Light' : 'Dark'}
-                </Text>
-              </Pressable>
-            );
-          })}
-        </View>
-      </MotionView>
-
-      <MotionView delay={380} style={[styles.sectionCard, theme.shadow.card]}>
-        <Text style={styles.sectionTitle}>Tools</Text>
-        <View style={styles.item}>
-          <Text style={styles.itemText}>Privacy controls</Text>
-          <Text style={styles.itemMeta}>Choose how your safety data is shared.</Text>
-        </View>
-        <View style={styles.item}>
-          <Text style={styles.itemText}>Device management</Text>
-          <Text style={styles.itemMeta}>Review linked devices and session behavior.</Text>
-        </View>
-        <View style={styles.item}>
-          <Text style={styles.itemText}>Delete my data</Text>
-          <Text style={styles.itemMeta}>Request a full wipe of stored app data later.</Text>
-        </View>
-      </MotionView>
-
-      <MotionView delay={430}>
-        <Pressable style={styles.logout} onPress={clearAuthSession}>
-          <Text style={styles.logoutText}>Sign out</Text>
-        </Pressable>
       </MotionView>
     </ScrollView>
   );
@@ -249,212 +188,131 @@ const createStyles = (theme: ReturnType<typeof useAppTheme>) =>
       backgroundColor: 'transparent',
     },
     content: {
-      padding: 20,
-      paddingBottom: 120,
+      paddingHorizontal: 20,
+      paddingTop: 28,
+      paddingBottom: 132,
     },
-    title: {
+    heroBlock: {
+      alignItems: 'center',
+      paddingTop: 10,
+      marginBottom: 22,
+    },
+    avatar: {
+      width: 86,
+      height: 86,
+      borderRadius: 43,
+      backgroundColor: theme.isDark ? 'rgba(255,255,255,0.08)' : '#F1F4FA',
+      alignItems: 'center',
+      justifyContent: 'center',
+      marginBottom: 18,
+    },
+    name: {
       color: theme.colors.text,
-      fontSize: 28,
+      fontSize: 18,
       fontWeight: '800',
+      textAlign: 'center',
       marginBottom: 8,
     },
-    subtitle: {
-      color: theme.colors.muted,
-      lineHeight: 20,
-      marginBottom: 16,
-    },
-    heroCard: {
-      padding: 18,
-      borderRadius: 24,
-      borderWidth: 1,
-      borderColor: theme.colors.border,
-      backgroundColor: theme.colors.surface,
-      marginBottom: 14,
-    },
-    heroLabel: {
-      color: theme.colors.muted,
-      fontSize: 12,
-      textTransform: 'uppercase',
-      letterSpacing: 1,
-      marginBottom: 6,
-    },
-    heroName: {
-      color: theme.colors.text,
-      fontSize: 22,
-      fontWeight: '800',
-    },
-    heroMeta: {
-      color: theme.colors.muted,
-      marginTop: 4,
-    },
-    roleRow: {
+    ratingRow: {
       flexDirection: 'row',
-      flexWrap: 'wrap',
-      gap: 8,
-      marginTop: 14,
-    },
-    roleChip: {
-      paddingHorizontal: 12,
-      paddingVertical: 8,
-      borderRadius: 999,
-      borderWidth: 1,
-      borderColor: theme.colors.border,
-      backgroundColor: theme.colors.backgroundElevated,
-    },
-    roleChipText: {
-      color: theme.colors.text,
-      fontSize: 11,
-      fontWeight: '800',
-      letterSpacing: 0.8,
-    },
-    trustRow: {
-      flexDirection: 'row',
-      gap: 16,
       alignItems: 'center',
-    },
-    trustScoreBubble: {
-      width: 92,
-      height: 92,
-      borderRadius: 28,
-      borderWidth: 1,
-      borderColor: theme.colors.border,
-      backgroundColor: theme.colors.backgroundElevated,
-      alignItems: 'center',
-      justifyContent: 'center',
-    },
-    trustScoreValue: {
-      fontSize: 30,
-      fontWeight: '900',
-    },
-    trustScoreLabel: {
-      color: theme.colors.muted,
-      fontSize: 11,
-      marginTop: 2,
-    },
-    trustMeta: {
-      flex: 1,
       gap: 6,
     },
-    trustTier: {
+    ratingValue: {
       color: theme.colors.text,
       fontSize: 18,
       fontWeight: '800',
     },
-    trustText: {
+    ratingLabel: {
       color: theme.colors.muted,
-      lineHeight: 19,
+      fontSize: 16,
     },
-    trustStats: {
-      color: theme.colors.text,
-      fontSize: 12,
-      fontWeight: '700',
-      lineHeight: 18,
-    },
-    roleStatus: {
-      color: theme.colors.text,
-      lineHeight: 20,
-      marginBottom: 12,
-    },
-    helperText: {
-      color: theme.colors.muted,
-      lineHeight: 18,
-      marginTop: 10,
-    },
-    sectionCard: {
+    verificationCard: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      gap: 14,
       padding: 18,
+      borderRadius: 18,
+      borderWidth: 1,
+      borderColor: theme.isDark ? 'rgba(67,201,139,0.28)' : '#D1E8D8',
+      backgroundColor: theme.isDark ? 'rgba(67,201,139,0.14)' : '#E8F6ED',
+      marginBottom: 16,
+    },
+    verificationCardPressed: {
+      opacity: 0.9,
+      transform: [{ scale: 0.99 }],
+    },
+    verificationIcon: {
+      width: 40,
+      height: 40,
+      borderRadius: 14,
+      backgroundColor: theme.isDark ? 'rgba(255,255,255,0.08)' : 'rgba(255,255,255,0.7)',
+      alignItems: 'center',
+      justifyContent: 'center',
+    },
+    verificationTextWrap: {
+      flex: 1,
+      gap: 4,
+    },
+    verificationTitle: {
+      color: theme.isDark ? '#F0FFF7' : '#173925',
+      fontSize: 18,
+      fontWeight: '800',
+      lineHeight: 24,
+    },
+    verificationMeta: {
+      color: theme.isDark ? 'rgba(240,255,247,0.76)' : '#50725C',
+      lineHeight: 18,
+    },
+    menuCard: {
       borderRadius: 24,
       borderWidth: 1,
       borderColor: theme.colors.border,
-      backgroundColor: theme.colors.surface,
-      marginBottom: 14,
+      backgroundColor: theme.colors.surfaceStrong,
+      overflow: 'hidden',
+      marginBottom: 18,
     },
-    sectionTitle: {
-      color: theme.colors.text,
-      fontWeight: '800',
-      fontSize: 18,
-      marginBottom: 10,
-    },
-    planName: {
-      color: theme.colors.blue,
-      fontSize: 24,
-      fontWeight: '800',
-    },
-    planMeta: {
-      color: theme.colors.muted,
-      marginTop: 2,
-      marginBottom: 10,
-    },
-    sectionText: {
-      color: theme.colors.muted,
-      lineHeight: 19,
-      marginBottom: 12,
-    },
-    primaryAction: {
-      minHeight: 48,
-      paddingHorizontal: 16,
-      borderRadius: 16,
-      backgroundColor: theme.colors.blue,
-      alignItems: 'center',
-      justifyContent: 'center',
-    },
-    primaryActionText: {
-      color: theme.colors.text,
-      fontWeight: '700',
-    },
-    actionDisabled: {
-      opacity: 0.7,
-    },
-    modeRow: {
+    menuRow: {
+      minHeight: 68,
+      paddingHorizontal: 18,
       flexDirection: 'row',
-      gap: 10,
-    },
-    modeChip: {
-      flex: 1,
-      minHeight: 46,
-      borderRadius: 16,
-      borderWidth: 1,
-      borderColor: theme.colors.border,
-      backgroundColor: theme.colors.backgroundElevated,
       alignItems: 'center',
-      justifyContent: 'center',
+      justifyContent: 'space-between',
+      backgroundColor: theme.colors.surfaceStrong,
     },
-    modeChipActive: {
-      backgroundColor: theme.colors.blueSoft,
-      borderColor: theme.colors.blueGlow,
-    },
-    modeText: {
-      color: theme.colors.muted,
-      fontWeight: '700',
-    },
-    modeTextActive: {
-      color: theme.colors.text,
-    },
-    item: {
-      paddingVertical: 14,
+    menuRowBorder: {
       borderBottomWidth: 1,
       borderBottomColor: theme.colors.border,
     },
-    itemText: {
-      color: theme.colors.text,
-      fontWeight: '700',
-      marginBottom: 4,
+    menuRowPressed: {
+      backgroundColor: theme.colors.blueSoft,
     },
-    itemMeta: {
-      color: theme.colors.muted,
-      lineHeight: 18,
-    },
-    logout: {
-      marginTop: 4,
-      minHeight: 52,
-      borderRadius: 18,
-      backgroundColor: theme.gradients.emergency[0],
-      borderWidth: 1,
-      borderColor: theme.colors.red,
+    menuLabelWrap: {
+      flexDirection: 'row',
       alignItems: 'center',
-      justifyContent: 'center',
+      gap: 14,
+      flex: 1,
     },
-    logoutText: {
+    menuIconWrap: {
+      width: 24,
+      alignItems: 'center',
+    },
+    menuLabel: {
       color: theme.colors.text,
-      fontWeight: '700',
+      fontSize: 18,
+      fontWeight: '600',
+    },
+    sectionHeader: {
+      marginBottom: 10,
+    },
+    sectionTitle: {
+      color: theme.colors.text,
+      fontSize: 17,
+      fontWeight: '800',
+    },
+    footerText: {
+      color: theme.colors.muted,
+      textAlign: 'center',
+      lineHeight: 20,
     },
   });

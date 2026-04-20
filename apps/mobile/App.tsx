@@ -11,31 +11,57 @@ import {
 } from 'react-native';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { LinearGradient } from 'expo-linear-gradient';
+import { shallow } from 'zustand/shallow';
 import { BlareOverlay } from './src/components/BlareOverlay';
 import { AppTabBar } from './src/components/AppTabBar';
+import { ProfileGlyph } from './src/components/ProfileGlyph';
 import { ScreenCanvas } from './src/components/ScreenCanvas';
+import { SidebarDrawer } from './src/components/SidebarDrawer';
 import { useAppStore } from './src/store/useAppStore';
 import { useAppTheme } from './src/theme';
+import { verifyOtp } from './src/services/auth';
 import { clearSecureSession, loadSecureSession, saveSecureSession } from './src/services/secure-session';
 import { HomeScreen } from './src/screens/Home';
 import { ActiveEmergencyScreen } from './src/screens/ActiveEmergency';
 import { ContactsScreen } from './src/screens/Contacts';
 import { RiskLogScreen } from './src/screens/AlertHistory';
 import { ProfileScreen } from './src/screens/Profile';
+import {
+  FamilyProfileScreen,
+  HomeAddressScreen,
+  LoginSecurityScreen,
+  PersonalInfoScreen,
+  PrivacyScreen,
+  SafetyScreen,
+  WorkAddressScreen,
+} from './src/screens/ProfileDetails';
+import { AboutScreen, SupportScreen } from './src/screens/SidebarPages';
+import { SubscriptionScreen } from './src/screens/Subscription';
 import { AuthEntryScreen } from './src/screens/Auth/PhoneInput';
 import { OtpScreen } from './src/screens/Auth/Otp';
 import { OnboardingContactsScreen } from './src/screens/Onboarding/Contacts';
 import { OnboardingPermissionsScreen } from './src/screens/Onboarding/Permissions';
 
 const queryClient = new QueryClient();
+const DEV_TEST_SESSION_ENABLED =
+  __DEV__ && process.env.EXPO_PUBLIC_ENABLE_DEV_TEST_SESSION !== 'false';
+const DEV_TEST_EMAIL =
+  process.env.EXPO_PUBLIC_DEV_TEST_EMAIL || 'tester@sentinel.dev';
+const DEV_TEST_NAME =
+  process.env.EXPO_PUBLIC_DEV_TEST_NAME || 'Sentinel Tester';
+const DEV_TEST_OTP =
+  process.env.EXPO_PUBLIC_DEV_TEST_OTP || '123456';
 
 const ScreenRouter = () => {
-  const {
-    currentScreen,
-    sessionStatus,
-    authStatus,
-    onboardingComplete,
-  } = useAppStore();
+  const { currentScreen, sessionStatus, authStatus, onboardingComplete } = useAppStore(
+    (state) => ({
+      currentScreen: state.currentScreen,
+      sessionStatus: state.sessionStatus,
+      authStatus: state.authStatus,
+      onboardingComplete: state.onboardingComplete,
+    }),
+    shallow,
+  );
 
   if (sessionStatus === 'active' || sessionStatus === 'soft_alert') {
     return <ActiveEmergencyScreen />;
@@ -60,6 +86,26 @@ const ScreenRouter = () => {
       return <RiskLogScreen />;
     case 'profile':
       return <ProfileScreen />;
+    case 'profile-personal-info':
+      return <PersonalInfoScreen />;
+    case 'profile-family':
+      return <FamilyProfileScreen />;
+    case 'profile-safety':
+      return <SafetyScreen />;
+    case 'profile-login-security':
+      return <LoginSecurityScreen />;
+    case 'profile-privacy':
+      return <PrivacyScreen />;
+    case 'profile-home-address':
+      return <HomeAddressScreen />;
+    case 'profile-work-address':
+      return <WorkAddressScreen />;
+    case 'subscription':
+      return <SubscriptionScreen />;
+    case 'support':
+      return <SupportScreen />;
+    case 'about':
+      return <AboutScreen />;
     default:
       return <HomeScreen />;
   }
@@ -259,25 +305,46 @@ const AppChrome = ({ showBootSplash }: { showBootSplash: boolean }) => {
     onboardingComplete,
     currentScreen,
     screenStack,
+    sidebarOpen,
     sessionStatus,
+    closeSidebar,
     goBack,
     setScreen,
-  } = useAppStore();
+  } = useAppStore(
+    (state) => ({
+      authStatus: state.authStatus,
+      onboardingComplete: state.onboardingComplete,
+      currentScreen: state.currentScreen,
+      screenStack: state.screenStack,
+      sidebarOpen: state.sidebarOpen,
+      sessionStatus: state.sessionStatus,
+      closeSidebar: state.closeSidebar,
+      goBack: state.goBack,
+      setScreen: state.setScreen,
+    }),
+    shallow,
+  );
 
   const canGoBack =
+    !['home', 'risk-log', 'contacts', 'profile'].includes(currentScreen) &&
     sessionStatus !== 'active' &&
     sessionStatus !== 'soft_alert' &&
-    screenStack.length > 1 &&
-    !['home', 'risk-log', 'contacts', 'profile'].includes(currentScreen);
+    screenStack.length > 1;
   const showTabs =
     sessionStatus !== 'active' &&
     sessionStatus !== 'soft_alert' &&
     authStatus === 'authenticated' &&
-    onboardingComplete;
+    onboardingComplete &&
+    ['home', 'risk-log', 'contacts', 'profile'].includes(currentScreen);
 
   React.useEffect(() => {
     const subscription = BackHandler.addEventListener('hardwareBackPress', () => {
       if (sessionStatus === 'active' || sessionStatus === 'soft_alert') {
+        return true;
+      }
+
+      if (sidebarOpen) {
+        closeSidebar();
         return true;
       }
 
@@ -295,7 +362,7 @@ const AppChrome = ({ showBootSplash }: { showBootSplash: boolean }) => {
     });
 
     return () => subscription.remove();
-  }, [canGoBack, currentScreen, goBack, sessionStatus, setScreen, showTabs]);
+  }, [canGoBack, closeSidebar, currentScreen, goBack, sessionStatus, setScreen, showTabs, sidebarOpen]);
 
   if (showBootSplash) {
     return <BootSplash />;
@@ -304,19 +371,22 @@ const AppChrome = ({ showBootSplash }: { showBootSplash: boolean }) => {
   return (
     <>
       {canGoBack ? (
-        <Pressable
-          onPress={goBack}
-          style={[
-            styles.backButton,
-            {
-              borderColor: theme.colors.borderStrong,
-              backgroundColor: theme.colors.surface,
-              ...theme.shadow.card,
-            },
-          ]}
-        >
-          <Text style={[styles.backText, { color: theme.colors.text }]}>Back</Text>
-        </Pressable>
+        <View style={styles.backHeader}>
+          <Pressable
+            onPress={goBack}
+            hitSlop={8}
+            style={[
+              styles.backButton,
+              {
+                borderColor: theme.colors.borderStrong,
+                backgroundColor: theme.colors.surface,
+                ...theme.shadow.card,
+              },
+            ]}
+          >
+            <ProfileGlyph name="chevron-left" size={18} color={theme.colors.text} />
+          </Pressable>
+        </View>
       ) : null}
 
       <View style={styles.screen}>
@@ -324,8 +394,9 @@ const AppChrome = ({ showBootSplash }: { showBootSplash: boolean }) => {
       </View>
 
       {showTabs ? <AppTabBar /> : null}
+      <SidebarDrawer />
       <AlertTransition />
-      <BlareOverlay />
+      {sessionStatus === 'active' || sessionStatus === 'soft_alert' ? <BlareOverlay /> : null}
     </>
   );
 };
@@ -388,26 +459,38 @@ export default function App() {
   const {
     accessToken,
     refreshToken,
+    deviceId,
     user,
     hasHydrated,
     hasSecureAuthHydrated,
     markSecureAuthHydrated,
     restoreSecureAuth,
-  } = useAppStore((state) => ({
-    accessToken: state.accessToken,
-    refreshToken: state.refreshToken,
-    user: state.user,
-    hasHydrated: state.hasHydrated,
-    hasSecureAuthHydrated: state.hasSecureAuthHydrated,
-    markSecureAuthHydrated: state.setHasSecureAuthHydrated,
-    restoreSecureAuth: state.restoreSecureAuth,
-  }));
+    setAuthSession,
+    setOnboardingComplete,
+    resetNavigation,
+  } = useAppStore(
+    (state) => ({
+      accessToken: state.accessToken,
+      refreshToken: state.refreshToken,
+      deviceId: state.deviceId,
+      user: state.user,
+      hasHydrated: state.hasHydrated,
+      hasSecureAuthHydrated: state.hasSecureAuthHydrated,
+      markSecureAuthHydrated: state.setHasSecureAuthHydrated,
+      restoreSecureAuth: state.restoreSecureAuth,
+      setAuthSession: state.setAuthSession,
+      setOnboardingComplete: state.setOnboardingComplete,
+      resetNavigation: state.resetNavigation,
+    }),
+    shallow,
+  );
   const [hasPlayedOpeningIntro, setHasPlayedOpeningIntro] = React.useState(false);
+  const hasAttemptedDevTestSession = React.useRef(false);
 
   React.useEffect(() => {
     const timer = setTimeout(() => {
       setHasPlayedOpeningIntro(true);
-    }, 1700);
+    }, 700);
 
     return () => clearTimeout(timer);
   }, []);
@@ -452,6 +535,82 @@ export default function App() {
     void clearSecureSession();
   }, [accessToken, refreshToken, hasSecureAuthHydrated, user]);
 
+  React.useEffect(() => {
+    if (!DEV_TEST_SESSION_ENABLED || !hasSecureAuthHydrated) {
+      return;
+    }
+
+    if (accessToken && refreshToken) {
+      return;
+    }
+
+    if (hasAttemptedDevTestSession.current) {
+      return;
+    }
+
+    hasAttemptedDevTestSession.current = true;
+    let active = true;
+
+    const bootstrapDevTestSession = async () => {
+      try {
+        const result = await verifyOtp(
+          {
+            email: DEV_TEST_EMAIL,
+            name: DEV_TEST_NAME,
+            mode: 'signup',
+            code: DEV_TEST_OTP,
+          },
+          deviceId,
+        );
+
+        if (!active) {
+          return;
+        }
+
+        setAuthSession({
+          accessToken: result.accessToken,
+          refreshToken: result.refreshToken,
+          user: result.user,
+        });
+      } catch {
+        if (!active) {
+          return;
+        }
+
+        setAuthSession({
+          accessToken: 'dev-test-access-token',
+          refreshToken: 'dev-test-refresh-token',
+          user: {
+            id: 'dev-test-user',
+            name: DEV_TEST_NAME,
+            email: DEV_TEST_EMAIL,
+            status: 'active',
+            roles: ['user'],
+          },
+        });
+      } finally {
+        if (active) {
+          setOnboardingComplete(true);
+          resetNavigation('home');
+        }
+      }
+    };
+
+    void bootstrapDevTestSession();
+
+    return () => {
+      active = false;
+    };
+  }, [
+    accessToken,
+    deviceId,
+    hasSecureAuthHydrated,
+    refreshToken,
+    resetNavigation,
+    setAuthSession,
+    setOnboardingComplete,
+  ]);
+
   return (
     <QueryClientProvider client={queryClient}>
       <SafeAreaView style={{ flex: 1, backgroundColor: theme.colors.background }}>
@@ -472,21 +631,19 @@ const styles = StyleSheet.create({
   screen: {
     flex: 1,
   },
-  backButton: {
-    position: 'absolute',
-    top: 12,
-    left: 16,
-    zIndex: 10,
-    minHeight: 40,
+  backHeader: {
+    paddingTop: 14,
     paddingHorizontal: 16,
+    paddingBottom: 8,
+    alignItems: 'flex-start',
+  },
+  backButton: {
+    width: 42,
+    height: 42,
     borderRadius: 999,
     borderWidth: 1,
     alignItems: 'center',
     justifyContent: 'center',
-  },
-  backText: {
-    fontSize: 13,
-    fontWeight: '700',
   },
   transitionWrap: {
     ...StyleSheet.absoluteFillObject,

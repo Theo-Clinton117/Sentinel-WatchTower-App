@@ -12,7 +12,16 @@ export type Screen =
   | 'risk-log'
   | 'contacts'
   | 'profile'
+  | 'profile-personal-info'
+  | 'profile-family'
+  | 'profile-safety'
+  | 'profile-login-security'
+  | 'profile-privacy'
+  | 'profile-home-address'
+  | 'profile-work-address'
   | 'subscription'
+  | 'support'
+  | 'about'
   | 'settings';
 
 type SessionStatus = 'idle' | 'monitoring' | 'soft_alert' | 'active';
@@ -121,6 +130,7 @@ type AppState = {
   user: AppUser | null;
   activeSession: EmergencySession | null;
   activeWatchSession: WatchSession | null;
+  sidebarOpen: boolean;
   emergencyLocations: EmergencyLocation[];
   lastKnownLocation: EmergencyLocation | null;
   sessionHistory: EmergencyHistoryItem[];
@@ -153,6 +163,9 @@ type AppState = {
     note?: string | null;
   }) => WatchSession;
   endWatchSession: () => void;
+  setSidebarOpen: (value: boolean) => void;
+  openSidebar: () => void;
+  closeSidebar: () => void;
   setEmergencyLocations: (locations: EmergencyLocation[]) => void;
   appendEmergencyLocations: (locations: EmergencyLocation[]) => void;
   setLastKnownLocation: (location: EmergencyLocation | null) => void;
@@ -172,6 +185,9 @@ const rootScreens: Screen[] = ['home', 'risk-log', 'contacts', 'profile'];
 const isRootScreen = (screen: Screen) => rootScreens.includes(screen);
 const defaultDeviceId = `expo-${Platform.OS}-sentinel`;
 const MAX_ACTIVE_LOCATIONS = 250;
+
+const getLocationTimestamp = (location: EmergencyLocation) =>
+  new Date(location.recordedAt || location.createdAt || 0).getTime();
 
 const getSessionStatusFromStage = (stage?: string | null, status?: string | null): SessionStatus => {
   if (status && status !== 'active') {
@@ -196,18 +212,52 @@ const locationIdentity = (location: EmergencyLocation) =>
   location.id ||
   `${location.recordedAt || ''}:${location.lat.toFixed(6)}:${location.lng.toFixed(6)}:${location.source || ''}`;
 
-const mergeLocations = (current: EmergencyLocation[], incoming: EmergencyLocation[]) => {
-  const map = new Map<string, EmergencyLocation>();
+const sortAndTrimLocations = (locations: EmergencyLocation[]) =>
+  locations
+    .sort((left, right) => getLocationTimestamp(left) - getLocationTimestamp(right))
+    .slice(-MAX_ACTIVE_LOCATIONS);
 
-  [...current, ...incoming].forEach((location) => {
-    map.set(locationIdentity(location), location);
+const mergeLocations = (current: EmergencyLocation[], incoming: EmergencyLocation[]) => {
+  if (incoming.length === 0) {
+    return current;
+  }
+
+  if (current.length === 0) {
+    const deduped = new Map<string, EmergencyLocation>();
+    incoming.forEach((location) => {
+      deduped.set(locationIdentity(location), location);
+    });
+    return sortAndTrimLocations(Array.from(deduped.values()));
+  }
+
+  const merged = [...current];
+  const indexByIdentity = new Map<string, number>();
+  current.forEach((location, index) => {
+    indexByIdentity.set(locationIdentity(location), index);
   });
 
-  return Array.from(map.values()).sort((left, right) => {
-    const leftTime = new Date(left.recordedAt || left.createdAt || 0).getTime();
-    const rightTime = new Date(right.recordedAt || right.createdAt || 0).getTime();
-    return leftTime - rightTime;
-  }).slice(-MAX_ACTIVE_LOCATIONS);
+  const latestCurrentTimestamp = getLocationTimestamp(current[current.length - 1]);
+  let needsSort = false;
+
+  incoming.forEach((location) => {
+    const identity = locationIdentity(location);
+    const existingIndex = indexByIdentity.get(identity);
+
+    if (existingIndex !== undefined) {
+      merged[existingIndex] = location;
+      return;
+    }
+
+    if (getLocationTimestamp(location) < latestCurrentTimestamp) {
+      needsSort = true;
+    }
+
+    indexByIdentity.set(identity, merged.length);
+    merged.push(location);
+  });
+
+  const trimmed = merged.slice(-MAX_ACTIVE_LOCATIONS);
+  return needsSort ? sortAndTrimLocations(trimmed) : trimmed;
 };
 
 export const useAppStore = create<AppState>()(
@@ -230,6 +280,7 @@ export const useAppStore = create<AppState>()(
       user: null,
       activeSession: null,
       activeWatchSession: null,
+      sidebarOpen: false,
       emergencyLocations: [],
       lastKnownLocation: null,
       sessionHistory: [],
@@ -243,14 +294,9 @@ export const useAppStore = create<AppState>()(
           }
 
           if (isRootScreen(screen)) {
-            const hasRootScreen = state.screenStack.some((entry) => isRootScreen(entry));
-            const nextStack = hasRootScreen
-              ? [...state.screenStack.filter((entry) => !isRootScreen(entry)), screen]
-              : [...state.screenStack, screen];
-
             return {
               currentScreen: screen,
-              screenStack: nextStack,
+              screenStack: [screen],
             };
           }
 
@@ -365,6 +411,9 @@ export const useAppStore = create<AppState>()(
               ].slice(0, 20)
             : state.watchSessionHistory,
         })),
+      setSidebarOpen: (value) => set({ sidebarOpen: value }),
+      openSidebar: () => set({ sidebarOpen: true }),
+      closeSidebar: () => set({ sidebarOpen: false }),
       setEmergencyLocations: (locations) =>
         set({
           emergencyLocations: mergeLocations([], locations),
@@ -381,7 +430,7 @@ export const useAppStore = create<AppState>()(
       setLastKnownLocation: (location) =>
         set((state) => ({
           lastKnownLocation: location,
-          emergencyLocations: location
+          emergencyLocations: location && state.activeSession
             ? mergeLocations(state.emergencyLocations, [location])
             : state.emergencyLocations,
         })),
@@ -420,6 +469,7 @@ export const useAppStore = create<AppState>()(
           sessionStatus: 'idle',
           activeSession: null,
           activeWatchSession: null,
+          sidebarOpen: false,
           emergencyLocations: [],
           lastKnownLocation: null,
           sessionHistory: [],
@@ -455,8 +505,6 @@ export const useAppStore = create<AppState>()(
         otpDevCode: state.otpDevCode,
         activeSession: state.activeSession,
         activeWatchSession: state.activeWatchSession,
-        emergencyLocations: state.emergencyLocations,
-        lastKnownLocation: state.lastKnownLocation,
         sessionHistory: state.sessionHistory,
         watchSessionHistory: state.watchSessionHistory,
       }),

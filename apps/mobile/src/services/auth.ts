@@ -44,7 +44,8 @@ export type AuthUser = {
 
 type RequestOtpResponse = {
   success: boolean;
-  email: string;
+  email?: string;
+  phone?: string;
   mode: AuthFlow;
   devCode?: string;
 };
@@ -71,7 +72,8 @@ export function isOtpValid(value: string) {
 }
 
 type RequestOtpPayload = {
-  email: string;
+  email?: string;
+  phone?: string;
   name?: string;
   mode: AuthFlow;
 };
@@ -84,24 +86,44 @@ export async function requestOtp(
   payload: RequestOtpPayload,
   deviceId = defaultDeviceId,
 ) {
-  return apiPost<RequestOtpResponse>('/auth/otp/request', {
-    email: normalizeEmailInput(payload.email),
-    name: payload.name?.trim() || undefined,
+  const body: Record<string, unknown> = {
     mode: payload.mode,
     deviceId,
     platform: Platform.OS,
-  });
+  };
+
+  if (payload.email) {
+    body.email = normalizeEmailInput(payload.email);
+  }
+  if (payload.phone) {
+    body.phone = payload.phone.trim();
+  }
+  if (payload.name) {
+    body.name = payload.name.trim();
+  }
+
+  return apiPost<RequestOtpResponse>('/auth/otp/request', body);
 }
 
 export async function verifyOtp(
   payload: VerifyOtpPayload,
   deviceId = defaultDeviceId,
 ) {
-  return apiPost<VerifyOtpResponse>('/auth/otp/verify', {
-    email: normalizeEmailInput(payload.email),
-    name: payload.name?.trim() || undefined,
+  const body: Record<string, unknown> = {
     mode: payload.mode,
     code: payload.code,
     deviceId,
-  });
+  };
+
+  if (payload.email) {
+    body.email = normalizeEmailInput(payload.email);
+  }
+  if (payload.phone) {
+    body.phone = payload.phone.trim();
+  }
+  if (payload.name) {
+    body.name = payload.name.trim();
+  }
+
+  return apiPost<VerifyOtpResponse>('/auth/otp/verify', body);
 }

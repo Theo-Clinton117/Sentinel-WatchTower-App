@@ -37,6 +37,53 @@ function detectConnectionSource() {
     return null;
 }
 let SupabaseService = class SupabaseService {
+    getProjectUrl() {
+        return normalizeUrl(process.env.SUPABASE_URL);
+    }
+    getServiceRoleKey() {
+        return String(process.env.SUPABASE_SERVICE_ROLE_KEY || '').trim();
+    }
+    isEnabled() {
+        return Boolean(this.getProjectUrl() && this.getServiceRoleKey());
+    }
+    async sendOtp(email) {
+        if (!this.isEnabled()) {
+            throw new Error('Supabase OTP configuration is missing.');
+        }
+        const response = await fetch(`${this.getProjectUrl()}/auth/v1/otp`, {
+            method: 'POST',
+            headers: {
+                apikey: this.getServiceRoleKey(),
+                Authorization: `Bearer ${this.getServiceRoleKey()}`,
+                'Content-Type': 'application/json',
+            },
+            body: JSON.stringify({ email }),
+        });
+        if (!response.ok) {
+            const errorBody = await response.text();
+            throw new Error(`Supabase OTP request failed: ${errorBody || response.statusText}`);
+        }
+        return true;
+    }
+    async verifyOtp(email, token) {
+        if (!this.isEnabled()) {
+            throw new Error('Supabase OTP configuration is missing.');
+        }
+        const response = await fetch(`${this.getProjectUrl()}/auth/v1/verify`, {
+            method: 'POST',
+            headers: {
+                apikey: this.getServiceRoleKey(),
+                Authorization: `Bearer ${this.getServiceRoleKey()}`,
+                'Content-Type': 'application/json',
+            },
+            body: JSON.stringify({ email, token, type: 'magiclink' }),
+        });
+        if (!response.ok) {
+            const errorBody = await response.text();
+            throw new Error(`Supabase OTP verification failed: ${errorBody || response.statusText}`);
+        }
+        return true;
+    }
     status() {
         const projectUrl = normalizeUrl(process.env.SUPABASE_URL);
         const publishableKey = String(process.env.SUPABASE_PUBLISHABLE_KEY || '').trim();
