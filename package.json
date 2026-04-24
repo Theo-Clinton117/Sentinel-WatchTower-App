@@ -23,5 +23,9 @@
     "react": "19.1.0",
     "react-native": "0.81.5",
     "react-native-maps": "1.20.1"
+  },
+  "dependencies": {
+    "expo-contacts": "~15.0.11",
+    "react-native-purchases": "^10.0.1"
   }
 }

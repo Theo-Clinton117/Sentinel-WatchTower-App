@@ -26,6 +26,38 @@ function mapContactRow(row) {
         createdAt: row.created_at,
     };
 }
+function normalizeEmail(value) {
+    return String(value || '').trim().toLowerCase();
+}
+function normalizePhone(value) {
+    const raw = String(value || '').trim();
+    if (!raw) {
+        return '';
+    }
+    const compact = raw.replace(/[^\d+]/g, '');
+    if (!compact) {
+        return '';
+    }
+    if (compact.startsWith('+')) {
+        return `+${compact.slice(1).replace(/\D/g, '')}`;
+    }
+    return compact.replace(/\D/g, '');
+}
+function compactUnique(values) {
+    return Array.from(new Set(values.filter(Boolean)));
+}
+function mapSentinelMatchRow(row) {
+    return {
+        userId: row.id,
+        name: row.name,
+        email: row.email,
+        phone: row.phone_e164,
+        hasSentinel: true,
+        matchSource: row.match_source,
+        matchedEmail: row.matched_email ?? null,
+        matchedPhone: row.matched_phone ?? null,
+    };
+}
 let ContactsService = class ContactsService {
     constructor(db) {
         this.db = db;
@@ -75,6 +107,69 @@ let ContactsService = class ContactsService {
             ]);
             return mapContactRow({ ...contact, ...profileResult.rows[0] });
         });
+    }
+    async searchByEmail(userId, emailQuery) {
+        const normalizedEmail = normalizeEmail(emailQuery);
+        if (!normalizedEmail) {
+            throw new common_1.BadRequestException('Email is required.');
+        }
+        const result = await this.db.query(`
+      select
+        id,
+        name,
+        email,
+        phone_e164,
+        'email'::text as match_source,
+        email as matched_email,
+        null::text as matched_phone
+      from users
+      where id <> $1
+        and email is not null
+        and lower(email) like $2
+      order by
+        case when lower(email) = $3 then 0 else 1 end,
+        name asc nulls last,
+        created_at desc
+      limit 10
+    `, [userId, `%${normalizedEmail}%`, normalizedEmail]);
+        return result.rows.map(mapSentinelMatchRow);
+    }
+    async discoverSentinelUsers(userId, body) {
+        const emails = compactUnique(Array.isArray(body?.emails) ? body.emails.map(normalizeEmail) : []);
+        const phones = compactUnique(Array.isArray(body?.phones) ? body.phones.map(normalizePhone) : []);
+        if (emails.length === 0 && phones.length === 0) {
+            return [];
+        }
+        const result = await this.db.query(`
+      select distinct on (u.id)
+        u.id,
+        u.name,
+        u.email,
+        u.phone_e164,
+        case
+          when u.email is not null and lower(u.email) = any($2::text[]) then 'email'
+          else 'phone'
+        end as match_source,
+        case
+          when u.email is not null and lower(u.email) = any($2::text[]) then lower(u.email)
+          else null
+        end as matched_email,
+        case
+          when u.phone_e164 is not null and u.phone_e164 = any($3::text[]) then u.phone_e164
+          else null
+        end as matched_phone
+      from users u
+      where u.id <> $1
+        and (
+          lower(coalesce(u.email, '')) = any($2::text[])
+          or coalesce(u.phone_e164, '') = any($3::text[])
+        )
+      order by
+        u.id,
+        case when u.email is not null and lower(u.email) = any($2::text[]) then 0 else 1 end,
+        u.created_at desc
+    `, [userId, emails, phones]);
+        return result.rows.map(mapSentinelMatchRow);
     }
     async update(userId, id, body) {
         return this.db.transaction(async (client) => {

@@ -11,18 +11,47 @@ import {
 } from 'react-native';
 import { MotionView } from '../components/MotionView';
 import { ApiError } from '../services/api';
-import { createContact, listContacts, TrustedContact } from '../services/contacts';
+import {
+  createContact,
+  listContacts,
+  searchSentinelUsersByEmail,
+  type SentinelUserMatch,
+  type TrustedContact,
+} from '../services/contacts';
+import {
+  loadDeviceContactsWithSentinelMatches,
+  type DeviceContactCandidate,
+} from '../services/device-contacts';
 import { useAppStore } from '../store/useAppStore';
 import { useAppTheme } from '../theme';
 
-const directorySeed = [
-  { id: 'directory-1', name: 'Ada Nwosu', phone: '+2348011112233', email: 'ada@sentinel.app' },
-  { id: 'directory-2', name: 'Kunle Adebayo', phone: '+2348095550101', email: 'kunle@sentinel.app' },
-  { id: 'directory-3', name: 'Maya Eze', phone: '+2348034447777', email: 'maya@sentinel.app' },
-  { id: 'directory-4', name: 'Tari Briggs', phone: '+2348069182200', email: 'tari@sentinel.app' },
-];
-
 const watchDurations = [30, 60, 120];
+
+function normalizeEmail(value?: string | null) {
+  return String(value || '').trim().toLowerCase();
+}
+
+function normalizePhone(value?: string | null) {
+  const raw = String(value || '').trim();
+  if (!raw) {
+    return '';
+  }
+
+  const compact = raw.replace(/[^\d+]/g, '');
+  if (!compact) {
+    return '';
+  }
+
+  if (compact.startsWith('+')) {
+    return `+${compact.slice(1).replace(/\D/g, '')}`;
+  }
+
+  return compact.replace(/\D/g, '');
+}
+
+function isValidEmail(value: string) {
+  return /\S+@\S+\.\S+/.test(value.trim());
+}
 
 export const ContactsScreen = () => {
   const theme = useAppTheme();
@@ -34,17 +63,23 @@ export const ContactsScreen = () => {
   } = useAppStore();
   const [contacts, setContacts] = useState<TrustedContact[]>([]);
   const [loading, setLoading] = useState(true);
-  const [saving, setSaving] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
-  const [showForm, setShowForm] = useState(false);
   const [error, setError] = useState('');
   const [selectedContactId, setSelectedContactId] = useState<string | null>(null);
   const [selectedDuration, setSelectedDuration] = useState(60);
   const [watchNote, setWatchNote] = useState('');
+  const [showForm, setShowForm] = useState(false);
+  const [saving, setSaving] = useState(false);
+  const [savingEntryKey, setSavingEntryKey] = useState<string | null>(null);
   const [contactName, setContactName] = useState('');
   const [contactPhone, setContactPhone] = useState('');
   const [contactEmail, setContactEmail] = useState('');
   const [canViewLocation, setCanViewLocation] = useState(true);
+  const [deviceContacts, setDeviceContacts] = useState<DeviceContactCandidate[]>([]);
+  const [loadingDeviceContacts, setLoadingDeviceContacts] = useState(false);
+  const [emailSearchQuery, setEmailSearchQuery] = useState('');
+  const [emailSearchResults, setEmailSearchResults] = useState<SentinelUserMatch[]>([]);
+  const [searchingByEmail, setSearchingByEmail] = useState(false);
 
   useEffect(() => {
     let active = true;
@@ -74,11 +109,6 @@ export const ContactsScreen = () => {
     };
   }, []);
 
-  const formValid = useMemo(
-    () => contactName.trim().length >= 2 && contactPhone.trim().length >= 8,
-    [contactName, contactPhone],
-  );
-
   const filteredContacts = useMemo(() => {
     const query = searchQuery.trim().toLowerCase();
     if (!query) {
@@ -92,19 +122,24 @@ export const ContactsScreen = () => {
     );
   }, [contacts, searchQuery]);
 
-  const directoryResults = useMemo(() => {
+  const filteredDeviceContacts = useMemo(() => {
     const query = searchQuery.trim().toLowerCase();
     if (!query) {
-      return directorySeed.slice(0, 3);
+      return deviceContacts;
     }
 
-    return directorySeed.filter((entry) =>
-      [entry.name, entry.phone, entry.email].some((value) => value.toLowerCase().includes(query)),
+    return deviceContacts.filter((contact) =>
+      [contact.name, contact.primaryPhone, contact.primaryEmail]
+        .filter(Boolean)
+        .some((value) => value?.toLowerCase().includes(query)),
     );
-  }, [searchQuery]);
+  }, [deviceContacts, searchQuery]);
 
   const selectedContact =
-    contacts.find((contact) => contact.id === selectedContactId) || filteredContacts[0] || contacts[0] || null;
+    contacts.find((contact) => contact.id === selectedContactId) ||
+    filteredContacts[0] ||
+    contacts[0] ||
+    null;
 
   useEffect(() => {
     if (!selectedContactId && filteredContacts[0]?.id) {
@@ -112,9 +147,66 @@ export const ContactsScreen = () => {
     }
   }, [filteredContacts, selectedContactId]);
 
+  const formValid = useMemo(() => {
+    const trimmedPhone = normalizePhone(contactPhone);
+    const trimmedEmail = contactEmail.trim();
+    return contactName.trim().length >= 2 && (trimmedPhone.length >= 8 || isValidEmail(trimmedEmail));
+  }, [contactEmail, contactName, contactPhone]);
+
+  const isAlreadyTrusted = (candidate: {
+    userId?: string | null;
+    email?: string | null;
+    phone?: string | null;
+  }) => {
+    const email = normalizeEmail(candidate.email);
+    const phone = normalizePhone(candidate.phone);
+
+    return contacts.some((contact) => {
+      if (candidate.userId && contact.contactUserId === candidate.userId) {
+        return true;
+      }
+
+      return (
+        (email && normalizeEmail(contact.contactEmail) === email) ||
+        (phone && normalizePhone(contact.contactPhone) === phone)
+      );
+    });
+  };
+
+  const addTrustedContact = async (payload: {
+    key: string;
+    name: string;
+    phone?: string | null;
+    email?: string | null;
+    contactUserId?: string | null;
+  }) => {
+    try {
+      setSavingEntryKey(payload.key);
+      setError('');
+      const created = await createContact({
+        contactName: payload.name.trim(),
+        contactPhone: payload.phone ? normalizePhone(payload.phone) : undefined,
+        contactEmail: payload.email?.trim() || undefined,
+        contactUserId: payload.contactUserId || undefined,
+        status: payload.contactUserId ? 'active' : undefined,
+        priority: contacts.length,
+        canViewLocation: true,
+        canCall: true,
+        canSms: true,
+        canViewHistory: true,
+      });
+      setContacts((current) => [...current, created]);
+      setSelectedContactId(created.id);
+    } catch (saveError) {
+      setError(saveError instanceof ApiError ? saveError.message : 'Could not save contact.');
+    } finally {
+      setSavingEntryKey(null);
+    }
+  };
+
   const handleSave = async () => {
     if (!formValid) {
-      setError('Add a valid name and phone number before saving.');
+      setError('Add a valid name plus either a phone number or an email before saving.');
       return;
     }
 
@@ -123,7 +215,7 @@ export const ContactsScreen = () => {
       setError('');
       const created = await createContact({
         contactName: contactName.trim(),
-        contactPhone: contactPhone.trim(),
+        contactPhone: normalizePhone(contactPhone) || undefined,
         contactEmail: contactEmail.trim() || undefined,
         priority: contacts.length,
         canViewLocation,
@@ -145,12 +237,40 @@ export const ContactsScreen = () => {
     }
   };
 
-  const handleDirectoryAdd = (entry: (typeof directorySeed)[number]) => {
-    setShowForm(true);
-    setContactName(entry.name);
-    setContactPhone(entry.phone);
-    setContactEmail(entry.email);
-    setError('');
+  const handleLoadDeviceContacts = async () => {
+    try {
+      setLoadingDeviceContacts(true);
+      setError('');
+      const importedContacts = await loadDeviceContactsWithSentinelMatches();
+      setDeviceContacts(importedContacts);
+    } catch (loadError) {
+      const message =
+        loadError instanceof Error
+          ? loadError.message
+          : 'Could not access your phone contacts right now.';
+      setError(message);
+    } finally {
+      setLoadingDeviceContacts(false);
+    }
+  };
+
+  const handleEmailSearch = async () => {
+    const query = emailSearchQuery.trim();
+    if (!isValidEmail(query) && query.length < 3) {
+      setError('Enter an email or enough of it to search Sentinel users.');
+      return;
+    }
+
+    try {
+      setSearchingByEmail(true);
+      setError('');
+      const result = await searchSentinelUsersByEmail(query);
+      setEmailSearchResults(result);
+    } catch (searchError) {
+      setError(searchError instanceof ApiError ? searchError.message : 'Could not search by email.');
+    } finally {
+      setSearchingByEmail(false);
+    }
   };
 
   const handleStartWatchSession = () => {
@@ -177,19 +297,21 @@ export const ContactsScreen = () => {
       <MotionView delay={40}>
         <Text style={styles.title}>Contacts</Text>
         <Text style={styles.subtitle}>
-          Search your circle, add new people, and hand someone a timed watch session when you want extra cover.
+          Bring in your phone contacts, see who already uses Sentinel, or search directly by email.
         </Text>
       </MotionView>
 
       <MotionView delay={100} style={[styles.searchCard, theme.shadow.card]}>
         <TextInput
-          placeholder="Search your contacts or discover someone by name"
+          placeholder="Search your trusted circle and imported contacts"
           placeholderTextColor={theme.colors.muted}
           style={styles.searchInput}
           value={searchQuery}
           onChangeText={setSearchQuery}
         />
-        <Text style={styles.searchHint}>Results include your trusted circle and suggested people to add.</Text>
+        <Text style={styles.searchHint}>
+          Contacts already on Sentinel are marked clearly so you can add them faster.
+        </Text>
       </MotionView>
 
       <MotionView delay={150} style={[styles.sectionCard, theme.shadow.card]}>
@@ -198,10 +320,15 @@ export const ContactsScreen = () => {
           {loading ? <ActivityIndicator color={theme.colors.blueGlow} /> : null}
         </View>
         {filteredContacts.length === 0 && !loading ? (
-          <Text style={styles.emptyText}>No contact matches yet. Add one below or pick from the suggested list.</Text>
+          <Text style={styles.emptyText}>No trusted contacts yet. Add one from your phone contacts, email search, or manually.</Text>
         ) : null}
         {filteredContacts.map((contact) => {
           const active = selectedContactId === contact.id;
+          const badgeLabel = contact.contactUserId
+            ? 'On Sentinel'
+            : contact.canViewLocation
+              ? 'Watch-ready'
+              : 'Alert-only';
 
           return (
             <Pressable
@@ -217,13 +344,11 @@ export const ContactsScreen = () => {
                 </View>
                 <View style={styles.contactCopy}>
                   <Text style={styles.contactName}>{contact.contactName || 'Unnamed contact'}</Text>
-                  <Text style={styles.contactMeta}>{contact.contactPhone || 'No phone number'}</Text>
+                  {contact.contactPhone ? <Text style={styles.contactMeta}>{contact.contactPhone}</Text> : null}
                   {contact.contactEmail ? <Text style={styles.contactMeta}>{contact.contactEmail}</Text> : null}
                 </View>
                 <View style={styles.contactBadge}>
-                  <Text style={styles.contactBadgeText}>
-                    {contact.canViewLocation ? 'Watch-ready' : 'Alert-only'}
-                  </Text>
+                  <Text style={styles.contactBadgeText}>{badgeLabel}</Text>
                 </View>
               </View>
             </Pressable>
@@ -232,22 +357,161 @@ export const ContactsScreen = () => {
       </MotionView>
 
       <MotionView delay={210} style={[styles.sectionCard, theme.shadow.card]}>
-        <Text style={styles.sectionTitle}>Suggested people</Text>
-        <Text style={styles.sectionMeta}>Use search to find a match, then add them into your circle.</Text>
-        {directoryResults.map((entry) => (
-          <View key={entry.id} style={styles.directoryRow}>
-            <View style={styles.directoryCopy}>
-              <Text style={styles.directoryName}>{entry.name}</Text>
-              <Text style={styles.directoryMeta}>{entry.phone}</Text>
-            </View>
-            <Pressable style={styles.directoryButton} onPress={() => handleDirectoryAdd(entry)}>
-              <Text style={styles.directoryButtonText}>Add</Text>
-            </Pressable>
+        <View style={styles.sectionHeader}>
+          <View style={styles.sectionHeaderCopy}>
+            <Text style={styles.sectionTitle}>Phone contacts</Text>
+            <Text style={styles.sectionMeta}>
+              Load your device contact list and spot the people who already have Sentinel.
+            </Text>
           </View>
-        ))}
+          <Pressable style={styles.inlineButton} onPress={handleLoadDeviceContacts}>
+            {loadingDeviceContacts ? (
+              <ActivityIndicator color={theme.colors.text} />
+            ) : (
+              <Text style={styles.inlineButtonText}>
+                {deviceContacts.length > 0 ? 'Refresh' : 'Load'}
+              </Text>
+            )}
+          </Pressable>
+        </View>
+        {filteredDeviceContacts.length === 0 && !loadingDeviceContacts ? (
+          <Text style={styles.emptyText}>
+            {deviceContacts.length === 0
+              ? 'No phone contacts loaded yet.'
+              : 'No imported phone contact matches this search.'}
+          </Text>
+        ) : null}
+        {filteredDeviceContacts.slice(0, 12).map((entry) => {
+          const alreadyTrusted = isAlreadyTrusted({
+            userId: entry.sentinelMatch?.userId,
+            email: entry.primaryEmail,
+            phone: entry.primaryPhone,
+          });
+          const buttonBusy = savingEntryKey === `device:${entry.id}`;
+
+          return (
+            <View key={entry.id} style={styles.directoryRow}>
+              <View style={styles.directoryCopy}>
+                <View style={styles.directoryTitleRow}>
+                  <Text style={styles.directoryName}>{entry.name}</Text>
+                  <View
+                    style={[
+                      styles.discoveryBadge,
+                      entry.hasSentinel ? styles.discoveryBadgeActive : styles.discoveryBadgeMuted,
+                    ]}
+                  >
+                    <Text style={styles.discoveryBadgeText}>
+                      {entry.hasSentinel ? 'On Sentinel' : 'Phone contact'}
+                    </Text>
+                  </View>
+                </View>
+                {entry.primaryPhone ? <Text style={styles.directoryMeta}>{entry.primaryPhone}</Text> : null}
+                {entry.primaryEmail ? <Text style={styles.directoryMeta}>{entry.primaryEmail}</Text> : null}
+                {entry.sentinelMatch ? (
+                  <Text style={styles.directoryNote}>
+                    Matched by {entry.sentinelMatch.matchSource === 'email' ? 'email' : 'phone'}.
+                  </Text>
+                ) : null}
+              </View>
+              <Pressable
+                style={[styles.directoryButton, alreadyTrusted && styles.directoryButtonDisabled]}
+                onPress={() =>
+                  addTrustedContact({
+                    key: `device:${entry.id}`,
+                    name: entry.sentinelMatch?.name || entry.name,
+                    phone: entry.sentinelMatch?.phone || entry.primaryPhone,
+                    email: entry.sentinelMatch?.email || entry.primaryEmail,
+                    contactUserId: entry.sentinelMatch?.userId,
+                  })
+                }
+                disabled={alreadyTrusted || buttonBusy}
+              >
+                {buttonBusy ? (
+                  <ActivityIndicator color={theme.colors.text} />
+                ) : (
+                  <Text style={styles.directoryButtonText}>
+                    {alreadyTrusted ? 'Added' : 'Add'}
+                  </Text>
+                )}
+              </Pressable>
+            </View>
+          );
+        })}
       </MotionView>
 
       <MotionView delay={260} style={[styles.sectionCard, theme.shadow.card]}>
+        <Text style={styles.sectionTitle}>Search by email</Text>
+        <Text style={styles.sectionMeta}>
+          Search directly for a Sentinel user by email and add them into your trusted circle.
+        </Text>
+        <View style={styles.emailSearchRow}>
+          <TextInput
+            placeholder="name@example.com"
+            placeholderTextColor={theme.colors.muted}
+            style={[styles.searchInput, styles.emailSearchInput]}
+            value={emailSearchQuery}
+            autoCapitalize="none"
+            keyboardType="email-address"
+            onChangeText={setEmailSearchQuery}
+          />
+          <Pressable style={styles.inlineButtonWide} onPress={handleEmailSearch}>
+            {searchingByEmail ? (
+              <ActivityIndicator color={theme.colors.text} />
+            ) : (
+              <Text style={styles.inlineButtonText}>Search</Text>
+            )}
+          </Pressable>
+        </View>
+        {emailSearchResults.length === 0 && !searchingByEmail ? (
+          <Text style={styles.emptyText}>No email search results yet.</Text>
+        ) : null}
+        {emailSearchResults.map((result) => {
+          const alreadyTrusted = isAlreadyTrusted({
+            userId: result.userId,
+            email: result.email,
+            phone: result.phone,
+          });
+          const buttonBusy = savingEntryKey === `email:${result.userId}`;
+
+          return (
+            <View key={result.userId} style={styles.directoryRow}>
+              <View style={styles.directoryCopy}>
+                <View style={styles.directoryTitleRow}>
+                  <Text style={styles.directoryName}>{result.name || result.email || 'Sentinel user'}</Text>
+                  <View style={[styles.discoveryBadge, styles.discoveryBadgeActive]}>
+                    <Text style={styles.discoveryBadgeText}>On Sentinel</Text>
+                  </View>
+                </View>
+                {result.email ? <Text style={styles.directoryMeta}>{result.email}</Text> : null}
+                {result.phone ? <Text style={styles.directoryMeta}>{result.phone}</Text> : null}
+              </View>
+              <Pressable
+                style={[styles.directoryButton, alreadyTrusted && styles.directoryButtonDisabled]}
+                onPress={() =>
+                  addTrustedContact({
+                    key: `email:${result.userId}`,
+                    name: result.name || result.email || 'Sentinel user',
+                    phone: result.phone,
+                    email: result.email,
+                    contactUserId: result.userId,
+                  })
+                }
+                disabled={alreadyTrusted || buttonBusy}
+              >
+                {buttonBusy ? (
+                  <ActivityIndicator color={theme.colors.text} />
+                ) : (
+                  <Text style={styles.directoryButtonText}>
+                    {alreadyTrusted ? 'Added' : 'Add'}
+                  </Text>
+                )}
+              </Pressable>
+            </View>
+          );
+        })}
+      </MotionView>
+
+      <MotionView delay={310} style={[styles.sectionCard, theme.shadow.card]}>
         <Text style={styles.sectionTitle}>Watch session</Text>
         <Text style={styles.sectionMeta}>
           Give a trusted contact temporary permission to track your movements while you commute or travel.
@@ -256,7 +520,7 @@ export const ContactsScreen = () => {
           <Text style={styles.watchHeroLabel}>Selected contact</Text>
           <Text style={styles.watchHeroName}>
             {selectedContact
-              ? selectedContact.contactName || selectedContact.contactPhone || 'Trusted contact'
+              ? selectedContact.contactName || selectedContact.contactPhone || selectedContact.contactEmail || 'Trusted contact'
               : 'Choose a contact above'}
           </Text>
           <Text style={styles.watchHeroMeta}>
@@ -303,8 +567,8 @@ export const ContactsScreen = () => {
       </MotionView>
 
       {showForm ? (
-        <MotionView delay={320} style={[styles.sectionCard, theme.shadow.card]}>
-          <Text style={styles.sectionTitle}>Add trusted contact</Text>
+        <MotionView delay={360} style={[styles.sectionCard, theme.shadow.card]}>
+          <Text style={styles.sectionTitle}>Add trusted contact manually</Text>
           <TextInput
             placeholder="Full name"
             placeholderTextColor={theme.colors.muted}
@@ -321,10 +585,12 @@ export const ContactsScreen = () => {
             onChangeText={setContactPhone}
           />
           <TextInput
-            placeholder="Email (optional)"
+            placeholder="Email"
             placeholderTextColor={theme.colors.muted}
             style={styles.input}
             value={contactEmail}
+            autoCapitalize="none"
+            keyboardType="email-address"
             onChangeText={setContactEmail}
           />
           <View style={styles.toggleRow}>
@@ -344,11 +610,15 @@ export const ContactsScreen = () => {
             onPress={handleSave}
             disabled={!formValid || saving}
           >
-            {saving ? <ActivityIndicator color={theme.colors.text} /> : <Text style={styles.primaryButtonText}>Save Contact</Text>}
+            {saving ? (
+              <ActivityIndicator color={theme.colors.text} />
+            ) : (
+              <Text style={styles.primaryButtonText}>Save Contact</Text>
+            )}
           </Pressable>
         </MotionView>
       ) : (
-        <MotionView delay={320}>
+        <MotionView delay={360}>
           <Pressable style={[styles.primaryButton, theme.shadow.glow]} onPress={() => setShowForm(true)}>
             <Text style={styles.primaryButtonText}>Add contact manually</Text>
           </Pressable>
@@ -356,7 +626,7 @@ export const ContactsScreen = () => {
       )}
 
       {error ? (
-        <MotionView delay={360}>
+        <MotionView delay={400}>
           <Text style={styles.error}>{error}</Text>
         </MotionView>
       ) : null}
@@ -419,8 +689,12 @@ const createStyles = (theme: ReturnType<typeof useAppTheme>) =>
     sectionHeader: {
       flexDirection: 'row',
       justifyContent: 'space-between',
-      alignItems: 'center',
+      alignItems: 'flex-start',
+      gap: 12,
       marginBottom: 10,
+    },
+    sectionHeaderCopy: {
+      flex: 1,
     },
     sectionTitle: {
       color: theme.colors.text,
@@ -495,40 +769,111 @@ const createStyles = (theme: ReturnType<typeof useAppTheme>) =>
       fontSize: 11,
       fontWeight: '700',
     },
+    inlineButton: {
+      minWidth: 84,
+      minHeight: 42,
+      paddingHorizontal: 14,
+      borderRadius: 14,
+      alignItems: 'center',
+      justifyContent: 'center',
+      backgroundColor: theme.colors.blueSoft,
+      borderWidth: 1,
+      borderColor: theme.colors.blueGlow,
+    },
+    inlineButtonWide: {
+      minWidth: 92,
+      minHeight: 54,
+      paddingHorizontal: 14,
+      borderRadius: 16,
+      alignItems: 'center',
+      justifyContent: 'center',
+      backgroundColor: theme.colors.blueSoft,
+      borderWidth: 1,
+      borderColor: theme.colors.blueGlow,
+    },
+    inlineButtonText: {
+      color: theme.colors.text,
+      fontWeight: '700',
+    },
     directoryRow: {
       flexDirection: 'row',
       alignItems: 'center',
       justifyContent: 'space-between',
+      gap: 12,
       paddingVertical: 12,
       borderBottomWidth: 1,
       borderBottomColor: theme.colors.border,
     },
     directoryCopy: {
       flex: 1,
-      paddingRight: 12,
+    },
+    directoryTitleRow: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      gap: 8,
+      marginBottom: 4,
+      flexWrap: 'wrap',
     },
     directoryName: {
       color: theme.colors.text,
       fontWeight: '700',
-      marginBottom: 4,
     },
     directoryMeta: {
       color: theme.colors.muted,
       fontSize: 12,
+      marginTop: 2,
+    },
+    directoryNote: {
+      color: theme.colors.blue,
+      fontSize: 12,
+      marginTop: 4,
+      fontWeight: '700',
     },
     directoryButton: {
-      minWidth: 70,
+      minWidth: 74,
       paddingVertical: 10,
       paddingHorizontal: 14,
       borderRadius: 14,
       alignItems: 'center',
+      justifyContent: 'center',
       backgroundColor: theme.colors.blueSoft,
       borderWidth: 1,
       borderColor: theme.colors.blueGlow,
     },
+    directoryButtonDisabled: {
+      opacity: 0.72,
+    },
     directoryButtonText: {
       color: theme.colors.text,
       fontWeight: '700',
+    },
+    discoveryBadge: {
+      paddingHorizontal: 9,
+      paddingVertical: 5,
+      borderRadius: 999,
+      borderWidth: 1,
+    },
+    discoveryBadgeActive: {
+      backgroundColor: theme.colors.blueSoft,
+      borderColor: theme.colors.blueGlow,
+    },
+    discoveryBadgeMuted: {
+      backgroundColor: theme.colors.backgroundElevated,
+      borderColor: theme.colors.border,
+    },
+    discoveryBadgeText: {
+      color: theme.colors.text,
+      fontSize: 10,
+      fontWeight: '800',
+    },
+    emailSearchRow: {
+      flexDirection: 'row',
+      gap: 10,
+      alignItems: 'center',
+      marginBottom: 10,
+    },
+    emailSearchInput: {
+      flex: 1,
     },
     watchHero: {
       padding: 16,

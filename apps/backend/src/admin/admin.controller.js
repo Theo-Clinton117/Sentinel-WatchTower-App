@@ -22,6 +22,9 @@ let AdminController = class AdminController {
     constructor(adminService) {
         this.adminService = adminService;
     }
+    reportsQueue(filter) {
+        return this.adminService.reportsQueue(filter);
+    }
     activeAlerts() {
         return this.adminService.activeAlerts();
     }
@@ -33,6 +36,14 @@ let AdminController = class AdminController {
     }
 };
 exports.AdminController = AdminController;
+__decorate([
+    (0, common_1.Get)('reports'),
+    (0, roles_decorator_1.Roles)('admin', 'reviewer'),
+    __param(0, (0, common_1.Query)('filter')),
+    __metadata("design:type", Function),
+    __metadata("design:paramtypes", [String]),
+    __metadata("design:returntype", void 0)
+], AdminController.prototype, "reportsQueue", null);
 __decorate([
     (0, common_1.Get)('active-alerts'),
     (0, roles_decorator_1.Roles)('admin'),

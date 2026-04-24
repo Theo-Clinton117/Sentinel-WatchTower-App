@@ -59,7 +59,10 @@ Base URL: `/api`
 
 ## Subscriptions
 - `GET /subscriptions`
+- `POST /subscriptions/sync`
+  - Refreshes the authenticated user's server-side subscription record from RevenueCat.
 - `POST /subscriptions/checkout`
+  - Deprecated. Native store purchases now happen in-app through RevenueCat + App Store / Google Play.
 
 ## Telemetry
 - `POST /telemetry`
@@ -68,6 +71,8 @@ Base URL: `/api`
 - `GET /risk-zones`
 
 ## Admin
+- `GET /admin/reports`
+  - Reviewer/admin moderation queue. Supports `filter=pending|reviewed|flagged|all`.
 - `GET /admin/active-alerts`
 - `POST /admin/alerts/:id/flag`
 - `POST /admin/reports/:id/classify`

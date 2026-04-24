@@ -67,6 +67,43 @@ const LiveMapBase = ({
     [locations],
   );
 
+  // Calculate optimal zoom level and region based on all locations
+  const mapRegion = useMemo(() => {
+    if (locations.length === 0) {
+      return { latitude, longitude, latitudeDelta: 0.01, longitudeDelta: 0.01 };
+    }
+
+    if (locations.length === 1) {
+      return { latitude, longitude, latitudeDelta: 0.015, longitudeDelta: 0.015 };
+    }
+
+    // Calculate bounds of all locations
+    let maxLat = locations[0].lat;
+    let minLat = locations[0].lat;
+    let maxLng = locations[0].lng;
+    let minLng = locations[0].lng;
+
+    locations.forEach((loc) => {
+      maxLat = Math.max(maxLat, loc.lat);
+      minLat = Math.min(minLat, loc.lat);
+      maxLng = Math.max(maxLng, loc.lng);
+      minLng = Math.min(minLng, loc.lng);
+    });
+
+    const centerLat = (maxLat + minLat) / 2;
+    const centerLng = (maxLng + minLng) / 2;
+    const latDelta = maxLat - minLat;
+    const lngDelta = maxLng - minLng;
+
+    // Add 40% padding to show all points comfortably
+    return {
+      latitude: centerLat,
+      longitude: centerLng,
+      latitudeDelta: Math.max(latDelta * 1.4, 0.02),
+      longitudeDelta: Math.max(lngDelta * 1.4, 0.02),
+    };
+  }, [locations, latitude, longitude]);
+
   useEffect(() => {
     const nextPosition = { lat: latitude, lng: longitude };
     if (!mapRef.current) {
@@ -80,37 +117,40 @@ const LiveMapBase = ({
     }
 
     const distance = getDistanceMeters(latestCameraPosition.current, nextPosition);
-    if (distance < 25) {
+    if (distance < 50) {
       return;
     }
 
     latestCameraPosition.current = nextPosition;
+    // Use adaptive zoom based on location count
+    const adaptiveZoom = locations.length > 1 ? 15 : 16;
     mapRef.current.animateCamera(
       {
         center: { latitude, longitude },
-        zoom: 16,
+        zoom: adaptiveZoom,
       },
       { duration: 900 },
     );
-  }, [latitude, longitude]);
+  }, [latitude, longitude, locations.length]);
 
   return (
     <View style={styles.container}>
       <MapView
         ref={mapRef}
         style={StyleSheet.absoluteFillObject}
-        initialRegion={{
-          latitude,
-          longitude,
-          latitudeDelta: 0.01,
-          longitudeDelta: 0.01,
-        }}
+        initialRegion={mapRegion}
         mapType={Platform.OS === 'android' ? 'none' : 'standard'}
         moveOnMarkerPress={false}
-        rotateEnabled={false}
-        pitchEnabled={false}
+        rotateEnabled={true}
+        pitchEnabled={true}
         toolbarEnabled={false}
         cacheEnabled
+        scrollEnabled={true}
+        zoomEnabled={true}
+        minZoomLevel={3}
+        maxZoomLevel={19}
+        showsMyLocationButton={true}
+        showsCompass={true}
       >
         <UrlTile
           urlTemplate={OSM_TILE_URL}

@@ -1,12 +1,13 @@
 import React from 'react';
-import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { ActivityIndicator, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
 import { shallow } from 'zustand/shallow';
 import { MotionView } from '../components/MotionView';
 import { ProfileGlyph } from '../components/ProfileGlyph';
 import { ApiError } from '../services/api';
+import { getCurrentLocation, getReadableLocationLabel } from '../services/location';
 import { requestReviewerRole } from '../services/roles';
 import { getCurrentUser } from '../services/users';
-import { ThemePreference, useAppStore } from '../store/useAppStore';
+import { SavedPlaceKey, ThemePreference, useAppStore } from '../store/useAppStore';
 import { useAppTheme } from '../theme';
 
 const resolveDisplayName = (name?: string | null, email?: string | null, phone?: string | null) =>
@@ -71,6 +72,14 @@ const formatReviewerStatus = (
   }
 
   return 'Request reviewer access when you are ready to help validate community reports.';
+};
+
+const formatSavedPlaceUpdatedAt = (value?: string | null) => {
+  if (!value) {
+    return 'Not saved yet';
+  }
+
+  return new Date(value).toLocaleString();
 };
 
 const ScreenFrame = ({
@@ -170,18 +179,89 @@ const ThemeChipRow = () => {
 };
 
 const SavedPlaceContent = ({
+  placeKey,
   title,
   helper,
 }: {
+  placeKey: SavedPlaceKey;
   title: string;
   helper: string;
 }) => {
   const theme = useAppTheme();
   const styles = createStyles(theme);
-  const lastKnownLocation = useAppStore((state) => state.lastKnownLocation);
-  const formattedLocation = lastKnownLocation
-    ? `${lastKnownLocation.lat.toFixed(5)}, ${lastKnownLocation.lng.toFixed(5)}`
-    : 'No recent location available';
+  const { clearSavedPlace, savedPlace, setSavedPlace } = useAppStore(
+    (state) => ({
+      clearSavedPlace: state.clearSavedPlace,
+      savedPlace: state.savedPlaces[placeKey],
+      setSavedPlace: state.setSavedPlace,
+    }),
+    shallow,
+  );
+  const [addressLine, setAddressLine] = React.useState(savedPlace?.addressLine || '');
+  const [note, setNote] = React.useState(savedPlace?.note || '');
+  const [message, setMessage] = React.useState('');
+  const [error, setError] = React.useState('');
+  const [resolvingLocation, setResolvingLocation] = React.useState(false);
+
+  React.useEffect(() => {
+    setAddressLine(savedPlace?.addressLine || '');
+    setNote(savedPlace?.note || '');
+  }, [savedPlace?.addressLine, savedPlace?.note]);
+
+  const hasSavedPlace = Boolean(savedPlace?.addressLine);
+  const canSave = addressLine.trim().length >= 6;
+
+  const handleSave = () => {
+    if (!canSave) {
+      setError('Add a fuller address before saving this place.');
+      return;
+    }
+
+    setSavedPlace(placeKey, {
+      addressLine: addressLine.trim(),
+      note: note.trim() || null,
+      source: 'manual',
+      updatedAt: new Date().toISOString(),
+    });
+    setMessage(`${title} saved on this device.`);
+    setError('');
+  };
+
+  const handleClear = () => {
+    clearSavedPlace(placeKey);
+    setAddressLine('');
+    setNote('');
+    setMessage(`${title} cleared from this device.`);
+    setError('');
+  };
+
+  const handleUseCurrentLocation = async () => {
+    try {
+      setResolvingLocation(true);
+      setMessage('');
+      setError('');
+      const location = await getCurrentLocation();
+      const readableLocation = await getReadableLocationLabel(location);
+
+      if (!readableLocation) {
+        setError('We found your location, but could not resolve a readable address yet.');
+        return;
+      }
+
+      setAddressLine(readableLocation);
+      setSavedPlace(placeKey, {
+        addressLine: readableLocation,
+        note: note.trim() || null,
+        source: 'live_location',
+        updatedAt: new Date().toISOString(),
+      });
+      setMessage(`${title} filled from your current live location.`);
+    } catch {
+      setError('Could not pull your current location into this saved place right now.');
+    } finally {
+      setResolvingLocation(false);
+    }
+  };
 
   return (
     <ScreenFrame
@@ -198,15 +278,77 @@ const SavedPlaceContent = ({
             />
           </View>
           <View style={styles.savedPlaceCopy}>
-            <Text style={styles.savedPlaceState}>Not added yet</Text>
-            <Text style={styles.savedPlaceText}>{helper}</Text>
+            <Text style={styles.savedPlaceState}>
+              {hasSavedPlace ? savedPlace?.addressLine : 'Not added yet'}
+            </Text>
+            <Text style={styles.savedPlaceText}>
+              {hasSavedPlace
+                ? savedPlace?.note || helper
+                : helper}
+            </Text>
           </View>
         </View>
       </DetailCard>
 
+      <DetailCard title="Save address" delay={150}>
+        <TextInput
+          placeholder="Enter a full address"
+          placeholderTextColor={theme.colors.muted}
+          style={styles.input}
+          value={addressLine}
+          onChangeText={setAddressLine}
+        />
+        <TextInput
+          placeholder="Optional note or landmark"
+          placeholderTextColor={theme.colors.muted}
+          style={styles.input}
+          value={note}
+          onChangeText={setNote}
+        />
+
+        <Pressable
+          style={[styles.secondaryButton, resolvingLocation && styles.buttonDisabled]}
+          onPress={handleUseCurrentLocation}
+          disabled={resolvingLocation}
+        >
+          {resolvingLocation ? (
+            <ActivityIndicator color={theme.colors.text} />
+          ) : (
+            <Text style={styles.secondaryButtonText}>Use current live location</Text>
+          )}
+        </Pressable>
+
+        <Pressable
+          style={[styles.primaryButton, (!canSave || resolvingLocation) && styles.buttonDisabled]}
+          onPress={handleSave}
+          disabled={!canSave || resolvingLocation}
+        >
+          <Text style={styles.primaryButtonText}>Save address</Text>
+        </Pressable>
+
+        {hasSavedPlace ? (
+          <Pressable style={styles.ghostButton} onPress={handleClear}>
+            <Text style={styles.ghostButtonText}>Clear saved address</Text>
+          </Pressable>
+        ) : null}
+
+        {message ? <Text style={styles.helperText}>{message}</Text> : null}
+        {error ? <Text style={styles.errorText}>{error}</Text> : null}
+      </DetailCard>
+
       <DetailCard title="Quick details" delay={170}>
-        <InfoRow label="Current status" value="Waiting for an address" />
-        <InfoRow label="Nearby pin" value={formattedLocation} />
+        <InfoRow label="Current status" value={hasSavedPlace ? 'Saved on this device' : 'Waiting for an address'} />
+        <InfoRow
+          label="Saved from"
+          value={
+            hasSavedPlace
+              ? savedPlace?.source === 'live_location'
+                ? 'Current live location'
+                : 'Manual entry'
+              : 'No saved source yet'
+          }
+        />
+        <InfoRow label="Last updated" value={formatSavedPlaceUpdatedAt(savedPlace?.updatedAt)} />
         <InfoRow label="Best use" value="Fast recall during an alert or check-in" isLast />
       </DetailCard>
     </ScreenFrame>
@@ -455,6 +597,7 @@ export const PrivacyScreen = () => {
 
 export const HomeAddressScreen = () => (
   <SavedPlaceContent
+    placeKey="home"
     title="Home address"
     helper="Add your home base so you can reference it quickly during alerts, escorts, and check-ins."
   />
@@ -462,6 +605,7 @@ export const HomeAddressScreen = () => (
 
 export const WorkAddressScreen = () => (
   <SavedPlaceContent
+    placeKey="work"
     title="Work address"
     helper="Save your work location to make commute-related safety flows easier to recognize and share."
   />
@@ -599,6 +743,11 @@ const createStyles = (theme: ReturnType<typeof useAppTheme>) =>
       lineHeight: 18,
       marginTop: 10,
     },
+    errorText: {
+      color: theme.colors.red,
+      lineHeight: 18,
+      marginTop: 10,
+    },
     trustRow: {
       flexDirection: 'row',
       gap: 16,
@@ -648,6 +797,21 @@ const createStyles = (theme: ReturnType<typeof useAppTheme>) =>
       justifyContent: 'center',
     },
     logoutButtonText: {
+      color: theme.colors.text,
+      fontWeight: '700',
+    },
+    secondaryButton: {
+      minHeight: 50,
+      borderRadius: 16,
+      backgroundColor: theme.colors.backgroundElevated,
+      borderWidth: 1,
+      borderColor: theme.colors.borderStrong,
+      alignItems: 'center',
+      justifyContent: 'center',
+      paddingHorizontal: 16,
+      marginTop: 14,
+    },
+    secondaryButtonText: {
       color: theme.colors.text,
       fontWeight: '700',
     },
@@ -701,5 +865,30 @@ const createStyles = (theme: ReturnType<typeof useAppTheme>) =>
     savedPlaceText: {
       color: theme.colors.muted,
       lineHeight: 19,
+    },
+    input: {
+      borderWidth: 1,
+      borderColor: theme.colors.border,
+      borderRadius: 14,
+      paddingHorizontal: 14,
+      paddingVertical: 13,
+      color: theme.colors.text,
+      backgroundColor: theme.colors.backgroundElevated,
+      marginTop: 12,
+    },
+    ghostButton: {
+      minHeight: 46,
+      borderRadius: 16,
+      borderWidth: 1,
+      borderColor: theme.colors.border,
+      alignItems: 'center',
+      justifyContent: 'center',
+      paddingHorizontal: 16,
+      marginTop: 12,
+      backgroundColor: theme.colors.surfaceStrong,
+    },
+    ghostButtonText: {
+      color: theme.colors.text,
+      fontWeight: '700',
     },
   });

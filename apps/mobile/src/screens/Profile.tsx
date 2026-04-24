@@ -15,11 +15,6 @@ const accountItems: Array<{ label: string; icon: ProfileGlyphName; screen: Scree
   { label: 'Privacy', icon: 'eye-off', screen: 'profile-privacy' },
 ];
 
-const savedPlaceItems: Array<{ label: string; icon: ProfileGlyphName; screen: Screen }> = [
-  { label: 'Add home address', icon: 'home', screen: 'profile-home-address' },
-  { label: 'Add work address', icon: 'briefcase', screen: 'profile-work-address' },
-];
-
 const MenuRow = ({
   icon,
   label,
@@ -68,9 +63,10 @@ const resolveProfileRating = (score?: number | null) => {
 export const ProfileScreen = () => {
   const theme = useAppTheme();
   const styles = createStyles(theme);
-  const { pushScreen, user, setUser } = useAppStore(
+  const { pushScreen, savedPlaces, user, setUser } = useAppStore(
     (state) => ({
       pushScreen: state.pushScreen,
+      savedPlaces: state.savedPlaces,
       user: state.user,
       setUser: state.setUser,
     }),
@@ -106,6 +102,18 @@ export const ProfileScreen = () => {
 
   const displayName = resolveDisplayName(user);
   const profileRating = resolveProfileRating(user?.credibility?.score);
+  const savedPlaceItems: Array<{ label: string; icon: ProfileGlyphName; screen: Screen }> = [
+    {
+      label: savedPlaces.home?.addressLine ? 'Home address' : 'Add home address',
+      icon: 'home',
+      screen: 'profile-home-address',
+    },
+    {
+      label: savedPlaces.work?.addressLine ? 'Work address' : 'Add work address',
+      icon: 'briefcase',
+      screen: 'profile-work-address',
+    },
+  ];
 
   return (
     <ScrollView style={styles.container} contentContainerStyle={styles.content} showsVerticalScrollIndicator={false}>

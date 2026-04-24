@@ -23,6 +23,12 @@ let ContactsController = class ContactsController {
     list(req) {
         return this.contactsService.list(req.user.sub);
     }
+    search(req, email) {
+        return this.contactsService.searchByEmail(req.user.sub, email);
+    }
+    discover(req, body) {
+        return this.contactsService.discoverSentinelUsers(req.user.sub, body);
+    }
     create(req, body) {
         return this.contactsService.create(req.user.sub, body);
     }
@@ -41,6 +47,22 @@ __decorate([
     __metadata("design:paramtypes", [Object]),
     __metadata("design:returntype", void 0)
 ], ContactsController.prototype, "list", null);
+__decorate([
+    (0, common_1.Get)('search'),
+    __param(0, (0, common_1.Req)()),
+    __param(1, (0, common_1.Query)('email')),
+    __metadata("design:type", Function),
+    __metadata("design:paramtypes", [Object, String]),
+    __metadata("design:returntype", void 0)
+], ContactsController.prototype, "search", null);
+__decorate([
+    (0, common_1.Post)('discover'),
+    __param(0, (0, common_1.Req)()),
+    __param(1, (0, common_1.Body)()),
+    __metadata("design:type", Function),
+    __metadata("design:paramtypes", [Object, Object]),
+    __metadata("design:returntype", void 0)
+], ContactsController.prototype, "discover", null);
 __decorate([
     (0, common_1.Post)(),
     __param(0, (0, common_1.Req)()),

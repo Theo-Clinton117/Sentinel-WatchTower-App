@@ -9,7 +9,7 @@ var __metadata = (this && this.__metadata) || function (k, v) {
     if (typeof Reflect === "object" && typeof Reflect.metadata === "function") return Reflect.metadata(k, v);
 };
 var __param = (this && this.__param) || function (paramIndex, decorator) {
-    return function (target, key) { decorator(target, key, paramIndex); }
+    return function (target, key) { decorator(target, key, paramIndex); };
 };
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.SubscriptionsController = void 0;
@@ -20,25 +20,35 @@ let SubscriptionsController = class SubscriptionsController {
     constructor(subscriptionsService) {
         this.subscriptionsService = subscriptionsService;
     }
-    list() {
-        return this.subscriptionsService.list();
+    list(req) {
+        return this.subscriptionsService.list(req.user.sub);
     }
-    checkout(body) {
-        return this.subscriptionsService.checkout(body);
+    sync(req) {
+        return this.subscriptionsService.sync(req.user.sub);
+    }
+    checkout() {
+        return this.subscriptionsService.checkout();
     }
 };
 exports.SubscriptionsController = SubscriptionsController;
 __decorate([
     (0, common_1.Get)(),
+    __param(0, (0, common_1.Req)()),
     __metadata("design:type", Function),
-    __metadata("design:paramtypes", []),
+    __metadata("design:paramtypes", [Object]),
     __metadata("design:returntype", void 0)
 ], SubscriptionsController.prototype, "list", null);
 __decorate([
-    (0, common_1.Post)('checkout'),
-    __param(0, (0, common_1.Body)()),
+    (0, common_1.Post)('sync'),
+    __param(0, (0, common_1.Req)()),
     __metadata("design:type", Function),
     __metadata("design:paramtypes", [Object]),
+    __metadata("design:returntype", void 0)
+], SubscriptionsController.prototype, "sync", null);
+__decorate([
+    (0, common_1.Post)('checkout'),
+    __metadata("design:type", Function),
+    __metadata("design:paramtypes", []),
     __metadata("design:returntype", void 0)
 ], SubscriptionsController.prototype, "checkout", null);
 exports.SubscriptionsController = SubscriptionsController = __decorate([

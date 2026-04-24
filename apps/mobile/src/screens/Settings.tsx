@@ -1,5 +1,6 @@
 import React from 'react';
-import { Pressable, StyleSheet, Text, View } from 'react-native';
+import { Alert, Pressable, StyleSheet, Text, View } from 'react-native';
+import { shallow } from 'zustand/shallow';
 import { MotionView } from '../components/MotionView';
 import { ThemePreference, useAppStore } from '../store/useAppStore';
 import { useAppTheme } from '../theme';
@@ -7,8 +8,38 @@ import { useAppTheme } from '../theme';
 export const SettingsScreen = () => {
   const theme = useAppTheme();
   const styles = createStyles(theme);
-  const { clearAuthSession, setThemePreference, themePreference, user } = useAppStore();
+  const {
+    clearAuthSession,
+    pushScreen,
+    setThemePreference,
+    themePreference,
+    user,
+  } = useAppStore(
+    (state) => ({
+      clearAuthSession: state.clearAuthSession,
+      pushScreen: state.pushScreen,
+      setThemePreference: state.setThemePreference,
+      themePreference: state.themePreference,
+      user: state.user,
+    }),
+    shallow,
+  );
   const modes: ThemePreference[] = ['system', 'light', 'dark'];
+
+  const handleDeleteLocalData = () => {
+    Alert.alert(
+      'Delete local data',
+      'This will clear Sentinel data on this device and sign you out. Full account deletion is not connected here yet.',
+      [
+        { text: 'Cancel', style: 'cancel' },
+        {
+          text: 'Delete local data',
+          style: 'destructive',
+          onPress: clearAuthSession,
+        },
+      ],
+    );
+  };
 
   return (
     <View style={styles.container}>
@@ -42,14 +73,17 @@ export const SettingsScreen = () => {
         </View>
       </MotionView>
       <MotionView delay={240}>
-        <Pressable style={styles.item}>
+        <Pressable style={styles.item} onPress={() => pushScreen('profile-privacy')}>
           <Text style={styles.itemText}>Privacy Controls</Text>
+          <Text style={styles.itemMeta}>Review privacy choices and data-use guidance.</Text>
         </Pressable>
-        <Pressable style={styles.item}>
+        <Pressable style={styles.item} onPress={() => pushScreen('profile-login-security')}>
           <Text style={styles.itemText}>Device Management</Text>
+          <Text style={styles.itemMeta}>View this device session and account security details.</Text>
         </Pressable>
-        <Pressable style={styles.item}>
+        <Pressable style={styles.item} onPress={handleDeleteLocalData}>
           <Text style={styles.itemText}>Delete My Data</Text>
+          <Text style={styles.itemMeta}>Currently clears local device data and signs you out.</Text>
         </Pressable>
       </MotionView>
       <MotionView delay={300}>
@@ -154,6 +188,11 @@ const createStyles = (theme: ReturnType<typeof useAppTheme>) =>
     itemText: {
       color: theme.colors.text,
       fontWeight: '600',
+      marginBottom: 4,
+    },
+    itemMeta: {
+      color: theme.colors.muted,
+      lineHeight: 18,
     },
     logout: {
       marginTop: 8,

@@ -13,6 +13,16 @@ import { useAppTheme } from '../theme';
 
 const drawerItems: Array<{ label: string; screen: Screen; blurb: string }> = [
   {
+    label: 'Settings',
+    screen: 'settings',
+    blurb: 'Control privacy, device management, and local data on this device.',
+  },
+  {
+    label: 'Reviewer Dashboard',
+    screen: 'reviewer-dashboard',
+    blurb: 'Review and manage user reports and credibility scores.',
+  },
+  {
     label: 'Subscriptions',
     screen: 'subscription',
     blurb: 'Manage your plan and premium safety features.',

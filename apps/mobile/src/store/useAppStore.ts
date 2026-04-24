@@ -22,6 +22,7 @@ export type Screen =
   | 'subscription'
   | 'support'
   | 'about'
+  | 'reviewer-dashboard'
   | 'settings';
 
 type SessionStatus = 'idle' | 'monitoring' | 'soft_alert' | 'active';
@@ -112,6 +113,15 @@ export type WatchSession = {
   status: 'active' | 'ended';
 };
 
+export type SavedPlaceKey = 'home' | 'work';
+
+export type SavedPlace = {
+  addressLine: string;
+  note?: string | null;
+  source: 'manual' | 'live_location';
+  updatedAt: string;
+};
+
 type AppState = {
   currentScreen: Screen;
   screenStack: Screen[];
@@ -133,6 +143,7 @@ type AppState = {
   sidebarOpen: boolean;
   emergencyLocations: EmergencyLocation[];
   lastKnownLocation: EmergencyLocation | null;
+  savedPlaces: Record<SavedPlaceKey, SavedPlace | null>;
   sessionHistory: EmergencyHistoryItem[];
   watchSessionHistory: WatchSession[];
   hasHydrated: boolean;
@@ -169,6 +180,8 @@ type AppState = {
   setEmergencyLocations: (locations: EmergencyLocation[]) => void;
   appendEmergencyLocations: (locations: EmergencyLocation[]) => void;
   setLastKnownLocation: (location: EmergencyLocation | null) => void;
+  setSavedPlace: (key: SavedPlaceKey, place: SavedPlace) => void;
+  clearSavedPlace: (key: SavedPlaceKey) => void;
   clearEmergencySession: () => void;
   clearAuthSession: () => void;
   setHasHydrated: (value: boolean) => void;
@@ -283,6 +296,10 @@ export const useAppStore = create<AppState>()(
       sidebarOpen: false,
       emergencyLocations: [],
       lastKnownLocation: null,
+      savedPlaces: {
+        home: null,
+        work: null,
+      },
       sessionHistory: [],
       watchSessionHistory: [],
       hasHydrated: false,
@@ -434,6 +451,20 @@ export const useAppStore = create<AppState>()(
             ? mergeLocations(state.emergencyLocations, [location])
             : state.emergencyLocations,
         })),
+      setSavedPlace: (key, place) =>
+        set((state) => ({
+          savedPlaces: {
+            ...state.savedPlaces,
+            [key]: place,
+          },
+        })),
+      clearSavedPlace: (key) =>
+        set((state) => ({
+          savedPlaces: {
+            ...state.savedPlaces,
+            [key]: null,
+          },
+        })),
       clearEmergencySession: () =>
         set((state) => ({
           activeSession: null,
@@ -472,6 +503,10 @@ export const useAppStore = create<AppState>()(
           sidebarOpen: false,
           emergencyLocations: [],
           lastKnownLocation: null,
+          savedPlaces: {
+            home: null,
+            work: null,
+          },
           sessionHistory: [],
           watchSessionHistory: [],
           currentScreen: 'auth',
@@ -503,6 +538,7 @@ export const useAppStore = create<AppState>()(
         deviceId: state.deviceId,
         otpRequestedAt: state.otpRequestedAt,
         otpDevCode: state.otpDevCode,
+        savedPlaces: state.savedPlaces,
         activeSession: state.activeSession,
         activeWatchSession: state.activeWatchSession,
         sessionHistory: state.sessionHistory,

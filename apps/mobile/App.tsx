@@ -19,8 +19,10 @@ import { ScreenCanvas } from './src/components/ScreenCanvas';
 import { SidebarDrawer } from './src/components/SidebarDrawer';
 import { useAppStore } from './src/store/useAppStore';
 import { useAppTheme } from './src/theme';
+import { isRootScreen } from './src/utils/screenUtils';
 import { verifyOtp } from './src/services/auth';
 import { clearSecureSession, loadSecureSession, saveSecureSession } from './src/services/secure-session';
+import { initializeRevenueCatForUser } from './src/services/subscriptions';
 import { HomeScreen } from './src/screens/Home';
 import { ActiveEmergencyScreen } from './src/screens/ActiveEmergency';
 import { ContactsScreen } from './src/screens/Contacts';
@@ -35,8 +37,9 @@ import {
   SafetyScreen,
   WorkAddressScreen,
 } from './src/screens/ProfileDetails';
-import { AboutScreen, SupportScreen } from './src/screens/SidebarPages';
+import { AboutScreen, SupportScreen, ReviewerDashboardScreen } from './src/screens/SidebarPages';
 import { SubscriptionScreen } from './src/screens/Subscription';
+import { SettingsScreen } from './src/screens/Settings';
 import { AuthEntryScreen } from './src/screens/Auth/PhoneInput';
 import { OtpScreen } from './src/screens/Auth/Otp';
 import { OnboardingContactsScreen } from './src/screens/Onboarding/Contacts';
@@ -53,15 +56,32 @@ const DEV_TEST_OTP =
   process.env.EXPO_PUBLIC_DEV_TEST_OTP || '123456';
 
 const ScreenRouter = () => {
-  const { currentScreen, sessionStatus, authStatus, onboardingComplete } = useAppStore(
+  const { currentScreen, screenStack, sessionStatus, authStatus, onboardingComplete, setScreen } = useAppStore(
     (state) => ({
       currentScreen: state.currentScreen,
+      screenStack: state.screenStack,
       sessionStatus: state.sessionStatus,
       authStatus: state.authStatus,
       onboardingComplete: state.onboardingComplete,
+      setScreen: state.setScreen,
     }),
     shallow,
   );
+
+  // Ensure sidebar menu screens don't become the default entry point
+  const rootScreens = ['home', 'risk-log', 'contacts', 'profile'];
+  const shouldResetToHome = 
+    authStatus === 'authenticated' && 
+    onboardingComplete && 
+    sessionStatus === 'idle' &&
+    screenStack.length <= 1 &&
+    !rootScreens.includes(currentScreen);
+
+  React.useEffect(() => {
+    if (shouldResetToHome) {
+      setScreen('home');
+    }
+  }, [screenStack.length, shouldResetToHome, setScreen]);
 
   if (sessionStatus === 'active' || sessionStatus === 'soft_alert') {
     return <ActiveEmergencyScreen />;
@@ -106,6 +126,10 @@ const ScreenRouter = () => {
       return <SupportScreen />;
     case 'about':
       return <AboutScreen />;
+    case 'reviewer-dashboard':
+      return <ReviewerDashboardScreen />;
+    case 'settings':
+      return <SettingsScreen />;
     default:
       return <HomeScreen />;
   }
@@ -610,6 +634,16 @@ export default function App() {
     setAuthSession,
     setOnboardingComplete,
   ]);
+
+  React.useEffect(() => {
+    if (!hasSecureAuthHydrated || !user?.id) {
+      return;
+    }
+
+    void initializeRevenueCatForUser(user).catch(() => {
+      // Subscription setup is allowed to fail quietly until store keys are configured.
+    });
+  }, [hasSecureAuthHydrated, user]);
 
   return (
     <QueryClientProvider client={queryClient}>
