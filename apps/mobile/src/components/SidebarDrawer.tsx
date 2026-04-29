@@ -18,6 +18,11 @@ const drawerItems: Array<{ label: string; screen: Screen; blurb: string }> = [
     blurb: 'Control privacy, device management, and local data on this device.',
   },
   {
+    label: 'Notifications',
+    screen: 'notifications',
+    blurb: 'See alert updates and trusted-contact activity delivered through Sentinel.',
+  },
+  {
     label: 'Reviewer Dashboard',
     screen: 'reviewer-dashboard',
     blurb: 'Review and manage user reports and credibility scores.',

@@ -37,7 +37,12 @@ import {
   SafetyScreen,
   WorkAddressScreen,
 } from './src/screens/ProfileDetails';
-import { AboutScreen, SupportScreen, ReviewerDashboardScreen } from './src/screens/SidebarPages';
+import {
+  AboutScreen,
+  NotificationsScreen,
+  SupportScreen,
+  ReviewerDashboardScreen,
+} from './src/screens/SidebarPages';
 import { SubscriptionScreen } from './src/screens/Subscription';
 import { SettingsScreen } from './src/screens/Settings';
 import { AuthEntryScreen } from './src/screens/Auth/PhoneInput';
@@ -122,6 +127,8 @@ const ScreenRouter = () => {
       return <WorkAddressScreen />;
     case 'subscription':
       return <SubscriptionScreen />;
+    case 'notifications':
+      return <NotificationsScreen />;
     case 'support':
       return <SupportScreen />;
     case 'about':

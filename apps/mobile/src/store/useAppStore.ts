@@ -19,6 +19,7 @@ export type Screen =
   | 'profile-privacy'
   | 'profile-home-address'
   | 'profile-work-address'
+  | 'notifications'
   | 'subscription'
   | 'support'
   | 'about'

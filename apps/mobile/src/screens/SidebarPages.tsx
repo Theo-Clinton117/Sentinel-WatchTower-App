@@ -10,6 +10,7 @@ import {
   classifyReviewerReport,
   getReviewerQueue,
 } from '../services/admin';
+import { AppNotification, listNotifications } from '../services/notifications';
 import { getCurrentUser } from '../services/users';
 import { useAppStore } from '../store/useAppStore';
 import { useAppTheme } from '../theme';
@@ -104,6 +105,11 @@ const titleCase = (value?: string | null) =>
     .filter(Boolean)
     .map((part) => part.charAt(0).toUpperCase() + part.slice(1))
     .join(' ') || 'Unknown';
+
+const readPayloadString = (payload: Record<string, unknown> | null | undefined, key: string) => {
+  const value = payload?.[key];
+  return typeof value === 'string' && value.trim().length > 0 ? value : null;
+};
 
 const getSeverityTone = (severity: ReviewerQueueReport['severity']) => {
   switch (severity) {
@@ -319,6 +325,115 @@ export const SupportScreen = () => {
           <Text style={styles.primaryButtonText}>Contact support</Text>
         </Pressable>
       </MotionView>
+    </ScreenFrame>
+  );
+};
+
+export const NotificationsScreen = () => {
+  const theme = useAppTheme();
+  const styles = createStyles(theme);
+  const notificationsQuery = useQuery<AppNotification[]>({
+    queryKey: ['notifications'],
+    queryFn: listNotifications,
+  });
+
+  return (
+    <ScreenFrame
+      title="Notifications"
+      subtitle="Track alert broadcasts, safe confirmations, and the contact updates Sentinel recorded for this account."
+    >
+      {notificationsQuery.isLoading ? (
+        <MotionView delay={110} style={[styles.card, theme.shadow.card]}>
+          <Text style={styles.cardTitle}>Loading notifications</Text>
+          <Text style={styles.cardCopy}>Pulling your latest in-app and delivery history.</Text>
+        </MotionView>
+      ) : notificationsQuery.isError ? (
+        <MotionView delay={110} style={[styles.card, theme.shadow.card]}>
+          <Text style={styles.cardTitle}>Notifications unavailable</Text>
+          <Text style={styles.cardCopy}>
+            {notificationsQuery.error instanceof Error
+              ? notificationsQuery.error.message
+              : 'Sentinel could not load your notifications right now.'}
+          </Text>
+          <Pressable onPress={() => notificationsQuery.refetch()} style={[styles.primaryButton, styles.inlineButton]}>
+            <Text style={styles.primaryButtonText}>Retry notifications</Text>
+          </Pressable>
+        </MotionView>
+      ) : notificationsQuery.data?.length ? (
+        <View style={styles.reviewList}>
+          {notificationsQuery.data.map((item: AppNotification, index: number) => {
+            const message =
+              readPayloadString(item.payload, 'message') ||
+              readPayloadString(item.payload, 'subject') ||
+              readPayloadString(item.payload, 'reason') ||
+              'Sentinel recorded an update for this alert.';
+            const recipient =
+              readPayloadString(item.payload, 'recipientName') ||
+              readPayloadString(item.payload, 'recipientEmail') ||
+              readPayloadString(item.payload, 'recipientPhone');
+
+            return (
+              <MotionView key={item.id} delay={110 + index * 40}>
+                <View style={[styles.reviewCard, theme.shadow.card]}>
+                  <View style={styles.reviewCardHeader}>
+                    <View
+                      style={[
+                        styles.tagPill,
+                        {
+                          backgroundColor: theme.colors.blueSoft,
+                          borderColor: theme.colors.border,
+                        },
+                      ]}
+                    >
+                      <Text style={[styles.tagPillText, { color: theme.colors.blue }]}>
+                        {titleCase(item.channel)}
+                      </Text>
+                    </View>
+                    <View
+                      style={[
+                        styles.tagPill,
+                        {
+                          backgroundColor: theme.colors.surface,
+                          borderColor: theme.colors.borderStrong,
+                        },
+                      ]}
+                    >
+                      <Text style={[styles.tagPillText, { color: theme.colors.text }]}>
+                        {titleCase(item.status)}
+                      </Text>
+                    </View>
+                  </View>
+
+                  <Text style={styles.reviewTitle}>{titleCase(item.type)}</Text>
+                  <Text style={styles.reviewDescription}>{message}</Text>
+
+                  <View style={styles.metaRow}>
+                    <Text style={styles.metaText}>{formatDateTime(item.createdAt)}</Text>
+                    {item.sentAt ? <Text style={styles.metaText}>Sent {formatDateTime(item.sentAt)}</Text> : null}
+                  </View>
+
+                  {recipient ? (
+                    <View style={styles.metaRow}>
+                      <Text style={styles.metaText}>Recipient: {recipient}</Text>
+                    </View>
+                  ) : null}
+
+                  {item.relatedSessionId ? (
+                    <Text style={styles.reviewedText}>Session {item.relatedSessionId.slice(0, 8)}</Text>
+                  ) : null}
+                </View>
+              </MotionView>
+            );
+          })}
+        </View>
+      ) : (
+        <MotionView delay={110} style={[styles.card, theme.shadow.card]}>
+          <Text style={styles.cardTitle}>No notifications yet</Text>
+          <Text style={styles.cardCopy}>
+            When Sentinel alerts, cancellations, or trusted-contact deliveries happen for your account, they will show up here.
+          </Text>
+        </MotionView>
+      )}
     </ScreenFrame>
   );
 };

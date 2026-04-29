@@ -142,6 +142,21 @@ let AlertsService = class AlertsService {
         const sessionId = created.session.id;
         await this.queues.scheduleEscalation({ alertId, sessionId, stage: alertStage });
         this.ws.emitSessionStatus(sessionId, 'active', alertStage);
+        if ((0, alert_stages_1.compareAlertStages)(alertStage, 'high_alert') >= 0) {
+            this.queues.enqueueAlertNotifications({
+                userId,
+                alertId,
+                sessionId,
+                eventType: 'alert_started',
+                stage: alertStage,
+                triggerSource,
+                riskScore,
+                cancelExpiresAt: created.alert.cancel_expires_at || null,
+                detectionSummary,
+            }).catch((error) => {
+                common_1.Logger.warn(`Alert notification dispatch failed: ${error instanceof Error ? error.message : 'unknown error'}`, 'AlertsService');
+            });
+        }
         return mapAlertSessionRow({
             ...created.alert,
             alert_id: alertId,
@@ -177,7 +192,10 @@ let AlertsService = class AlertsService {
                 throw new common_1.NotFoundException('Active alert not found');
             }
             if ((0, alert_stages_1.compareAlertStages)(requestedStage, current.stage) <= 0) {
-                return current;
+                return {
+                    ...current,
+                    didEscalate: false,
+                };
             }
             const escalationLevel = (0, alert_stages_1.getEscalationLevel)(requestedStage);
             const riskScore = body?.riskScore == null
@@ -226,15 +244,31 @@ let AlertsService = class AlertsService {
                 alert_status: alert.status,
                 session_id: current.session_id,
                 started_at: current.started_at,
+                didEscalate: true,
             };
         });
-        if (result.session_id) {
+        if (result.session_id && result.didEscalate) {
             await this.queues.scheduleEscalation({
                 alertId: result.alert_id,
                 sessionId: result.session_id,
                 stage: result.stage,
             });
             this.ws.emitSessionStatus(result.session_id, 'active', result.stage);
+            if ((0, alert_stages_1.compareAlertStages)(result.stage, 'high_alert') >= 0) {
+                this.queues.enqueueAlertNotifications({
+                    userId,
+                    alertId: result.alert_id,
+                    sessionId: result.session_id,
+                    eventType: 'alert_escalated',
+                    stage: result.stage,
+                    triggerSource: result.trigger_source,
+                    riskScore: result.risk_score,
+                    cancelExpiresAt: result.cancel_expires_at || null,
+                    detectionSummary: Array.isArray(result.detection_summary) ? result.detection_summary : [],
+                }).catch((error) => {
+                    common_1.Logger.warn(`Alert escalation notification dispatch failed: ${error instanceof Error ? error.message : 'unknown error'}`, 'AlertsService');
+                });
+            }
         }
         return mapAlertSessionRow(result);
     }
@@ -262,6 +296,19 @@ let AlertsService = class AlertsService {
         if (result.session?.id) {
             this.ws.emitSessionStatus(result.session.id, 'cancelled', 'cancelled');
         }
+        this.queues.enqueueAlertNotifications({
+            userId,
+            alertId: id,
+            sessionId: result.session?.id ?? null,
+            eventType: 'alert_cancelled',
+            stage: result.alert.stage || null,
+            triggerSource: result.alert.trigger_source || null,
+            riskScore: result.alert.risk_score ?? null,
+            cancelExpiresAt: null,
+            detectionSummary: Array.isArray(result.alert.detection_summary) ? result.alert.detection_summary : [],
+        }).catch((error) => {
+            common_1.Logger.warn(`Alert cancellation notification dispatch failed: ${error instanceof Error ? error.message : 'unknown error'}`, 'AlertsService');
+        });
         return { id, status: result.alert.status, sessionId: result.session?.id ?? null };
     }
 };
