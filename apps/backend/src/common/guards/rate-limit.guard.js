@@ -14,6 +14,7 @@ const common_1 = require("@nestjs/common");
 const core_1 = require("@nestjs/core");
 const ioredis_1 = require("ioredis");
 const rate_limiter_flexible_1 = require("rate-limiter-flexible");
+const { RateLimiterMemory } = rate_limiter_flexible_1;
 const rate_limit_decorator_1 = require("./rate-limit.decorator");
 let RateLimitGuard = class RateLimitGuard {
     constructor(reflector) {
@@ -26,12 +27,15 @@ let RateLimitGuard = class RateLimitGuard {
     }
     async canActivate(context) {
         const config = this.reflector.get(rate_limit_decorator_1.RATE_LIMIT_KEY, context.getHandler());
-        if (!config || !this.redis) {
+        if (!config) {
             return true;
         }
         const request = context.switchToHttp().getRequest();
         const key = request.user?.sub || request.ip;
         const limiter = this.getLimiter(config);
+        if (!limiter) {
+            return true;
+        }
         try {
             await limiter.consume(key);
             return true;
@@ -41,20 +45,22 @@ let RateLimitGuard = class RateLimitGuard {
         }
     }
     getLimiter(config) {
-        if (!this.redis) {
-            return null;
-        }
         const cacheKey = `${config.points}:${config.duration}`;
         const cached = this.limiterCache.get(cacheKey);
         if (cached) {
             return cached;
         }
-        const limiter = new rate_limiter_flexible_1.RateLimiterRedis({
-            storeClient: this.redis,
-            keyPrefix: 'rl',
-            points: config.points,
-            duration: config.duration,
-        });
+        const limiter = this.redis
+            ? new rate_limiter_flexible_1.RateLimiterRedis({
+                storeClient: this.redis,
+                keyPrefix: 'rl',
+                points: config.points,
+                duration: config.duration,
+            })
+            : new RateLimiterMemory({
+                points: config.points,
+                duration: config.duration,
+            });
         this.limiterCache.set(cacheKey, limiter);
         return limiter;
     }

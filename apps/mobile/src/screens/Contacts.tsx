@@ -1,6 +1,7 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import {
   ActivityIndicator,
+  Alert,
   Pressable,
   ScrollView,
   StyleSheet,
@@ -13,10 +14,12 @@ import { MotionView } from '../components/MotionView';
 import { ApiError } from '../services/api';
 import {
   createContact,
+  deleteContact,
   listContacts,
   searchSentinelUsersByEmail,
   type SentinelUserMatch,
   type TrustedContact,
+  updateContact,
 } from '../services/contacts';
 import {
   loadDeviceContactsWithSentinelMatches,
@@ -69,7 +72,9 @@ export const ContactsScreen = () => {
   const [selectedDuration, setSelectedDuration] = useState(60);
   const [watchNote, setWatchNote] = useState('');
   const [showForm, setShowForm] = useState(false);
+  const [editingContactId, setEditingContactId] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
+  const [deletingContactId, setDeletingContactId] = useState<string | null>(null);
   const [savingEntryKey, setSavingEntryKey] = useState<string | null>(null);
   const [contactName, setContactName] = useState('');
   const [contactPhone, setContactPhone] = useState('');
@@ -204,6 +209,57 @@ export const ContactsScreen = () => {
     }
   };
 
+  const resetContactForm = () => {
+    setContactName('');
+    setContactPhone('');
+    setContactEmail('');
+    setCanViewLocation(true);
+    setEditingContactId(null);
+    setShowForm(false);
+  };
+
+  const handleEditContact = (contact: TrustedContact) => {
+    setEditingContactId(contact.id);
+    setContactName(contact.contactName || '');
+    setContactPhone(contact.contactPhone || '');
+    setContactEmail(contact.contactEmail || '');
+    setCanViewLocation(contact.canViewLocation ?? true);
+    setShowForm(true);
+    setError('');
+  };
+
+  const handleDeleteContact = (contact: TrustedContact) => {
+    Alert.alert(
+      'Remove trusted contact',
+      `Remove ${contact.contactName || contact.contactEmail || contact.contactPhone || 'this contact'} from your trusted circle?`,
+      [
+        { text: 'Cancel', style: 'cancel' },
+        {
+          text: 'Remove',
+          style: 'destructive',
+          onPress: async () => {
+            try {
+              setDeletingContactId(contact.id);
+              setError('');
+              await deleteContact(contact.id);
+              setContacts((current) => current.filter((item) => item.id !== contact.id));
+              if (selectedContactId === contact.id) {
+                setSelectedContactId(null);
+              }
+              if (editingContactId === contact.id) {
+                resetContactForm();
+              }
+            } catch (deleteError) {
+              setError(deleteError instanceof ApiError ? deleteError.message : 'Could not remove contact.');
+            } finally {
+              setDeletingContactId(null);
+            }
+          },
+        },
+      ],
+    );
+  };
+
   const handleSave = async () => {
     if (!formValid) {
       setError('Add a valid name plus either a phone number or an email before saving.');
@@ -213,23 +269,32 @@ export const ContactsScreen = () => {
     try {
       setSaving(true);
       setError('');
-      const created = await createContact({
+      const payload = {
         contactName: contactName.trim(),
         contactPhone: normalizePhone(contactPhone) || undefined,
         contactEmail: contactEmail.trim() || undefined,
-        priority: contacts.length,
         canViewLocation,
         canCall: true,
         canSms: true,
         canViewHistory: true,
-      });
-      setContacts((current) => [...current, created]);
-      setSelectedContactId(created.id);
-      setContactName('');
-      setContactPhone('');
-      setContactEmail('');
-      setCanViewLocation(true);
-      setShowForm(false);
+      };
+
+      if (editingContactId) {
+        const updated = await updateContact(editingContactId, payload);
+        setContacts((current) =>
+          current.map((contact) => (contact.id === updated.id ? updated : contact)),
+        );
+        setSelectedContactId(updated.id);
+      } else {
+        const created = await createContact({
+          ...payload,
+          priority: contacts.length,
+        });
+        setContacts((current) => [...current, created]);
+        setSelectedContactId(created.id);
+      }
+
+      resetContactForm();
     } catch (saveError) {
       setError(saveError instanceof ApiError ? saveError.message : 'Could not save contact.');
     } finally {
@@ -324,6 +389,7 @@ export const ContactsScreen = () => {
         ) : null}
         {filteredContacts.map((contact) => {
           const active = selectedContactId === contact.id;
+          const deleting = deletingContactId === contact.id;
           const badgeLabel = contact.contactUserId
             ? 'On Sentinel'
             : contact.canViewLocation
@@ -331,27 +397,43 @@ export const ContactsScreen = () => {
               : 'Alert-only';
 
           return (
-            <Pressable
-              key={contact.id}
-              onPress={() => setSelectedContactId(contact.id)}
-              style={[styles.contactCard, active && styles.contactCardActive]}
-            >
-              <View style={styles.contactRow}>
-                <View style={styles.contactAvatar}>
-                  <Text style={styles.contactAvatarText}>
-                    {(contact.contactName || contact.contactPhone || '?').slice(0, 1).toUpperCase()}
-                  </Text>
+            <View key={contact.id} style={[styles.contactCard, active && styles.contactCardActive]}>
+              <Pressable onPress={() => setSelectedContactId(contact.id)}>
+                <View style={styles.contactRow}>
+                  <View style={styles.contactAvatar}>
+                    <Text style={styles.contactAvatarText}>
+                      {(contact.contactName || contact.contactPhone || '?').slice(0, 1).toUpperCase()}
+                    </Text>
+                  </View>
+                  <View style={styles.contactCopy}>
+                    <Text style={styles.contactName}>{contact.contactName || 'Unnamed contact'}</Text>
+                    {contact.contactPhone ? <Text style={styles.contactMeta}>{contact.contactPhone}</Text> : null}
+                    {contact.contactEmail ? <Text style={styles.contactMeta}>{contact.contactEmail}</Text> : null}
+                  </View>
+                  <View style={styles.contactBadge}>
+                    <Text style={styles.contactBadgeText}>{badgeLabel}</Text>
+                  </View>
                 </View>
-                <View style={styles.contactCopy}>
-                  <Text style={styles.contactName}>{contact.contactName || 'Unnamed contact'}</Text>
-                  {contact.contactPhone ? <Text style={styles.contactMeta}>{contact.contactPhone}</Text> : null}
-                  {contact.contactEmail ? <Text style={styles.contactMeta}>{contact.contactEmail}</Text> : null}
+              </Pressable>
+              {active ? (
+                <View style={styles.contactActionRow}>
+                  <Pressable style={styles.contactActionButton} onPress={() => handleEditContact(contact)}>
+                    <Text style={styles.contactActionText}>Edit</Text>
+                  </Pressable>
+                  <Pressable
+                    style={[styles.contactActionButton, styles.contactDangerButton]}
+                    onPress={() => handleDeleteContact(contact)}
+                    disabled={deleting}
+                  >
+                    {deleting ? (
+                      <ActivityIndicator color={theme.colors.text} />
+                    ) : (
+                      <Text style={styles.contactActionText}>Remove</Text>
+                    )}
+                  </Pressable>
                 </View>
-                <View style={styles.contactBadge}>
-                  <Text style={styles.contactBadgeText}>{badgeLabel}</Text>
-                </View>
-              </View>
-            </Pressable>
+              ) : null}
+            </View>
           );
         })}
       </MotionView>
@@ -568,7 +650,9 @@ export const ContactsScreen = () => {
 
       {showForm ? (
         <MotionView delay={360} style={[styles.sectionCard, theme.shadow.card]}>
-          <Text style={styles.sectionTitle}>Add trusted contact manually</Text>
+          <Text style={styles.sectionTitle}>
+            {editingContactId ? 'Edit trusted contact' : 'Add trusted contact manually'}
+          </Text>
           <TextInput
             placeholder="Full name"
             placeholderTextColor={theme.colors.muted}
@@ -613,8 +697,13 @@ export const ContactsScreen = () => {
             {saving ? (
               <ActivityIndicator color={theme.colors.text} />
             ) : (
-              <Text style={styles.primaryButtonText}>Save Contact</Text>
+              <Text style={styles.primaryButtonText}>
+                {editingContactId ? 'Save changes' : 'Save Contact'}
+              </Text>
             )}
+          </Pressable>
+          <Pressable style={styles.secondaryButton} onPress={resetContactForm}>
+            <Text style={styles.secondaryButtonText}>Cancel</Text>
           </Pressable>
         </MotionView>
       ) : (
@@ -718,6 +807,29 @@ const createStyles = (theme: ReturnType<typeof useAppTheme>) =>
       borderWidth: 1,
       borderColor: theme.colors.border,
       marginTop: 10,
+    },
+    contactActionRow: {
+      flexDirection: 'row',
+      gap: 10,
+      marginTop: 12,
+    },
+    contactActionButton: {
+      flex: 1,
+      minHeight: 42,
+      borderRadius: 14,
+      borderWidth: 1,
+      borderColor: theme.colors.blueGlow,
+      backgroundColor: theme.colors.blueSoft,
+      alignItems: 'center',
+      justifyContent: 'center',
+    },
+    contactDangerButton: {
+      borderColor: theme.colors.red,
+      backgroundColor: theme.isDark ? 'rgba(255,94,120,0.16)' : '#FFE9ED',
+    },
+    contactActionText: {
+      color: theme.colors.text,
+      fontWeight: '700',
     },
     contactCardActive: {
       borderColor: theme.colors.blueGlow,

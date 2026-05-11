@@ -1,6 +1,7 @@
 import { useAppStore } from '../store/useAppStore';
+import { resolveDevBackendUrl } from './runtime-host';
 
-const baseUrl = process.env.EXPO_PUBLIC_API_BASE_URL || 'http://localhost:4000';
+const baseUrl = resolveDevBackendUrl(process.env.EXPO_PUBLIC_API_BASE_URL);
 
 type RequestOptions = {
   auth?: boolean;
@@ -81,15 +82,34 @@ export async function apiGet<T>(path: string, options?: RequestOptions): Promise
 
 export async function apiPost<T>(
   path: string,
-  body: unknown,
+  body?: unknown,
   options?: RequestOptions,
 ): Promise<T> {
   return request<T>(
     path,
     {
-    method: 'POST',
-    body: JSON.stringify(body),
+      method: 'POST',
+      body: body === undefined ? undefined : JSON.stringify(body),
     },
     options,
   );
+}
+
+export async function apiPatch<T>(
+  path: string,
+  body?: unknown,
+  options?: RequestOptions,
+): Promise<T> {
+  return request<T>(
+    path,
+    {
+      method: 'PATCH',
+      body: body === undefined ? undefined : JSON.stringify(body),
+    },
+    options,
+  );
+}
+
+export async function apiDelete<T>(path: string, options?: RequestOptions): Promise<T> {
+  return request<T>(path, { method: 'DELETE' }, options);
 }

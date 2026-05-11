@@ -170,6 +170,11 @@ export const RapidReportDial = ({
           ]}
         >
           <Pressable
+            onPress={() => {
+              if (!disabled && !loading) {
+                onSubmit('medium');
+              }
+            }}
             disabled={disabled || loading}
             style={[styles.button, (disabled || loading) && styles.buttonDisabled]}
           >
@@ -183,14 +188,14 @@ export const RapidReportDial = ({
               end={{ x: 1, y: 1 }}
               style={styles.gradient}
             >
-              <Text style={styles.eyebrow}>{holding ? 'Slide and release' : 'Hold to report'}</Text>
+              <Text style={styles.eyebrow}>{holding ? 'Slide and release' : 'Tap or slide to report'}</Text>
               <Text style={styles.label}>{centerSeverity ? centerSeverity.label : 'REPORT'}</Text>
               <Text style={styles.caption}>
                 {loading
                   ? 'Sending alert...'
                   : centerSeverity
                     ? centerSeverity.description
-                    : 'Up critical  •  Right high  •  Down medium  •  Left low'}
+                    : 'Up critical - Right high - Tap/down medium - Left low'}
               </Text>
             </LinearGradient>
           </Pressable>

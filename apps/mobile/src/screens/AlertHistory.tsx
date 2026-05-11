@@ -38,7 +38,7 @@ export const RiskLogScreen = () => {
           <View key={session.id} style={styles.timelineRow}>
             <Text style={styles.timelineTitle}>{session.contactName}</Text>
             <Text style={styles.timelineMeta}>
-              {session.durationMinutes} minutes • ended {new Date(session.endsAt).toLocaleString()}
+              {session.durationMinutes} minutes - ended {new Date(session.endsAt).toLocaleString()}
             </Text>
             {session.note ? <Text style={styles.timelineNote}>{session.note}</Text> : null}
           </View>

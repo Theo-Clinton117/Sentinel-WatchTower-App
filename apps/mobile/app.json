@@ -4,7 +4,6 @@
     "slug": "sentinel-watchtower",
     "scheme": "sentinel",
     "version": "0.1.0",
-    "entryPoint": "index",
     "orientation": "portrait",
     "icon": "./assets/icons/android-icon.png",
     "splash": {
@@ -12,7 +11,8 @@
     },
     "platforms": [
       "ios",
-      "android"
+      "android",
+      "web"
     ],
     "ios": {
       "icon": "./assets/icons/ios-icon-liquid-glass.png"

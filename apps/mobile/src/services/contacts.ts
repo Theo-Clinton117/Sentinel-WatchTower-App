@@ -1,4 +1,4 @@
-import { apiGet, apiPost } from './api';
+import { apiDelete, apiGet, apiPatch, apiPost } from './api';
 
 export type TrustedContact = {
   id: string;
@@ -40,6 +40,8 @@ export type CreateTrustedContactInput = {
   canCall?: boolean;
 };
 
+export type UpdateTrustedContactInput = Partial<CreateTrustedContactInput>;
+
 export function listContacts() {
   return apiGet<TrustedContact[]>('/contacts', { auth: true });
 }
@@ -60,4 +62,12 @@ export function discoverSentinelContacts(body: {
 
 export function createContact(body: CreateTrustedContactInput) {
   return apiPost<TrustedContact>('/contacts', body, { auth: true });
+}
+
+export function updateContact(id: string, body: UpdateTrustedContactInput) {
+  return apiPatch<TrustedContact>(`/contacts/${id}`, body, { auth: true });
+}
+
+export function deleteContact(id: string) {
+  return apiDelete<{ removed: boolean; id: string }>(`/contacts/${id}`, { auth: true });
 }

@@ -22,8 +22,8 @@ let RiskZonesService = class RiskZonesService {
         return result.rows.map((row) => ({
             id: row.id,
             name: row.name,
-            lat: Number(row.lat),
-            lng: Number(row.lng),
+            lat: Number(row.center_lat),
+            lng: Number(row.center_lng),
             radiusM: row.radius_m,
             riskLevel: row.risk_level,
             createdAt: row.created_at,

@@ -1,5 +1,5 @@
 import React from 'react';
-import { Alert, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { Alert, Linking, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { useMutation, useQuery } from '@tanstack/react-query';
 import { shallow } from 'zustand/shallow';
 import { MotionView } from '../components/MotionView';
@@ -304,6 +304,26 @@ const ReviewerReportCard = ({
 export const SupportScreen = () => {
   const theme = useAppTheme();
   const styles = createStyles(theme);
+  const user = useAppStore((state) => state.user);
+
+  const handleContactSupport = async () => {
+    const subject = encodeURIComponent('Sentinel Watchtower support request');
+    const userLine = user?.id ? `\n\nUser ID: ${user.id}` : '';
+    const body = encodeURIComponent(`Hi Sentinel support,\n\nI need help with:${userLine}`);
+    const url = `mailto:support@sentinel-watchtower.com?subject=${subject}&body=${body}`;
+
+    try {
+      const canOpen = await Linking.canOpenURL(url);
+      if (!canOpen) {
+        Alert.alert('Email unavailable', 'No email app is available on this device.');
+        return;
+      }
+
+      await Linking.openURL(url);
+    } catch {
+      Alert.alert('Support unavailable', 'Could not open your email app right now.');
+    }
+  };
 
   return (
     <ScreenFrame
@@ -312,7 +332,7 @@ export const SupportScreen = () => {
     >
       <InfoCard
         title="Help options"
-        copy="If something feels off, start here before an emergency moment becomes stressful. We can connect this page to chat, email, or a support form next."
+        copy="If something feels off, start here before an emergency moment becomes stressful. Contact support opens an email draft with your account context included."
         delay={110}
       />
       <InfoCard
@@ -321,7 +341,7 @@ export const SupportScreen = () => {
         delay={170}
       />
       <MotionView delay={230}>
-        <Pressable style={[styles.primaryButton, theme.shadow.glow]}>
+        <Pressable style={[styles.primaryButton, theme.shadow.glow]} onPress={handleContactSupport}>
           <Text style={styles.primaryButtonText}>Contact support</Text>
         </Pressable>
       </MotionView>

@@ -1,7 +1,8 @@
 import { io, Socket } from 'socket.io-client';
 import type { EmergencyLocation } from '../store/useAppStore';
+import { resolveDevBackendUrl } from './runtime-host';
 
-const wsUrl = process.env.EXPO_PUBLIC_WS_URL || 'http://localhost:4000';
+const wsUrl = resolveDevBackendUrl(process.env.EXPO_PUBLIC_WS_URL);
 
 let socket: Socket | null = null;
 

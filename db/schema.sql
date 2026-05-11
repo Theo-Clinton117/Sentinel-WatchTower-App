@@ -189,8 +189,8 @@ create table if not exists report_classifications (
 create table if not exists risk_zones (
   id uuid primary key default gen_random_uuid(),
   name text not null,
-  lat double precision not null,
-  lng double precision not null,
+  center_lat double precision not null,
+  center_lng double precision not null,
   radius_m int default 0,
   risk_level text default 'medium',
   created_at timestamptz default now()
