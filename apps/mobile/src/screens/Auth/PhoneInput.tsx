@@ -13,21 +13,42 @@ import {
 import { LinearGradient } from 'expo-linear-gradient';
 import { MotionView } from '../../components/MotionView';
 import { ApiError } from '../../services/api';
-import { AuthFlow, isEmailValid, normalizeEmailInput, requestOtp } from '../../services/auth';
+import {
+  AuthFlow,
+  isEmailValid,
+  isPhoneValid,
+  normalizeEmailInput,
+  normalizePhoneInput,
+  requestOtp,
+} from '../../services/auth';
 import { useAppStore } from '../../store/useAppStore';
 import { useAppTheme } from '../../theme';
 
 export const AuthEntryScreen = () => {
   const theme = useAppTheme();
   const styles = createStyles(theme);
-  const { authFlow, pendingEmail, pendingName, deviceId, setPendingAuth, markOtpRequested, pushScreen } =
+  const {
+    authFlow,
+    pendingEmail,
+    pendingPhone,
+    pendingName,
+    deviceId,
+    setPendingAuth,
+    markOtpRequested,
+    pushScreen,
+  } =
     useAppStore();
   const [mode, setMode] = useState<AuthFlow>(authFlow);
+  const [contactMethod, setContactMethod] = useState<'email' | 'phone'>(
+    pendingPhone ? 'phone' : 'email',
+  );
   const [name, setName] = useState(pendingName);
   const [email, setEmail] = useState(pendingEmail);
+  const [phone, setPhone] = useState(pendingPhone);
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
   const normalizedEmail = useMemo(() => normalizeEmailInput(email), [email]);
+  const normalizedPhone = useMemo(() => normalizePhoneInput(phone), [phone]);
   const isSignup = mode === 'signup';
 
   const handleModeChange = (nextMode: AuthFlow) => {
@@ -43,8 +64,15 @@ export const AuthEntryScreen = () => {
       return;
     }
 
-    if (!isEmailValid(normalizedEmail)) {
+    const isEmail = contactMethod === 'email';
+
+    if (isEmail && !isEmailValid(normalizedEmail)) {
       setError('Enter a valid email address to receive your verification code.');
+      return;
+    }
+
+    if (!isEmail && !isPhoneValid(normalizedPhone)) {
+      setError('Enter a valid phone number, including your country code.');
       return;
     }
 
@@ -53,7 +81,8 @@ export const AuthEntryScreen = () => {
       setError('');
       const result = await requestOtp(
         {
-          email: normalizedEmail,
+          email: isEmail ? normalizedEmail : undefined,
+          phone: isEmail ? undefined : normalizedPhone,
           name: isSignup ? trimmedName : undefined,
           mode,
         },
@@ -61,7 +90,8 @@ export const AuthEntryScreen = () => {
       );
 
       setPendingAuth({
-        email: result.email || normalizedEmail,
+        email: isEmail ? result.email || normalizedEmail : null,
+        phone: isEmail ? null : result.phone || normalizedPhone,
         name: trimmedName,
         mode: result.mode || mode,
       });
@@ -97,8 +127,8 @@ export const AuthEntryScreen = () => {
           <Text style={styles.title}>{isSignup ? 'Create your account' : 'Welcome back'}</Text>
           <Text style={styles.subtitle}>
             {isSignup
-              ? 'Start with your name and email. We will send a one-time code to finish setup.'
-              : 'Enter the email linked to your account and we will send a fresh verification code.'}
+              ? 'Start with your name, then verify by email or phone to finish setup.'
+              : 'Enter the email or phone linked to your account and we will send a fresh verification code.'}
           </Text>
         </MotionView>
 
@@ -124,8 +154,31 @@ export const AuthEntryScreen = () => {
 
             <View style={styles.badgeRow}>
               <View style={styles.badge}>
-                <Text style={styles.badgeText}>Email verification</Text>
+                <Text style={styles.badgeText}>
+                  {contactMethod === 'email' ? 'Supabase email verification' : 'Twilio phone verification'}
+                </Text>
               </View>
+            </View>
+
+            <View style={styles.contactSwitcher}>
+              {(['email', 'phone'] as const).map((option) => {
+                const active = contactMethod === option;
+
+                return (
+                  <Pressable
+                    key={option}
+                    onPress={() => {
+                      setContactMethod(option);
+                      setError('');
+                    }}
+                    style={[styles.contactChip, active && styles.contactChipActive]}
+                  >
+                    <Text style={[styles.contactChipText, active && styles.contactChipTextActive]}>
+                      {option === 'email' ? 'Email' : 'Phone'}
+                    </Text>
+                  </Pressable>
+                );
+              })}
             </View>
 
             {isSignup ? (
@@ -148,24 +201,45 @@ export const AuthEntryScreen = () => {
               </View>
             ) : null}
 
-            <View style={[styles.fieldBlock, isSignup && styles.inputSpaced]}>
-              <Text style={styles.label}>Email address</Text>
-              <TextInput
-                autoCapitalize="none"
-                autoCorrect={false}
-                keyboardType="email-address"
-                placeholder="you@example.com"
-                placeholderTextColor={theme.colors.muted}
-                style={styles.input}
-                value={email}
-                onChangeText={(value) => {
-                  setEmail(value);
-                  if (error) {
-                    setError('');
-                  }
-                }}
-              />
-            </View>
+            {contactMethod === 'email' ? (
+              <View style={[styles.fieldBlock, isSignup && styles.inputSpaced]}>
+                <Text style={styles.label}>Email address</Text>
+                <TextInput
+                  autoCapitalize="none"
+                  autoCorrect={false}
+                  keyboardType="email-address"
+                  placeholder="you@example.com"
+                  placeholderTextColor={theme.colors.muted}
+                  style={styles.input}
+                  value={email}
+                  onChangeText={(value) => {
+                    setEmail(value);
+                    if (error) {
+                      setError('');
+                    }
+                  }}
+                />
+              </View>
+            ) : (
+              <View style={[styles.fieldBlock, isSignup && styles.inputSpaced]}>
+                <Text style={styles.label}>Phone number</Text>
+                <TextInput
+                  autoCapitalize="none"
+                  autoCorrect={false}
+                  keyboardType="phone-pad"
+                  placeholder="+2348012345678"
+                  placeholderTextColor={theme.colors.muted}
+                  style={styles.input}
+                  value={phone}
+                  onChangeText={(value) => {
+                    setPhone(value);
+                    if (error) {
+                      setError('');
+                    }
+                  }}
+                />
+              </View>
+            )}
 
             {error ? <Text style={styles.error}>{error}</Text> : null}
 
@@ -251,6 +325,33 @@ const createStyles = (theme: ReturnType<typeof useAppTheme>) =>
       color: theme.colors.text,
       fontSize: 12,
       fontWeight: '700',
+    },
+    contactSwitcher: {
+      flexDirection: 'row',
+      gap: 8,
+      marginBottom: 16,
+    },
+    contactChip: {
+      flex: 1,
+      minHeight: 42,
+      borderRadius: 14,
+      alignItems: 'center',
+      justifyContent: 'center',
+      backgroundColor: theme.colors.backgroundElevated,
+      borderWidth: 1,
+      borderColor: theme.colors.border,
+    },
+    contactChipActive: {
+      backgroundColor: theme.colors.blueSoft,
+      borderColor: theme.colors.blueGlow,
+    },
+    contactChipText: {
+      color: theme.colors.muted,
+      fontSize: 13,
+      fontWeight: '700',
+    },
+    contactChipTextActive: {
+      color: theme.colors.text,
     },
     modeChip: {
       flex: 1,

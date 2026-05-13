@@ -1,4 +1,5 @@
 import type { EmergencyLocation, WatchSession } from '../store/useAppStore';
+import type { NearbySafetyMeshContext } from './nearby-safety-mesh';
 
 type RiskZone = {
   id: string;
@@ -25,7 +26,9 @@ type GuardianAssessment = {
     locationScore: number;
     timeScore: number;
     watchScore: number;
+    meshScore: number;
     matchedZone: MatchedZone | null;
+    nearbySafetyMesh: NearbySafetyMeshContext | null;
     computedAt: string;
   };
 };
@@ -80,6 +83,7 @@ export function evaluateGuardianRisk(
   location: EmergencyLocation,
   riskZones: RiskZone[],
   activeWatchSession?: WatchSession | null,
+  nearbySafetyMesh?: NearbySafetyMeshContext | null,
 ): GuardianAssessment {
   let locationScore = 0;
   let matchedZone: MatchedZone | null = null;
@@ -105,7 +109,8 @@ export function evaluateGuardianRisk(
 
   const timeScore = getTimeScore();
   const watchScore = activeWatchSession ? 0 : 8;
-  const riskScore = Math.min(100, locationScore + timeScore + watchScore);
+  const meshScore = nearbySafetyMesh?.meshScore ?? 0;
+  const riskScore = Math.min(100, locationScore + timeScore + watchScore + meshScore);
   const summary: string[] = [];
 
   if (matchedZone !== null) {
@@ -121,6 +126,8 @@ export function evaluateGuardianRisk(
     summary.push('No active trusted watcher is covering this route right now.');
   }
 
+  nearbySafetyMesh?.summary.forEach((item) => summary.push(item));
+
   if (summary.length === 0) {
     summary.push('No elevated environmental risk detected in this check.');
   }
@@ -133,7 +140,9 @@ export function evaluateGuardianRisk(
       locationScore,
       timeScore,
       watchScore,
+      meshScore,
       matchedZone,
+      nearbySafetyMesh: nearbySafetyMesh ?? null,
       computedAt: new Date().toISOString(),
     },
   };

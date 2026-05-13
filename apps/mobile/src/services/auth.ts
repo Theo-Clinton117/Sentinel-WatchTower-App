@@ -63,8 +63,18 @@ export function normalizeEmailInput(value: string) {
   return value.trim().toLowerCase();
 }
 
+export function normalizePhoneInput(value: string) {
+  const trimmed = value.trim();
+  const prefix = trimmed.startsWith('+') ? '+' : '';
+  return `${prefix}${trimmed.replace(/[^\d]/g, '')}`;
+}
+
 export function isEmailValid(value: string) {
   return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(normalizeEmailInput(value));
+}
+
+export function isPhoneValid(value: string) {
+  return /^\+?[1-9]\d{7,14}$/.test(normalizePhoneInput(value));
 }
 
 export function isOtpValid(value: string) {
@@ -96,7 +106,7 @@ export async function requestOtp(
     body.email = normalizeEmailInput(payload.email);
   }
   if (payload.phone) {
-    body.phone = payload.phone.trim();
+    body.phone = normalizePhoneInput(payload.phone);
   }
   if (payload.name) {
     body.name = payload.name.trim();
@@ -119,7 +129,7 @@ export async function verifyOtp(
     body.email = normalizeEmailInput(payload.email);
   }
   if (payload.phone) {
-    body.phone = payload.phone.trim();
+    body.phone = normalizePhoneInput(payload.phone);
   }
   if (payload.name) {
     body.name = payload.name.trim();

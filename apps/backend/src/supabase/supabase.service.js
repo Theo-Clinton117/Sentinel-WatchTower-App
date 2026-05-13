@@ -89,9 +89,13 @@ let SupabaseService = class SupabaseService {
         const publishableKey = String(process.env.SUPABASE_PUBLISHABLE_KEY || '').trim();
         const serviceRoleKey = String(process.env.SUPABASE_SERVICE_ROLE_KEY || '').trim();
         const databaseUrl = String(process.env.SUPABASE_DB_URL || process.env.DATABASE_URL || '').trim();
+        const twilioAccountSid = String(process.env.TWILIO_ACCOUNT_SID || '').trim();
+        const twilioAuthToken = String(process.env.TWILIO_AUTH_TOKEN || '').trim();
+        const twilioVerifyServiceSid = String(process.env.TWILIO_VERIFY_SERVICE_SID || '').trim();
         const connectionSource = detectConnectionSource();
         const sqlConfigured = Boolean(databaseUrl);
         const usingSupabaseSql = /supabase\.co|pooler\.supabase\.com/i.test(databaseUrl);
+        const twilioVerifyConfigured = Boolean(twilioAccountSid && twilioAuthToken && twilioVerifyServiceSid);
         const warnings = [];
         if (!projectUrl || !publishableKey) {
             warnings.push('Set SUPABASE_URL and SUPABASE_PUBLISHABLE_KEY on the backend to enable server-side Supabase configuration.');
@@ -101,6 +105,9 @@ let SupabaseService = class SupabaseService {
         }
         if (!serviceRoleKey) {
             warnings.push('SUPABASE_SERVICE_ROLE_KEY is not set, so privileged Supabase REST or storage operations are intentionally unavailable.');
+        }
+        if (!twilioVerifyConfigured) {
+            warnings.push('Set TWILIO_ACCOUNT_SID, TWILIO_AUTH_TOKEN, and TWILIO_VERIFY_SERVICE_SID so phone verification can use Twilio Verify.');
         }
         return {
             configured: Boolean(projectUrl && publishableKey),
@@ -121,6 +128,17 @@ let SupabaseService = class SupabaseService {
                 sqlConfigured,
                 usingSupabaseSql,
                 connectionSource,
+            },
+            verification: {
+                email: {
+                    provider: 'supabase',
+                    configured: Boolean(projectUrl && serviceRoleKey),
+                },
+                phone: {
+                    provider: 'twilio',
+                    configured: twilioVerifyConfigured,
+                    verifyServiceConfigured: Boolean(twilioVerifyServiceSid),
+                },
             },
             warnings,
             clientPolicy: {

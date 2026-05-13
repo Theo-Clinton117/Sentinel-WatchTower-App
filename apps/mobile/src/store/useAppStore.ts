@@ -130,7 +130,9 @@ type AppState = {
   authStatus: AuthStatus;
   onboardingComplete: boolean;
   themePreference: ThemePreference;
+  nearbySafetyMeshEnabled: boolean;
   pendingEmail: string;
+  pendingPhone: string;
   pendingName: string;
   authFlow: AuthFlow;
   deviceId: string;
@@ -157,7 +159,13 @@ type AppState = {
   setAuthStatus: (status: AuthStatus) => void;
   setOnboardingComplete: (value: boolean) => void;
   setThemePreference: (value: ThemePreference) => void;
-  setPendingAuth: (payload: { email: string; name?: string | null; mode: AuthFlow }) => void;
+  setNearbySafetyMeshEnabled: (value: boolean) => void;
+  setPendingAuth: (payload: {
+    email?: string | null;
+    phone?: string | null;
+    name?: string | null;
+    mode: AuthFlow;
+  }) => void;
   markOtpRequested: (payload: { requestedAt: number; devCode?: string | null }) => void;
   setAuthSession: (payload: {
     accessToken: string;
@@ -283,7 +291,9 @@ export const useAppStore = create<AppState>()(
       authStatus: 'unauthenticated',
       onboardingComplete: false,
       themePreference: 'system',
+      nearbySafetyMeshEnabled: false,
       pendingEmail: '',
+      pendingPhone: '',
       pendingName: '',
       authFlow: 'signup',
       deviceId: defaultDeviceId,
@@ -352,9 +362,11 @@ export const useAppStore = create<AppState>()(
       setAuthStatus: (status) => set({ authStatus: status }),
       setOnboardingComplete: (value) => set({ onboardingComplete: value }),
       setThemePreference: (value) => set({ themePreference: value }),
-      setPendingAuth: ({ email, name, mode }) =>
+      setNearbySafetyMeshEnabled: (value) => set({ nearbySafetyMeshEnabled: value }),
+      setPendingAuth: ({ email, phone, name, mode }) =>
         set({
-          pendingEmail: email,
+          pendingEmail: email ?? '',
+          pendingPhone: phone ?? '',
           pendingName: name ?? '',
           authFlow: mode,
         }),
@@ -369,6 +381,9 @@ export const useAppStore = create<AppState>()(
           refreshToken,
           user,
           authStatus: 'authenticated',
+          pendingEmail: '',
+          pendingPhone: '',
+          pendingName: '',
           otpDevCode: null,
         }),
       setUser: (user) => set({ user }),
@@ -491,6 +506,7 @@ export const useAppStore = create<AppState>()(
           refreshToken: null,
           user: null,
           pendingEmail: '',
+          pendingPhone: '',
           pendingName: '',
           authFlow: 'signup',
           otpRequestedAt: null,
@@ -498,6 +514,7 @@ export const useAppStore = create<AppState>()(
           authStatus: 'unauthenticated',
           onboardingComplete: false,
           themePreference: state.themePreference,
+          nearbySafetyMeshEnabled: false,
           sessionStatus: 'idle',
           activeSession: null,
           activeWatchSession: null,
@@ -533,7 +550,9 @@ export const useAppStore = create<AppState>()(
         authStatus: state.authStatus,
         onboardingComplete: state.onboardingComplete,
         themePreference: state.themePreference,
+        nearbySafetyMeshEnabled: state.nearbySafetyMeshEnabled,
         pendingEmail: state.pendingEmail,
+        pendingPhone: state.pendingPhone,
         pendingName: state.pendingName,
         authFlow: state.authFlow,
         deviceId: state.deviceId,

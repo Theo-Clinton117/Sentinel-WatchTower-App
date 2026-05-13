@@ -1,5 +1,5 @@
 import React from 'react';
-import { ActivityIndicator, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
+import { ActivityIndicator, Pressable, ScrollView, StyleSheet, Switch, Text, TextInput, View } from 'react-native';
 import { shallow } from 'zustand/shallow';
 import { MotionView } from '../components/MotionView';
 import { ProfileGlyph } from '../components/ProfileGlyph';
@@ -570,6 +570,13 @@ export const LoginSecurityScreen = () => {
 export const PrivacyScreen = () => {
   const theme = useAppTheme();
   const styles = createStyles(theme);
+  const { nearbySafetyMeshEnabled, setNearbySafetyMeshEnabled } = useAppStore(
+    (state) => ({
+      nearbySafetyMeshEnabled: state.nearbySafetyMeshEnabled,
+      setNearbySafetyMeshEnabled: state.setNearbySafetyMeshEnabled,
+    }),
+    shallow,
+  );
 
   return (
     <ScreenFrame
@@ -582,11 +589,42 @@ export const PrivacyScreen = () => {
         <InfoRow label="Data requests" value="Delete-my-data flow can be connected here later" isLast />
       </DetailCard>
 
-      <DetailCard title="Appearance" delay={180}>
+      <DetailCard title="Nearby Safety Mesh" delay={180}>
+        <View style={styles.switchRow}>
+          <View style={styles.switchCopy}>
+            <Text style={styles.switchTitle}>
+              {nearbySafetyMeshEnabled ? 'Mesh context enabled' : 'Mesh context disabled'}
+            </Text>
+            <Text style={styles.bodyText}>
+              Use anonymized nearby movement patterns from opted-in Sentinel devices to refine passive danger checks.
+            </Text>
+          </View>
+          <Switch
+            value={nearbySafetyMeshEnabled}
+            onValueChange={setNearbySafetyMeshEnabled}
+            trackColor={{
+              false: theme.colors.borderStrong,
+              true: theme.colors.blueSoft,
+            }}
+            thumbColor={nearbySafetyMeshEnabled ? theme.colors.blue : theme.colors.muted}
+          />
+        </View>
+        <InfoRow
+          label="Shared signal"
+          value="Ephemeral proximity and motion state only"
+        />
+        <InfoRow
+          label="Identity"
+          value="No names, phone numbers, or raw location are shared peer-to-peer"
+          isLast
+        />
+      </DetailCard>
+
+      <DetailCard title="Appearance" delay={240}>
         <ThemeChipRow />
       </DetailCard>
 
-      <DetailCard title="Privacy note" delay={240}>
+      <DetailCard title="Privacy note" delay={300}>
         <Text style={styles.bodyText}>
           Keep sensitive information minimal and review shared contacts regularly so your response circle stays intentional.
         </Text>
@@ -721,6 +759,21 @@ const createStyles = (theme: ReturnType<typeof useAppTheme>) =>
     bodyText: {
       color: theme.colors.muted,
       lineHeight: 20,
+    },
+    switchRow: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      gap: 14,
+      marginBottom: 10,
+    },
+    switchCopy: {
+      flex: 1,
+      gap: 6,
+    },
+    switchTitle: {
+      color: theme.colors.text,
+      fontSize: 16,
+      fontWeight: '800',
     },
     primaryButton: {
       minHeight: 50,

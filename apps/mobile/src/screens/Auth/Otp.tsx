@@ -31,6 +31,14 @@ const maskEmail = (email: string) => {
   return `${localPart.slice(0, 2)}***${localPart.slice(-1)}@${domain}`;
 };
 
+const maskPhone = (phone: string) => {
+  if (phone.length <= 4) {
+    return phone;
+  }
+
+  return `${phone.slice(0, 3)}***${phone.slice(-4)}`;
+};
+
 export const OtpScreen = () => {
   const theme = useAppTheme();
   const styles = createStyles(theme);
@@ -40,6 +48,7 @@ export const OtpScreen = () => {
     otpDevCode,
     otpRequestedAt,
     pendingEmail,
+    pendingPhone,
     pendingName,
     authFlow,
     markOtpRequested,
@@ -69,10 +78,12 @@ export const OtpScreen = () => {
   }, [otpRequestedAt]);
 
   const maskedEmail = useMemo(() => maskEmail(pendingEmail), [pendingEmail]);
+  const maskedPhone = useMemo(() => maskPhone(pendingPhone), [pendingPhone]);
+  const pendingContact = pendingEmail || pendingPhone;
 
   const handleVerify = async () => {
-    if (!pendingEmail) {
-      setError('Start with your email address first.');
+    if (!pendingContact) {
+      setError('Start with your email or phone number first.');
       return;
     }
 
@@ -86,7 +97,8 @@ export const OtpScreen = () => {
       setError('');
       const result = await verifyOtp(
         {
-          email: pendingEmail,
+          email: pendingEmail || undefined,
+          phone: pendingPhone || undefined,
           name: authFlow === 'signup' ? pendingName : undefined,
           mode: authFlow,
           code: code.trim(),
@@ -111,7 +123,7 @@ export const OtpScreen = () => {
   };
 
   const handleResend = async () => {
-    if (!pendingEmail || remainingSeconds > 0) {
+    if (!pendingContact || remainingSeconds > 0) {
       return;
     }
 
@@ -120,7 +132,8 @@ export const OtpScreen = () => {
       setError('');
       const result = await requestOtp(
         {
-          email: pendingEmail,
+          email: pendingEmail || undefined,
+          phone: pendingPhone || undefined,
           name: authFlow === 'signup' ? pendingName : undefined,
           mode: authFlow,
         },
@@ -160,7 +173,9 @@ export const OtpScreen = () => {
           <Text style={styles.subtitle}>
             {pendingEmail
               ? `We sent a verification code to ${maskedEmail}.`
-              : 'Go back and enter your email address to continue.'}
+              : pendingPhone
+                ? `We sent a verification code to ${maskedPhone}.`
+                : 'Go back and enter your email or phone number to continue.'}
           </Text>
         </MotionView>
 

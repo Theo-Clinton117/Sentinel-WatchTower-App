@@ -14,6 +14,7 @@ import {
   getReadableLocationLabel,
   startForegroundTracking,
 } from '../services/location';
+import { buildNearbySafetyMeshContext } from '../services/nearby-safety-mesh';
 import { getAppPermissionSnapshot } from '../services/permissions';
 import { listRiskZones } from '../services/risk-zones';
 import { getActiveSession } from '../services/sessions';
@@ -30,6 +31,7 @@ export const HomeScreen = () => {
     authStatus,
     emergencyLocations,
     lastKnownLocation,
+    nearbySafetyMeshEnabled,
     openSidebar,
     sessionStatus,
     setActiveSession,
@@ -42,6 +44,7 @@ export const HomeScreen = () => {
       authStatus: state.authStatus,
       emergencyLocations: state.emergencyLocations,
       lastKnownLocation: state.lastKnownLocation,
+      nearbySafetyMeshEnabled: state.nearbySafetyMeshEnabled,
       openSidebar: state.openSidebar,
       sessionStatus: state.sessionStatus,
       setActiveSession: state.setActiveSession,
@@ -146,7 +149,17 @@ export const HomeScreen = () => {
           listRiskZones(),
           getCurrentLocation(),
         ]);
-        const assessment = evaluateGuardianRisk(location, riskZones, activeWatchSession);
+        const nearbySafetyMesh = buildNearbySafetyMeshContext({
+          enabled: nearbySafetyMeshEnabled,
+          currentLocation: location,
+          recentLocations: emergencyLocations,
+        });
+        const assessment = evaluateGuardianRisk(
+          location,
+          riskZones,
+          activeWatchSession,
+          nearbySafetyMesh,
+        );
 
         if (!active || assessment.stage !== 'soft_alert') {
           return;
@@ -189,7 +202,15 @@ export const HomeScreen = () => {
     return () => {
       active = false;
     };
-  }, [activeSession, activeWatchSession, authStatus, sessionStatus, setActiveSession]);
+  }, [
+    activeSession,
+    activeWatchSession,
+    authStatus,
+    emergencyLocations,
+    nearbySafetyMeshEnabled,
+    sessionStatus,
+    setActiveSession,
+  ]);
 
   useEffect(() => {
     if (!lastKnownLocation) {
