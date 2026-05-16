@@ -20,8 +20,8 @@ let ReportsController = class ReportsController {
     constructor(reportsService) {
         this.reportsService = reportsService;
     }
-    list(req) {
-        return this.reportsService.list(req.user.sub);
+    list(req, query) {
+        return this.reportsService.list(req.user.sub, query);
     }
     getById(req, id) {
         return this.reportsService.getById(req.user.sub, id);
@@ -40,8 +40,9 @@ exports.ReportsController = ReportsController;
 __decorate([
     (0, common_1.Get)(),
     __param(0, (0, common_1.Req)()),
+    __param(1, (0, common_1.Query)()),
     __metadata("design:type", Function),
-    __metadata("design:paramtypes", [Object]),
+    __metadata("design:paramtypes", [Object, Object]),
     __metadata("design:returntype", void 0)
 ], ReportsController.prototype, "list", null);
 __decorate([

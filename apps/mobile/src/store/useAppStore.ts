@@ -234,6 +234,9 @@ const locationIdentity = (location: EmergencyLocation) =>
   location.id ||
   `${location.recordedAt || ''}:${location.lat.toFixed(6)}:${location.lng.toFixed(6)}:${location.source || ''}`;
 
+const locationFingerprint = (location: EmergencyLocation) =>
+  `${location.recordedAt || ''}:${location.lat.toFixed(6)}:${location.lng.toFixed(6)}:${location.source || ''}`;
+
 const sortAndTrimLocations = (locations: EmergencyLocation[]) =>
   locations
     .sort((left, right) => getLocationTimestamp(left) - getLocationTimestamp(right))
@@ -247,15 +250,17 @@ const mergeLocations = (current: EmergencyLocation[], incoming: EmergencyLocatio
   if (current.length === 0) {
     const deduped = new Map<string, EmergencyLocation>();
     incoming.forEach((location) => {
-      deduped.set(locationIdentity(location), location);
+      deduped.set(locationFingerprint(location), location);
     });
     return sortAndTrimLocations(Array.from(deduped.values()));
   }
 
   const merged = [...current];
   const indexByIdentity = new Map<string, number>();
+  const indexByFingerprint = new Map<string, number>();
   current.forEach((location, index) => {
     indexByIdentity.set(locationIdentity(location), index);
+    indexByFingerprint.set(locationFingerprint(location), index);
   });
 
   const latestCurrentTimestamp = getLocationTimestamp(current[current.length - 1]);
@@ -270,11 +275,20 @@ const mergeLocations = (current: EmergencyLocation[], incoming: EmergencyLocatio
       return;
     }
 
+    const fingerprint = locationFingerprint(location);
+    const existingFingerprintIndex = indexByFingerprint.get(fingerprint);
+    if (existingFingerprintIndex !== undefined) {
+      merged[existingFingerprintIndex] = location;
+      indexByIdentity.set(identity, existingFingerprintIndex);
+      return;
+    }
+
     if (getLocationTimestamp(location) < latestCurrentTimestamp) {
       needsSort = true;
     }
 
     indexByIdentity.set(identity, merged.length);
+    indexByFingerprint.set(fingerprint, merged.length);
     merged.push(location);
   });
 

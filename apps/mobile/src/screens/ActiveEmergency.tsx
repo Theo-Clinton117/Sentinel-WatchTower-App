@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import { ActivityIndicator, Animated, Pressable, StyleSheet, Text, View } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import { LiveMap } from '../components/LiveMap';
@@ -13,8 +13,9 @@ import {
   startForegroundTracking,
   stopBackgroundTracking,
 } from '../services/location';
-import { listSessionLocations } from '../services/sessions';
+import { getActiveSession, listSessionLocations } from '../services/sessions';
 import { connectSessionSocket, disconnectSessionSocket } from '../services/websocket';
+import { shallow } from 'zustand/shallow';
 
 const SessionTimer = React.memo(
   ({ startedAt, style }: { startedAt?: string | null; style: { color: string; fontSize: number; fontWeight: '800'; marginTop: number } }) => {
@@ -42,7 +43,7 @@ const SessionTimer = React.memo(
 
 export const ActiveEmergencyScreen = () => {
   const theme = useAppTheme();
-  const styles = createStyles(theme);
+  const styles = useMemo(() => createStyles(theme), [theme]);
   const {
     activeSession,
     emergencyLocations,
@@ -51,20 +52,24 @@ export const ActiveEmergencyScreen = () => {
     clearEmergencySession,
     setLastKnownLocation,
     updateActiveSession,
-  } = useAppStore((state) => ({
-    activeSession: state.activeSession,
-    emergencyLocations: state.emergencyLocations,
-    lastKnownLocation: state.lastKnownLocation,
-    appendEmergencyLocations: state.appendEmergencyLocations,
-    clearEmergencySession: state.clearEmergencySession,
-    setLastKnownLocation: state.setLastKnownLocation,
-    updateActiveSession: state.updateActiveSession,
-  }));
+  } = useAppStore(
+    (state) => ({
+      activeSession: state.activeSession,
+      emergencyLocations: state.emergencyLocations,
+      lastKnownLocation: state.lastKnownLocation,
+      appendEmergencyLocations: state.appendEmergencyLocations,
+      clearEmergencySession: state.clearEmergencySession,
+      setLastKnownLocation: state.setLastKnownLocation,
+      updateActiveSession: state.updateActiveSession,
+    }),
+    shallow,
+  );
   const [error, setError] = useState('');
   const [cancelling, setCancelling] = useState(false);
   const [escalating, setEscalating] = useState(false);
   const [syncing, setSyncing] = useState(true);
   const [countdown, setCountdown] = useState('');
+  const [socketDegraded, setSocketDegraded] = useState(false);
   const alertPulse = React.useRef(new Animated.Value(0)).current;
 
   useEffect(() => {
@@ -132,6 +137,24 @@ export const ActiveEmergencyScreen = () => {
     };
 
     connectSessionSocket(activeSession.sessionId, {
+      onConnected: () => {
+        if (mounted) {
+          setSocketDegraded(false);
+          setError('');
+        }
+      },
+      onDisconnected: () => {
+        if (mounted) {
+          setSocketDegraded(true);
+          setError('Live connection interrupted. Location capture is still running and will retry in the background.');
+        }
+      },
+      onConnectionError: () => {
+        if (mounted) {
+          setSocketDegraded(true);
+          setError('Live connection could not be restored yet. Keep this screen open while Sentinel retries.');
+        }
+      },
       onLocationUpdate: (locations) => appendEmergencyLocations(locations),
       onStatus: ({ status, stage }) => {
         if (status && status !== 'active') {
@@ -163,6 +186,54 @@ export const ActiveEmergencyScreen = () => {
     appendEmergencyLocations,
     clearEmergencySession,
     setLastKnownLocation,
+    updateActiveSession,
+  ]);
+
+  useEffect(() => {
+    if (!socketDegraded || !activeSession?.sessionId) {
+      return;
+    }
+
+    let mounted = true;
+
+    const pollSession = async () => {
+      try {
+        const [session, locations] = await Promise.all([
+          getActiveSession(),
+          listSessionLocations(activeSession.sessionId),
+        ]);
+
+        if (!mounted) {
+          return;
+        }
+
+        appendEmergencyLocations(locations);
+
+        if (!session) {
+          clearEmergencySession();
+          return;
+        }
+
+        updateActiveSession(session);
+      } catch {
+        if (mounted) {
+          setError('Live fallback polling is delayed. Location capture will keep retrying.');
+        }
+      }
+    };
+
+    void pollSession();
+    const interval = setInterval(pollSession, 8000);
+
+    return () => {
+      mounted = false;
+      clearInterval(interval);
+    };
+  }, [
+    activeSession?.sessionId,
+    appendEmergencyLocations,
+    clearEmergencySession,
+    socketDegraded,
     updateActiveSession,
   ]);
 
@@ -217,7 +288,7 @@ export const ActiveEmergencyScreen = () => {
     }),
   };
 
-  const handleEscalate = async (stage: string) => {
+  const handleEscalate = useCallback(async (stage: string) => {
     if (!activeSession?.alertId || escalating) {
       return;
     }
@@ -251,9 +322,9 @@ export const ActiveEmergencyScreen = () => {
     } finally {
       setEscalating(false);
     }
-  };
+  }, [activeSession, escalating, updateActiveSession]);
 
-  const handleCancel = async () => {
+  const handleCancel = useCallback(async () => {
     if (!activeSession?.alertId) {
       clearEmergencySession();
       return;
@@ -273,7 +344,7 @@ export const ActiveEmergencyScreen = () => {
     } finally {
       setCancelling(false);
     }
-  };
+  }, [activeSession?.alertId, clearEmergencySession]);
 
   if (!activeSession?.sessionId) {
     return (

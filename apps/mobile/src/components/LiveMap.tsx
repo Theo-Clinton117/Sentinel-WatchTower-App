@@ -16,6 +16,7 @@ type Props = {
 };
 
 const OSM_TILE_URL = 'https://tile.openstreetmap.org/{z}/{x}/{y}.png';
+const MAX_RENDERED_TRAIL_POINTS = 120;
 
 function toRadians(value: number) {
   return (value * Math.PI) / 180;
@@ -57,13 +58,20 @@ const LiveMapBase = ({
   const latestLocation = locations.length > 0 ? locations[locations.length - 1] : null;
   const latitude = latestLocation?.lat ?? lat;
   const longitude = latestLocation?.lng ?? lng;
+  const markerCoordinate = useMemo(() => ({ latitude, longitude }), [latitude, longitude]);
 
   const coordinates = useMemo(
-    () =>
-      locations.map((location) => ({
+    () => {
+      const trailLocations =
+        locations.length > MAX_RENDERED_TRAIL_POINTS
+          ? locations.slice(-MAX_RENDERED_TRAIL_POINTS)
+          : locations;
+
+      return trailLocations.map((location) => ({
         latitude: location.lat,
         longitude: location.lng,
-      })),
+      }));
+    },
     [locations],
   );
 
@@ -167,7 +175,7 @@ const LiveMapBase = ({
           />
         ) : null}
         <Circle
-          center={{ latitude, longitude }}
+          center={markerCoordinate}
           radius={isMinimal ? 120 : 90}
           fillColor={
             isMinimal
@@ -182,8 +190,10 @@ const LiveMapBase = ({
           strokeWidth={1}
         />
         <Marker
-          coordinate={{ latitude, longitude }}
+          key={`${activeMarkerColor}:${markerLabel || detailLabel}`}
+          coordinate={markerCoordinate}
           anchor={isMinimal ? { x: 0.5, y: 0.86 } : undefined}
+          tracksViewChanges={false}
         >
           {isMinimal ? (
             <View style={styles.markerWrapMinimal}>

@@ -8,6 +8,8 @@ let socket: Socket | null = null;
 
 type SessionSocketHandlers = {
   onConnected?: () => void;
+  onDisconnected?: () => void;
+  onConnectionError?: () => void;
   onLocationUpdate?: (locations: EmergencyLocation[]) => void;
   onStatus?: (payload: { status: string; stage?: string }) => void;
 };
@@ -21,6 +23,10 @@ export const connectSessionSocket = (sessionId: string, handlers: SessionSocketH
     timeout: 8000,
   });
   socket.on('connected', () => handlers.onConnected?.());
+  socket.on('connect', () => handlers.onConnected?.());
+  socket.on('disconnect', () => handlers.onDisconnected?.());
+  socket.io.on('reconnect_failed', () => handlers.onConnectionError?.());
+  socket.io.on('error', () => handlers.onConnectionError?.());
   socket.on('location:update', (payload: { sessionId: string; locations: EmergencyLocation[] }) => {
     if (payload?.sessionId === sessionId) {
       handlers.onLocationUpdate?.(payload.locations || []);

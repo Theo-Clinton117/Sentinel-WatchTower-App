@@ -12,51 +12,44 @@ var __param = (this && this.__param) || function (paramIndex, decorator) {
     return function (target, key) { decorator(target, key, paramIndex); };
 };
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.LatencyController = void 0;
+exports.NearbySafetyMeshController = void 0;
 const common_1 = require("@nestjs/common");
 const jwt_auth_guard_1 = require("../common/guards/jwt-auth.guard");
-const latency_service_1 = require("./latency.service");
-let LatencyController = class LatencyController {
-    constructor(latencyService) {
-        this.latencyService = latencyService;
+const rate_limit_decorator_1 = require("../common/guards/rate-limit.decorator");
+const nearby_safety_mesh_service_1 = require("./nearby-safety-mesh.service");
+let NearbySafetyMeshController = class NearbySafetyMeshController {
+    constructor(nearbySafetyMeshService) {
+        this.nearbySafetyMeshService = nearbySafetyMeshService;
     }
-    list(req, query) {
-        return this.latencyService.list(req.user.sub, query);
+    publish(req, body) {
+        return this.nearbySafetyMeshService.publish(req.user.sub, body);
     }
-    summary(query) {
-        return this.latencyService.summary(query);
-    }
-    record(req, body) {
-        return this.latencyService.record(req.user.sub, body);
+    list(req, areaCell) {
+        return this.nearbySafetyMeshService.list(req.user.sub, areaCell);
     }
 };
-exports.LatencyController = LatencyController;
+exports.NearbySafetyMeshController = NearbySafetyMeshController;
 __decorate([
-    (0, common_1.Get)(),
-    __param(0, (0, common_1.Req)()),
-    __param(1, (0, common_1.Query)()),
-    __metadata("design:type", Function),
-    __metadata("design:paramtypes", [Object, Object]),
-    __metadata("design:returntype", void 0)
-], LatencyController.prototype, "list", null);
-__decorate([
-    (0, common_1.Get)('summary'),
-    __param(0, (0, common_1.Query)()),
-    __metadata("design:type", Function),
-    __metadata("design:paramtypes", [Object]),
-    __metadata("design:returntype", void 0)
-], LatencyController.prototype, "summary", null);
-__decorate([
-    (0, common_1.Post)(),
+    (0, common_1.Post)('signals'),
+    (0, rate_limit_decorator_1.RateLimit)({ points: 120, duration: 60 }),
     __param(0, (0, common_1.Req)()),
     __param(1, (0, common_1.Body)()),
     __metadata("design:type", Function),
     __metadata("design:paramtypes", [Object, Object]),
     __metadata("design:returntype", void 0)
-], LatencyController.prototype, "record", null);
-exports.LatencyController = LatencyController = __decorate([
-    (0, common_1.Controller)('latency'),
+], NearbySafetyMeshController.prototype, "publish", null);
+__decorate([
+    (0, common_1.Get)('signals/:areaCell'),
+    (0, rate_limit_decorator_1.RateLimit)({ points: 120, duration: 60 }),
+    __param(0, (0, common_1.Req)()),
+    __param(1, (0, common_1.Param)('areaCell')),
+    __metadata("design:type", Function),
+    __metadata("design:paramtypes", [Object, String]),
+    __metadata("design:returntype", void 0)
+], NearbySafetyMeshController.prototype, "list", null);
+exports.NearbySafetyMeshController = NearbySafetyMeshController = __decorate([
+    (0, common_1.Controller)('nearby-safety-mesh'),
     (0, common_1.UseGuards)(jwt_auth_guard_1.JwtAuthGuard),
-    __metadata("design:paramtypes", [latency_service_1.LatencyService])
-], LatencyController);
-//# sourceMappingURL=latency.controller.js.map
+    __metadata("design:paramtypes", [nearby_safety_mesh_service_1.NearbySafetyMeshService])
+], NearbySafetyMeshController);
+//# sourceMappingURL=nearby-safety-mesh.controller.js.map

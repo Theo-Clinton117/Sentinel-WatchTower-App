@@ -47,11 +47,39 @@ function mapAlertSessionRow(row) {
         detectionSummary: Array.isArray(row.detection_summary) ? row.detection_summary : [],
     };
 }
+async function recordAlertAudit(queryable, { alertId, sessionId, userId, eventType, source, fromStage, toStage, metadata }) {
+    if (!alertId || !eventType) {
+        return;
+    }
+    await queryable.query(`
+      insert into alert_audit_events (
+        alert_id,
+        session_id,
+        user_id,
+        event_type,
+        source,
+        from_stage,
+        to_stage,
+        metadata
+      )
+      values ($1, $2, $3, $4, $5, $6, $7, $8::jsonb)
+    `, [
+        alertId,
+        sessionId || null,
+        userId || null,
+        eventType,
+        source || 'system',
+        fromStage || null,
+        toStage || null,
+        JSON.stringify(metadata || {}),
+    ]);
+}
 let AlertsService = class AlertsService {
     constructor(db, queues, ws) {
         this.db = db;
         this.queues = queues;
         this.ws = ws;
+        this.logger = new common_1.Logger(AlertsService.name);
     }
     async findActiveAlert(userId) {
         const activeResult = await this.db.query(`
@@ -136,10 +164,25 @@ let AlertsService = class AlertsService {
         values ($1, $2, 'active', $3)
         returning *
       `, [alert.id, userId, escalationLevel]);
-            return { alert, session: sessionResult.rows[0] };
+            const session = sessionResult.rows[0];
+            await recordAlertAudit(client, {
+                alertId: alert.id,
+                sessionId: session.id,
+                userId,
+                eventType: 'alert_created',
+                source: triggerSource,
+                toStage: alertStage,
+                metadata: {
+                    riskScore,
+                    cancelWindowMs,
+                    detectionSummaryCount: detectionSummary.length,
+                },
+            });
+            return { alert, session };
         });
         const alertId = created.alert.id;
         const sessionId = created.session.id;
+        this.logger.log(`alert_created alertId=${alertId} sessionId=${sessionId} userId=${userId} stage=${alertStage} trigger=${triggerSource}`);
         await this.queues.scheduleEscalation({ alertId, sessionId, stage: alertStage });
         this.ws.emitSessionStatus(sessionId, 'active', alertStage);
         if ((0, alert_stages_1.compareAlertStages)(alertStage, 'high_alert') >= 0) {
@@ -238,6 +281,20 @@ let AlertsService = class AlertsService {
         set escalation_level = $1
         where alert_id = $2 and user_id = $3 and status = 'active'
       `, [escalationLevel, id, userId]);
+            await recordAlertAudit(client, {
+                alertId: alert.id,
+                sessionId: current.session_id,
+                userId,
+                eventType: 'alert_escalated',
+                source: body?.source || 'user',
+                fromStage: current.stage,
+                toStage: requestedStage,
+                metadata: {
+                    riskScore,
+                    detectionSummaryCount: detectionSummary.length,
+                    previousRiskScore: current.risk_score,
+                },
+            });
             return {
                 ...alert,
                 alert_id: alert.id,
@@ -248,6 +305,7 @@ let AlertsService = class AlertsService {
             };
         });
         if (result.session_id && result.didEscalate) {
+            this.logger.warn(`alert_escalated alertId=${result.alert_id} sessionId=${result.session_id} userId=${userId} stage=${result.stage}`);
             await this.queues.scheduleEscalation({
                 alertId: result.alert_id,
                 sessionId: result.session_id,
@@ -290,9 +348,24 @@ let AlertsService = class AlertsService {
         where alert_id = $1 and user_id = $2 and status = 'active'
         returning id
       `, [id, userId]);
-            return { alert, session: sessionResult.rows[0] || null };
+            const session = sessionResult.rows[0] || null;
+            await recordAlertAudit(client, {
+                alertId: alert.id,
+                sessionId: session?.id || null,
+                userId,
+                eventType: 'alert_cancelled',
+                source: body?.source || 'user',
+                fromStage: alert.stage,
+                toStage: 'cancelled',
+                metadata: {
+                    riskScore: alert.risk_score,
+                    triggerSource: alert.trigger_source,
+                },
+            });
+            return { alert, session };
         });
         await this.queues.cancelEscalation(id);
+        this.logger.log(`alert_cancelled alertId=${id} sessionId=${result.session?.id ?? 'none'} userId=${userId}`);
         if (result.session?.id) {
             this.ws.emitSessionStatus(result.session.id, 'cancelled', 'cancelled');
         }

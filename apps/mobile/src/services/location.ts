@@ -1,5 +1,6 @@
 import * as Location from 'expo-location';
 import * as TaskManager from 'expo-task-manager';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 import { ingestSessionLocations } from './sessions';
 import { useAppStore, type EmergencyLocation } from '../store/useAppStore';
 
@@ -31,6 +32,13 @@ const MIN_TIME_BETWEEN_UPLOADS_MS = 15000;
 const MAX_TIME_BETWEEN_UPLOADS_MS = 45000;
 const BUFFER_FLUSH_MS = 20000;
 const MAX_BUFFER_SIZE = 3;
+const MAX_PERSISTED_LOCATION_BATCHES = 12;
+const PENDING_LOCATION_UPLOADS_KEY = 'sentinel-pending-location-uploads';
+
+type PendingLocationUpload = {
+  sessionId: string;
+  locations: EmergencyLocation[];
+};
 
 let foregroundSubscription: Location.LocationSubscription | null = null;
 let bufferedLocations: EmergencyLocation[] = [];
@@ -182,6 +190,60 @@ function markUploaded(locations: EmergencyLocation[]) {
   lastUploadedAtMs = getRecordedAtMs(latest);
 }
 
+function locationUploadKey(location: EmergencyLocation) {
+  return `${location.recordedAt || ''}:${location.lat.toFixed(6)}:${location.lng.toFixed(6)}:${location.source || ''}`;
+}
+
+function compactLocationUploads(locations: EmergencyLocation[]) {
+  const deduped = new Map<string, EmergencyLocation>();
+  locations.forEach((location) => {
+    deduped.set(locationUploadKey(location), location);
+  });
+  return Array.from(deduped.values());
+}
+
+async function readPendingLocationUploads() {
+  try {
+    const raw = await AsyncStorage.getItem(PENDING_LOCATION_UPLOADS_KEY);
+    if (!raw) {
+      return [] as PendingLocationUpload[];
+    }
+
+    const parsed = JSON.parse(raw) as PendingLocationUpload[];
+    return Array.isArray(parsed) ? parsed : [];
+  } catch {
+    return [];
+  }
+}
+
+async function writePendingLocationUploads(queue: PendingLocationUpload[]) {
+  await AsyncStorage.setItem(
+    PENDING_LOCATION_UPLOADS_KEY,
+    JSON.stringify(queue.slice(-MAX_PERSISTED_LOCATION_BATCHES)),
+  );
+}
+
+async function persistLocationUploadFailure(sessionId: string, locations: EmergencyLocation[]) {
+  if (locations.length === 0) {
+    return;
+  }
+
+  const queue = await readPendingLocationUploads();
+  await writePendingLocationUploads([...queue, { sessionId, locations }]);
+}
+
+async function takePendingLocationsForSession(sessionId: string) {
+  const queue = await readPendingLocationUploads();
+  const matching = queue.filter((item) => item.sessionId === sessionId);
+  const remaining = queue.filter((item) => item.sessionId !== sessionId);
+
+  if (matching.length !== queue.length) {
+    await writePendingLocationUploads(remaining);
+  }
+
+  return matching.flatMap((item) => item.locations);
+}
+
 function scheduleFlush() {
   if (flushTimeout) {
     return;
@@ -195,7 +257,14 @@ function scheduleFlush() {
 
 async function flushLocationBuffer() {
   if (flushInFlight || bufferedLocations.length === 0) {
-    return;
+    if (bufferedLocations.length === 0) {
+      const sessionId = useAppStore.getState().activeSession?.sessionId;
+      if (!sessionId || flushInFlight) {
+        return;
+      }
+    } else {
+      return;
+    }
   }
 
   const sessionId = useAppStore.getState().activeSession?.sessionId;
@@ -205,8 +274,16 @@ async function flushLocationBuffer() {
   }
 
   flushInFlight = true;
-  const payload = bufferedLocations;
+  const persistedLocations = await takePendingLocationsForSession(sessionId);
+  const payload = compactLocationUploads([...persistedLocations, ...bufferedLocations]).slice(
+    -MAX_BUFFER_SIZE * 4,
+  );
   bufferedLocations = [];
+
+  if (payload.length === 0) {
+    flushInFlight = false;
+    return;
+  }
 
   try {
     const response = await ingestSessionLocations(sessionId, payload);
@@ -214,6 +291,7 @@ async function flushLocationBuffer() {
     markUploaded(payload);
   } catch {
     bufferedLocations = [...payload, ...bufferedLocations].slice(-MAX_BUFFER_SIZE * 2);
+    void persistLocationUploadFailure(sessionId, payload).catch(() => undefined);
     if (!flushTimeout) {
       scheduleFlush();
     }
@@ -228,6 +306,10 @@ function queueLocationUpload(locations: EmergencyLocation[], forceFlush = false)
   }
 
   bufferedLocations = [...bufferedLocations, ...locations].slice(-MAX_BUFFER_SIZE * 2);
+  const sessionId = useAppStore.getState().activeSession?.sessionId;
+  if (sessionId) {
+    void persistLocationUploadFailure(sessionId, locations).catch(() => undefined);
+  }
 
   if (forceFlush || bufferedLocations.length >= MAX_BUFFER_SIZE) {
     if (flushTimeout) {

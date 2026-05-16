@@ -9,18 +9,20 @@ Object.defineProperty(exports, "__esModule", { value: true });
 exports.NotificationsService = void 0;
 const common_1 = require("@nestjs/common");
 const db_service_1 = require("../db/db.service");
+const pagination_1 = require("../common/pagination");
 let NotificationsService = class NotificationsService {
     constructor(db) {
         this.db = db;
     }
-    async list(userId) {
+    async list(userId, options = {}) {
+        const { limit, offset } = (0, pagination_1.getPagination)(options);
         const result = await this.db.query(`
-      select *
+      select id, user_id, type, channel, status, payload, related_session_id, created_at, sent_at
       from notifications
       where user_id = $1
       order by created_at desc
-      limit 100
-    `, [userId]);
+      limit $2 offset $3
+    `, [userId, limit, offset]);
         return result.rows.map((row) => ({
             id: row.id,
             userId: row.user_id,
@@ -31,6 +33,28 @@ let NotificationsService = class NotificationsService {
             relatedSessionId: row.related_session_id,
             createdAt: row.created_at,
             sentAt: row.sent_at,
+        }));
+    }
+    async listAlertAudit(userId, options = {}) {
+        const { limit, offset } = (0, pagination_1.getPagination)(options);
+        const result = await this.db.query(`
+      select id, alert_id, session_id, user_id, event_type, source, from_stage, to_stage, metadata, created_at
+      from alert_audit_events
+      where user_id = $1
+      order by created_at desc
+      limit $2 offset $3
+    `, [userId, limit, offset]);
+        return result.rows.map((row) => ({
+            id: row.id,
+            alertId: row.alert_id,
+            sessionId: row.session_id,
+            userId: row.user_id,
+            eventType: row.event_type,
+            source: row.source,
+            fromStage: row.from_stage,
+            toStage: row.to_stage,
+            metadata: row.metadata || {},
+            createdAt: row.created_at,
         }));
     }
 };

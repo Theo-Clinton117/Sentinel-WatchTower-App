@@ -5,7 +5,10 @@ const baseUrl = resolveDevBackendUrl(process.env.EXPO_PUBLIC_API_BASE_URL);
 
 type RequestOptions = {
   auth?: boolean;
+  timeoutMs?: number;
 };
+
+const DEFAULT_REQUEST_TIMEOUT_MS = 20000;
 
 export class ApiError extends Error {
   status: number;
@@ -25,6 +28,11 @@ async function request<T>(
   options?: RequestOptions,
 ): Promise<T> {
   const headers = new Headers(init?.headers || {});
+  const controller = new AbortController();
+  const timeout = setTimeout(
+    () => controller.abort(),
+    options?.timeoutMs ?? DEFAULT_REQUEST_TIMEOUT_MS,
+  );
 
   if (!headers.has('Content-Type') && init?.body) {
     headers.set('Content-Type', 'application/json');
@@ -37,10 +45,26 @@ async function request<T>(
     }
   }
 
-  const res = await fetch(`${baseUrl}/api${path}`, {
-    ...init,
-    headers,
-  });
+  let res: Response;
+
+  try {
+    res = await fetch(`${baseUrl}/api${path}`, {
+      ...init,
+      headers,
+      signal: controller.signal,
+    });
+  } catch (error) {
+    const aborted = error instanceof Error && error.name === 'AbortError';
+    throw new ApiError(
+      aborted
+        ? 'The request timed out. Check your connection and try again.'
+        : 'Network connection failed. Check your internet connection and try again.',
+      0,
+      { path, reason: aborted ? 'timeout' : 'network_error' },
+    );
+  } finally {
+    clearTimeout(timeout);
+  }
 
   const text = await res.text();
   const data = text ? tryParseJson(text) : null;
@@ -71,6 +95,10 @@ function normalizeMessage(message: unknown) {
 
   if (typeof message === 'string') {
     return message;
+  }
+
+  if (typeof message === 'object' && message && 'message' in message) {
+    return normalizeMessage((message as { message?: unknown }).message);
   }
 
   return 'Something went wrong. Please try again.';

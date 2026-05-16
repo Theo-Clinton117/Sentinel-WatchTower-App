@@ -18,6 +18,7 @@ exports.ReportsService = void 0;
 const common_1 = require("@nestjs/common");
 const db_service_1 = require("../db/db.service");
 const credibility_logic_1 = require("../credibility/credibility.logic");
+const pagination_1 = require("../common/pagination");
 function toNumber(value, fallback = 0) {
     const parsed = Number(value);
     return Number.isFinite(parsed) ? parsed : fallback;
@@ -88,7 +89,8 @@ let ReportsService = class ReportsService {
     constructor(db) {
         this.db = db;
     }
-    async list(userId) {
+    async list(userId, options = {}) {
+        const { limit, offset } = (0, pagination_1.getPagination)(options);
         const result = await this.db.query(`
       select
         r.*,
@@ -121,7 +123,8 @@ let ReportsService = class ReportsService {
       left join report_classifications rc on rc.report_id = r.id
       where r.user_id = $1
       order by r.created_at desc
-    `, [userId]);
+      limit $2 offset $3
+    `, [userId, limit, offset]);
         return result.rows.map(mapReportRow);
     }
     async getById(userId, id) {

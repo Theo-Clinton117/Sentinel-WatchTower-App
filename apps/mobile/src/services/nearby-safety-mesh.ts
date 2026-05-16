@@ -1,4 +1,6 @@
+import AsyncStorage from '@react-native-async-storage/async-storage';
 import type { EmergencyLocation } from '../store/useAppStore';
+import { apiGet, apiPost } from './api';
 
 export type NearbyMotionState = 'stationary' | 'walking' | 'running' | 'driving' | 'unknown';
 export type NearbyProximityBand = 'near' | 'medium' | 'far';
@@ -35,8 +37,14 @@ type BuildContextOptions = {
   nowMs?: number;
 };
 
+type NearbySafetyMeshSyncResponse = {
+  areaCell: string;
+  signals: NearbyDeviceSignal[];
+};
+
 const SIGNAL_FRESHNESS_MS = 45_000;
 const MAX_SIGNAL_CACHE_SIZE = 36;
+const EPHEMERAL_ID_STORAGE_KEY = 'sentinel-nearby-safety-mesh-ephemeral-id';
 
 const cachedSignals = new Map<string, NearbyDeviceSignal>();
 
@@ -100,6 +108,40 @@ function estimateUserMotionState(recentLocations: EmergencyLocation[], currentLo
   }
 
   return { motionState: 'driving' as NearbyMotionState, speedMps };
+}
+
+function getAreaCell(location: EmergencyLocation) {
+  return `${location.lat.toFixed(3)}:${location.lng.toFixed(3)}`;
+}
+
+function getUtcDayBucket(nowMs = Date.now()) {
+  return new Date(nowMs).toISOString().slice(0, 10);
+}
+
+function createRandomToken() {
+  return `${Date.now().toString(36)}-${Math.random().toString(36).slice(2)}-${Math.random()
+    .toString(36)
+    .slice(2)}`;
+}
+
+async function getEphemeralDeviceId(nowMs = Date.now()) {
+  const dayBucket = getUtcDayBucket(nowMs);
+  const rawValue = await AsyncStorage.getItem(EPHEMERAL_ID_STORAGE_KEY);
+
+  if (rawValue) {
+    try {
+      const parsed = JSON.parse(rawValue) as { dayBucket?: string; id?: string };
+      if (parsed.dayBucket === dayBucket && parsed.id) {
+        return parsed.id;
+      }
+    } catch {
+      await AsyncStorage.removeItem(EPHEMERAL_ID_STORAGE_KEY);
+    }
+  }
+
+  const id = `mesh-${dayBucket}-${createRandomToken()}`;
+  await AsyncStorage.setItem(EPHEMERAL_ID_STORAGE_KEY, JSON.stringify({ dayBucket, id }));
+  return id;
 }
 
 function sanitizeSignal(signal: NearbyDeviceSignal): NearbyDeviceSignal | null {
@@ -220,4 +262,50 @@ export function buildNearbySafetyMeshContext({
     summary,
     computedAt: new Date(nowMs).toISOString(),
   };
+}
+
+export async function syncNearbySafetyMeshSignals({
+  enabled,
+  currentLocation,
+  recentLocations,
+  nowMs = Date.now(),
+}: Omit<BuildContextOptions, 'signals'>) {
+  if (!enabled) {
+    return [];
+  }
+
+  const areaCell = getAreaCell(currentLocation);
+  const { motionState } = estimateUserMotionState(recentLocations, currentLocation);
+  const ephemeralDeviceId = await getEphemeralDeviceId(nowMs);
+  const signal: NearbyDeviceSignal = {
+    ephemeralDeviceId,
+    timestamp: nowMs,
+    proximityBand: 'medium',
+    motionState,
+    confidence: motionState === 'unknown' ? 0.5 : 0.82,
+  };
+
+  try {
+    const response = await apiPost<NearbySafetyMeshSyncResponse>(
+      '/nearby-safety-mesh/signals',
+      {
+        areaCell,
+        signal,
+      },
+      { auth: true },
+    );
+    rememberNearbyDeviceSignals(response.signals || [], nowMs);
+    return response.signals || [];
+  } catch {
+    try {
+      const response = await apiGet<NearbySafetyMeshSyncResponse>(
+        `/nearby-safety-mesh/signals/${encodeURIComponent(areaCell)}`,
+        { auth: true },
+      );
+      rememberNearbyDeviceSignals(response.signals || [], nowMs);
+      return response.signals || [];
+    } catch {
+      return [];
+    }
+  }
 }

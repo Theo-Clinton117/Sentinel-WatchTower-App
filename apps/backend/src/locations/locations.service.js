@@ -13,6 +13,7 @@ exports.LocationsService = void 0;
 const common_1 = require("@nestjs/common");
 const db_service_1 = require("../db/db.service");
 const ws_service_1 = require("../ws/ws.service");
+const LOCATION_COLUMNS = 'id, session_id, user_id, lat, lng, accuracy_m, source, recorded_at, created_at';
 function mapLocationRow(row) {
     return {
         id: row.id,
@@ -63,27 +64,21 @@ let LocationsService = class LocationsService {
             throw new common_1.BadRequestException('No valid locations provided');
         }
         const inserted = await this.db.transaction(async (client) => {
-            const rows = [];
-            for (const location of normalized) {
-                const result = await client.query(`
+            const values = [];
+            const placeholders = normalized.map((location, index) => {
+                const offset = index * 7;
+                values.push(sessionId, userId, location.lat, location.lng, location.accuracyM, location.source, location.recordedAt);
+                return `($${offset + 1}, $${offset + 2}, $${offset + 3}, $${offset + 4}, $${offset + 5}, $${offset + 6}, $${offset + 7})`;
+            });
+            const result = await client.query(`
             insert into location_logs (
               session_id, user_id, lat, lng, accuracy_m, source, recorded_at
             )
-            values ($1, $2, $3, $4, $5, $6, $7)
-            returning *
-          `, [
-                    sessionId,
-                    userId,
-                    location.lat,
-                    location.lng,
-                    location.accuracyM,
-                    location.source,
-                    location.recordedAt,
-                ]);
-                rows.push(result.rows[0]);
-            }
+            values ${placeholders.join(', ')}
+            returning ${LOCATION_COLUMNS}
+          `, values);
             await client.query('update watch_sessions set last_location_at = now() where id = $1 and user_id = $2', [sessionId, userId]);
-            return rows;
+            return result.rows;
         });
         const payload = inserted.map(mapLocationRow);
         this.ws.emitSessionLocation(sessionId, payload);
@@ -95,7 +90,7 @@ let LocationsService = class LocationsService {
             throw new common_1.NotFoundException('Session not found');
         }
         const result = await this.db.query(`
-      select *
+      select ${LOCATION_COLUMNS}
       from location_logs
       where session_id = $1 and user_id = $2
       order by recorded_at desc

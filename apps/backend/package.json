@@ -5,7 +5,8 @@
   "scripts": {
     "start": "node src/main.js",
     "start:dev": "node --watch src/main.js",
-    "build": "node -e \"console.log('Backend uses JavaScript source; no build step is required.')\""
+    "build": "node -e \"console.log('Backend uses JavaScript source; no build step is required.')\"",
+    "test": "node --test test/*.test.js"
   },
   "dependencies": {
     "@nestjs/common": "^10.3.2",

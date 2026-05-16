@@ -9,7 +9,8 @@
     "dev:backend": "npm --workspace apps/backend run start:dev",
     "dev:mobile": "npm --workspace apps/mobile run start",
     "build:backend": "npm --workspace apps/backend run build",
-    "build:mobile": "npm --workspace apps/mobile run build"
+    "build:mobile": "npm --workspace apps/mobile run build",
+    "test:backend": "npm --workspace apps/backend run test"
   },
   "devDependencies": {
     "@types/node": "25.6.0",

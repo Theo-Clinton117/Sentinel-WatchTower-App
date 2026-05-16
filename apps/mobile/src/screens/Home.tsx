@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useRef, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { ActivityIndicator, Pressable, StyleSheet, Text, View } from 'react-native';
 import { shallow } from 'zustand/shallow';
 import { LiveMap } from '../components/LiveMap';
@@ -14,13 +14,18 @@ import {
   getReadableLocationLabel,
   startForegroundTracking,
 } from '../services/location';
-import { buildNearbySafetyMeshContext } from '../services/nearby-safety-mesh';
+import {
+  buildNearbySafetyMeshContext,
+  syncNearbySafetyMeshSignals,
+} from '../services/nearby-safety-mesh';
 import { getAppPermissionSnapshot } from '../services/permissions';
 import { listRiskZones } from '../services/risk-zones';
 import { getActiveSession } from '../services/sessions';
 import { useAppTheme } from '../theme';
 
 const ORANGE = '#F19A3E';
+const PASSIVE_GUARDIAN_CHECK_INTERVAL_MS = 60_000;
+const PASSIVE_GUARDIAN_CHECK_DISTANCE_M = 120;
 
 export const HomeScreen = () => {
   const theme = useAppTheme();
@@ -61,6 +66,7 @@ export const HomeScreen = () => {
   );
   const [locationPermissionDenied, setLocationPermissionDenied] = useState(false);
   const lastResolvedLocationRef = useRef<{ lat: number; lng: number } | null>(null);
+  const lastGuardianCheckRef = useRef<{ checkedAtMs: number; lat: number; lng: number } | null>(null);
 
   useEffect(() => {
     let active = true;
@@ -140,19 +146,57 @@ export const HomeScreen = () => {
       }
 
       try {
+        const knownLocation = lastKnownLocation;
+        const nowMs = Date.now();
+        const lastCheck = lastGuardianCheckRef.current;
+
+        if (knownLocation && lastCheck) {
+          const movedSinceLastCheck =
+            getCoordinateDistanceMeters(lastCheck, knownLocation) >=
+            PASSIVE_GUARDIAN_CHECK_DISTANCE_M;
+          const checkIsFresh =
+            nowMs - lastCheck.checkedAtMs < PASSIVE_GUARDIAN_CHECK_INTERVAL_MS;
+
+          if (checkIsFresh && !movedSinceLastCheck) {
+            return;
+          }
+        }
+
         const permissions = await getAppPermissionSnapshot();
         if (!permissions.foregroundLocation.granted) {
           return;
         }
 
-        const [riskZones, location] = await Promise.all([
-          listRiskZones(),
-          getCurrentLocation(),
-        ]);
+        const location = knownLocation ?? (await getCurrentLocation());
+        const movedSinceLastCheck = lastCheck
+          ? getCoordinateDistanceMeters(lastCheck, location) >= PASSIVE_GUARDIAN_CHECK_DISTANCE_M
+          : true;
+        const checkIsFresh = lastCheck
+          ? nowMs - lastCheck.checkedAtMs < PASSIVE_GUARDIAN_CHECK_INTERVAL_MS
+          : false;
+
+        if (checkIsFresh && !movedSinceLastCheck) {
+          return;
+        }
+
+        lastGuardianCheckRef.current = {
+          checkedAtMs: nowMs,
+          lat: location.lat,
+          lng: location.lng,
+        };
+
+        const riskZones = await listRiskZones();
+        await syncNearbySafetyMeshSignals({
+          enabled: nearbySafetyMeshEnabled,
+          currentLocation: location,
+          recentLocations: emergencyLocations,
+          nowMs,
+        });
         const nearbySafetyMesh = buildNearbySafetyMeshContext({
           enabled: nearbySafetyMeshEnabled,
           currentLocation: location,
           recentLocations: emergencyLocations,
+          nowMs,
         });
         const assessment = evaluateGuardianRisk(
           location,
@@ -207,6 +251,7 @@ export const HomeScreen = () => {
     activeWatchSession,
     authStatus,
     emergencyLocations,
+    lastKnownLocation,
     nearbySafetyMeshEnabled,
     sessionStatus,
     setActiveSession,
@@ -265,7 +310,7 @@ export const HomeScreen = () => {
     };
   }, [lastKnownLocation, locationPermissionDenied]);
 
-  const handleStartEmergency = async () => {
+  const handleStartEmergency = useCallback(async () => {
     try {
       setLoading(true);
       setError('');
@@ -293,7 +338,7 @@ export const HomeScreen = () => {
     } finally {
       setLoading(false);
     }
-  };
+  }, [setActiveSession]);
 
   const mapLat =
     lastKnownLocation?.lat ??

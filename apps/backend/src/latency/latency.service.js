@@ -12,6 +12,7 @@ Object.defineProperty(exports, "__esModule", { value: true });
 exports.LatencyService = void 0;
 const common_1 = require("@nestjs/common");
 const db_service_1 = require("../db/db.service");
+const pagination_1 = require("../common/pagination");
 let LatencyService = class LatencyService {
     constructor(db) {
         this.db = db;
@@ -61,14 +62,15 @@ let LatencyService = class LatencyService {
             recordedAt: row.recorded_at,
         };
     }
-    async list(userId) {
+    async list(userId, options = {}) {
+        const { limit, offset } = (0, pagination_1.getPagination)(options);
         const result = await this.db.query(`
-      select *
+      select id, user_id, metric_type, latency_ms, recorded_at
       from latency_metrics
       where user_id = $1
       order by recorded_at desc
-      limit 100
-    `, [userId]);
+      limit $2 offset $3
+    `, [userId, limit, offset]);
         return result.rows.map((row) => ({
             id: row.id,
             userId: row.user_id,
@@ -77,13 +79,14 @@ let LatencyService = class LatencyService {
             recordedAt: row.recorded_at,
         }));
     }
-    async summary() {
+    async summary(options = {}) {
+        const { limit, offset } = (0, pagination_1.getPagination)({ limit: options?.limit || 30, offset: options?.offset });
         const result = await this.db.query(`
-      select *
+      select id, date, avg_latency_ms, p95_latency_ms, created_at
       from latency_summary
       order by date desc
-      limit 30
-    `);
+      limit $1 offset $2
+    `, [Math.min(limit, 100), offset]);
         return result.rows.map((row) => ({
             id: row.id,
             date: row.date,

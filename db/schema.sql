@@ -103,6 +103,19 @@ create table if not exists watch_sessions (
   last_location_at timestamptz
 );
 
+create table if not exists alert_audit_events (
+  id uuid primary key default gen_random_uuid(),
+  alert_id uuid not null references alerts(id) on delete cascade,
+  session_id uuid references watch_sessions(id) on delete set null,
+  user_id uuid references users(id) on delete cascade,
+  event_type text not null,
+  source text not null default 'system',
+  from_stage text,
+  to_stage text,
+  metadata jsonb not null default '{}'::jsonb,
+  created_at timestamptz default now()
+);
+
 create table if not exists location_logs (
   id uuid primary key default gen_random_uuid(),
   session_id uuid references watch_sessions(id) on delete cascade,
@@ -244,6 +257,27 @@ create table if not exists telemetry_events (
   created_at timestamptz default now()
 );
 
+create table if not exists nearby_safety_mesh_signals (
+  id uuid primary key default gen_random_uuid(),
+  user_id uuid not null references users(id) on delete cascade,
+  area_cell text not null,
+  ephemeral_device_id text not null,
+  proximity_band text not null default 'medium',
+  motion_state text not null default 'unknown',
+  confidence real not null default 0,
+  observed_at timestamptz not null default now(),
+  expires_at timestamptz not null default now() + interval '2 minutes',
+  created_at timestamptz default now(),
+  updated_at timestamptz default now(),
+  constraint nearby_safety_mesh_motion_state_check check (
+    motion_state in ('stationary', 'walking', 'running', 'driving', 'unknown')
+  ),
+  constraint nearby_safety_mesh_proximity_band_check check (
+    proximity_band in ('near', 'medium', 'far')
+  ),
+  constraint nearby_safety_mesh_confidence_check check (confidence >= 0 and confidence <= 1)
+);
+
 create table if not exists admin_audit_logs (
   id uuid primary key default gen_random_uuid(),
   admin_user_id uuid references users(id) on delete set null,
@@ -266,6 +300,16 @@ create index if not exists idx_location_logs_session on location_logs(session_id
 create index if not exists idx_alerts_user on alerts(user_id, created_at desc);
 create index if not exists idx_watch_sessions_user on watch_sessions(user_id, status);
 create unique index if not exists idx_reviewer_role_requests_pending_user on reviewer_role_requests(user_id) where status = 'pending';
+create index if not exists idx_alert_audit_events_alert_created on alert_audit_events(alert_id, created_at desc);
+create index if not exists idx_alert_audit_events_user_created on alert_audit_events(user_id, created_at desc);
+create index if not exists idx_watch_sessions_user_status_started on watch_sessions(user_id, status, started_at desc);
+create index if not exists idx_watch_sessions_alert_status on watch_sessions(alert_id, status);
+create index if not exists idx_alerts_user_status_created on alerts(user_id, status, created_at desc);
+create index if not exists idx_reports_user_created on reports(user_id, created_at desc);
+create index if not exists idx_trusted_contacts_user_priority_created on trusted_contacts(user_id, priority asc, created_at desc);
+create index if not exists idx_notifications_user_created on notifications(user_id, created_at desc);
+create index if not exists idx_subscriptions_user_period on subscriptions(user_id, started_at desc nulls last, current_period_end desc nulls last);
+create index if not exists idx_latency_metrics_user_recorded on latency_metrics(user_id, recorded_at desc);
 
 alter table reports add column if not exists category text;
 alter table reports add column if not exists severity text default 'medium';
@@ -283,6 +327,8 @@ create unique index if not exists idx_report_confirmations_unique on report_conf
 create unique index if not exists idx_report_flags_unique on report_flags(report_id, user_id);
 create index if not exists idx_reports_geocluster on reports(lat, lng, created_at desc);
 create index if not exists idx_user_credibility_profiles_user on user_credibility_profiles(user_id);
+create unique index if not exists idx_nearby_safety_mesh_unique_signal on nearby_safety_mesh_signals(user_id, ephemeral_device_id);
+create index if not exists idx_nearby_safety_mesh_area_active on nearby_safety_mesh_signals(area_cell, expires_at desc, observed_at desc);
 
 alter table users enable row level security;
 alter table user_devices enable row level security;
@@ -291,6 +337,7 @@ alter table user_trust_profiles enable row level security;
 alter table reviewer_role_requests enable row level security;
 alter table alerts enable row level security;
 alter table watch_sessions enable row level security;
+alter table alert_audit_events enable row level security;
 alter table location_logs enable row level security;
 alter table reports enable row level security;
 alter table user_credibility_profiles enable row level security;
@@ -298,6 +345,7 @@ alter table report_classifications enable row level security;
 alter table notifications enable row level security;
 alter table subscriptions enable row level security;
 alter table telemetry_events enable row level security;
+alter table nearby_safety_mesh_signals enable row level security;
 
 create policy users_read on users for select using (id = auth.uid());
 create policy users_update on users for update using (id = auth.uid());
@@ -313,6 +361,7 @@ create policy reviewer_role_requests_write on reviewer_role_requests for insert 
 
 create policy alerts_rw on alerts for all using (user_id = auth.uid()) with check (user_id = auth.uid());
 create policy sessions_rw on watch_sessions for all using (user_id = auth.uid()) with check (user_id = auth.uid());
+create policy alert_audit_events_read on alert_audit_events for select using (user_id = auth.uid());
 create policy locations_rw on location_logs for all using (user_id = auth.uid()) with check (user_id = auth.uid());
 
 create policy reports_rw on reports for all using (user_id = auth.uid()) with check (user_id = auth.uid());
@@ -323,3 +372,4 @@ create policy report_classifications_read on report_classifications for select u
 create policy notifications_rw on notifications for all using (user_id = auth.uid()) with check (user_id = auth.uid());
 create policy subscriptions_rw on subscriptions for all using (user_id = auth.uid()) with check (user_id = auth.uid());
 create policy telemetry_rw on telemetry_events for all using (user_id = auth.uid()) with check (user_id = auth.uid());
+create policy nearby_safety_mesh_rw on nearby_safety_mesh_signals for all using (user_id = auth.uid()) with check (user_id = auth.uid());

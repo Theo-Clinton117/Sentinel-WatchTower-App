@@ -15,6 +15,7 @@ const bullmq_1 = require("bullmq");
 const db_service_1 = require("../db/db.service");
 const ws_service_1 = require("../ws/ws.service");
 const alert_stages_1 = require("../alerts/alert-stages");
+const ESCALATION_SWEEP_INTERVAL_MS = 15000;
 function hasValue(value) {
     return value !== null && value !== undefined && String(value).trim().length > 0;
 }
@@ -34,14 +35,50 @@ function buildMapLink(location) {
     }
     return `https://maps.google.com/?q=${location.lat},${location.lng}`;
 }
+async function recordAlertAudit(queryable, { alertId, sessionId, userId, eventType, source, fromStage, toStage, metadata }) {
+    if (!alertId || !eventType) {
+        return;
+    }
+    await queryable.query(`
+      insert into alert_audit_events (
+        alert_id,
+        session_id,
+        user_id,
+        event_type,
+        source,
+        from_stage,
+        to_stage,
+        metadata
+      )
+      values ($1, $2, $3, $4, $5, $6, $7, $8::jsonb)
+    `, [
+        alertId,
+        sessionId || null,
+        userId || null,
+        eventType,
+        source || 'system',
+        fromStage || null,
+        toStage || null,
+        JSON.stringify(metadata || {}),
+    ]);
+}
 let QueuesService = class QueuesService {
     constructor(db, ws) {
         this.escalationQueue = null;
         this.notificationQueue = null;
+        this.fallbackEscalationTimers = new Map();
+        this.escalationSweepInFlight = false;
+        this.logger = new common_1.Logger(QueuesService.name);
         this.db = db;
         this.ws = ws;
+        this.escalationSweepTimer = setInterval(() => {
+            this.processDueEscalations().catch((error) => {
+                this.logger.error(`Escalation sweep failed: ${error instanceof Error ? error.message : 'unknown error'}`);
+            });
+        }, ESCALATION_SWEEP_INTERVAL_MS);
+        this.escalationSweepTimer.unref?.();
         if (!process.env.REDIS_URL) {
-            common_1.Logger.warn('REDIS_URL is not set. Queue workers are disabled.', 'QueuesService');
+            this.logger.warn('REDIS_URL is not set. Queue workers are disabled.');
             return;
         }
         const connection = {
@@ -66,6 +103,7 @@ let QueuesService = class QueuesService {
         const result = await this.db.query(`
       select
         a.id as alert_id,
+        a.user_id,
         a.status as alert_status,
         a.stage,
         s.id as session_id
@@ -98,8 +136,21 @@ let QueuesService = class QueuesService {
           set escalation_level = $1
           where alert_id = $2 and status = 'active'
         `, [escalationLevel, alert.alert_id]);
+            await recordAlertAudit(client, {
+                alertId: alert.alert_id,
+                sessionId: alert.session_id,
+                userId: alert.user_id,
+                eventType: 'alert_escalated',
+                source: String(job.id || '').startsWith('sweep-') ? 'sweep' : String(job.id || '').startsWith('fallback-') ? 'fallback_timer' : 'queue',
+                fromStage: currentStage,
+                toStage: targetStage,
+                metadata: {
+                    jobId: job.id || null,
+                },
+            });
         });
         this.ws.emitSessionStatus(alert.session_id, 'active', targetStage);
+        this.logger.warn(`alert_escalated source=${String(job.id || '').startsWith('sweep-') ? 'sweep' : String(job.id || '').startsWith('fallback-') ? 'fallback_timer' : 'queue'} alertId=${alert.alert_id} sessionId=${alert.session_id} stage=${targetStage}`);
         await this.scheduleEscalation({
             alertId: alert.alert_id,
             sessionId: alert.session_id,
@@ -111,14 +162,73 @@ let QueuesService = class QueuesService {
             jobId: job.id,
         };
     }
-    async scheduleEscalation(payload) {
-        if (!this.escalationQueue) {
+    async processDueEscalations() {
+        if (this.escalationSweepInFlight) {
             return;
         }
+        this.escalationSweepInFlight = true;
+        try {
+            const result = await this.db.query(`
+      select
+        a.id as alert_id,
+        a.stage,
+        s.id as session_id,
+        case
+          when a.stage = 'soft_alert' then 'high_alert'
+          when a.stage = 'high_alert' then 'critical'
+          else null
+        end as target_stage
+      from alerts a
+      join watch_sessions s on s.alert_id = a.id and s.status = 'active'
+      where a.status = 'active'
+        and (
+          (a.stage = 'soft_alert' and coalesce(a.cancel_expires_at, a.created_at + interval '10 seconds') <= now())
+          or
+          (a.stage = 'high_alert' and coalesce(a.escalated_at, a.created_at) + interval '3 minutes' <= now())
+        )
+      order by a.created_at asc
+      limit 25
+    `);
+            for (const row of result.rows) {
+                if (!row.target_stage) {
+                    continue;
+                }
+                await this.processEscalationJob({
+                    id: `sweep-${row.alert_id}`,
+                    data: {
+                        alertId: row.alert_id,
+                        sessionId: row.session_id,
+                        stage: row.stage,
+                        targetStage: row.target_stage,
+                    },
+                });
+            }
+        }
+        finally {
+            this.escalationSweepInFlight = false;
+        }
+    }
+    async scheduleEscalation(payload) {
         const currentStage = (0, alert_stages_1.normalizeAlertStage)(payload?.stage);
         const plan = (0, alert_stages_1.getNextEscalationPlan)(currentStage);
         await this.cancelEscalation(payload.alertId);
         if (!plan) {
+            return;
+        }
+        if (!this.escalationQueue) {
+            const timer = setTimeout(() => {
+                this.fallbackEscalationTimers.delete(payload.alertId);
+                this.processEscalationJob({
+                    id: `fallback-${payload.alertId}`,
+                    data: {
+                        ...payload,
+                        targetStage: plan.targetStage,
+                    },
+                }).catch((error) => {
+                    this.logger.error(`Fallback escalation failed: ${error instanceof Error ? error.message : 'unknown error'}`);
+                });
+            }, plan.delayMs);
+            this.fallbackEscalationTimers.set(payload.alertId, timer);
             return;
         }
         await this.escalationQueue.add('escalate', {
@@ -130,6 +240,11 @@ let QueuesService = class QueuesService {
         });
     }
     async cancelEscalation(alertId) {
+        const fallbackTimer = this.fallbackEscalationTimers.get(alertId);
+        if (fallbackTimer) {
+            clearTimeout(fallbackTimer);
+            this.fallbackEscalationTimers.delete(alertId);
+        }
         if (!this.escalationQueue) {
             return;
         }
@@ -400,6 +515,21 @@ let QueuesService = class QueuesService {
                 }
             }
         }
+        await recordAlertAudit(this.db, {
+            alertId: alert.alert_id,
+            sessionId: alert.session_id || null,
+            userId: payload.userId,
+            eventType: 'notification_fanout_completed',
+            source: 'notification_worker',
+            fromStage: alert.stage,
+            toStage: payload.stage || alert.stage,
+            metadata: {
+                delivered,
+                contacts: contacts.length,
+                eventType: payload.eventType || null,
+            },
+        });
+        this.logger.log(`notification_fanout_completed alertId=${alert.alert_id} userId=${payload.userId} delivered=${delivered} contacts=${contacts.length}`);
         return { ok: true, delivered, contacts: contacts.length };
     }
     buildAlertNotificationMessage({ eventType, triggerSource, stage, owner, recipientName, location, summaryItems, }) {
@@ -535,6 +665,15 @@ let QueuesService = class QueuesService {
             const errorBody = await response.text();
             throw new Error(`Could not send email. ${errorBody || response.statusText}`);
         }
+    }
+    async onModuleDestroy() {
+        if (this.escalationSweepTimer) {
+            clearInterval(this.escalationSweepTimer);
+        }
+        for (const timer of this.fallbackEscalationTimers.values()) {
+            clearTimeout(timer);
+        }
+        this.fallbackEscalationTimers.clear();
     }
 };
 exports.QueuesService = QueuesService;

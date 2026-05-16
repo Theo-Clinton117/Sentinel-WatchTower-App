@@ -485,6 +485,44 @@ const AlertTransition = () => {
   );
 };
 
+class AppErrorBoundary extends React.Component<
+  { children: React.ReactNode },
+  { hasError: boolean; message: string }
+> {
+  state = { hasError: false, message: '' };
+
+  static getDerivedStateFromError(error: Error) {
+    return {
+      hasError: true,
+      message: error.message || 'The app hit an unexpected error.',
+    };
+  }
+
+  render() {
+    if (!this.state.hasError) {
+      return this.props.children;
+    }
+
+    return (
+      <View style={styles.errorBoundary}>
+        <Text style={styles.errorBoundaryTitle}>Sentinel needs a reset</Text>
+        <Text style={styles.errorBoundaryCopy}>
+          A screen failed to load. Your saved session remains on this device.
+        </Text>
+        <Text numberOfLines={3} style={styles.errorBoundaryDetail}>
+          {this.state.message}
+        </Text>
+        <Pressable
+          style={styles.errorBoundaryButton}
+          onPress={() => this.setState({ hasError: false, message: '' })}
+        >
+          <Text style={styles.errorBoundaryButtonText}>Try again</Text>
+        </Pressable>
+      </View>
+    );
+  }
+}
+
 export default function App() {
   const theme = useAppTheme();
   const {
@@ -657,11 +695,13 @@ export default function App() {
       <SafeAreaView style={{ flex: 1, backgroundColor: theme.colors.background }}>
         <StatusBar barStyle={theme.isDark ? 'light-content' : 'dark-content'} />
         <ScreenCanvas>
-          <View style={{ flex: 1 }}>
-            <AppChrome
-              showBootSplash={!hasHydrated || !hasSecureAuthHydrated || !hasPlayedOpeningIntro}
-            />
-          </View>
+          <AppErrorBoundary>
+            <View style={{ flex: 1 }}>
+              <AppChrome
+                showBootSplash={!hasHydrated || !hasSecureAuthHydrated || !hasPlayedOpeningIntro}
+              />
+            </View>
+          </AppErrorBoundary>
         </ScreenCanvas>
       </SafeAreaView>
     </QueryClientProvider>
@@ -788,5 +828,45 @@ const styles = StyleSheet.create({
     textAlign: 'center',
     lineHeight: 22,
     maxWidth: 280,
+  },
+  errorBoundary: {
+    flex: 1,
+    padding: 24,
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: '#060B16',
+  },
+  errorBoundaryTitle: {
+    color: '#EEF4FF',
+    fontSize: 24,
+    fontWeight: '800',
+    textAlign: 'center',
+    marginBottom: 12,
+  },
+  errorBoundaryCopy: {
+    color: '#92A3C4',
+    fontSize: 15,
+    lineHeight: 22,
+    textAlign: 'center',
+    marginBottom: 14,
+  },
+  errorBoundaryDetail: {
+    color: '#FF6B82',
+    fontSize: 13,
+    lineHeight: 18,
+    textAlign: 'center',
+    marginBottom: 22,
+  },
+  errorBoundaryButton: {
+    minHeight: 50,
+    paddingHorizontal: 22,
+    borderRadius: 18,
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: '#2A6FFF',
+  },
+  errorBoundaryButtonText: {
+    color: '#FFFFFF',
+    fontWeight: '800',
   },
 });

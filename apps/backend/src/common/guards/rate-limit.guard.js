@@ -40,8 +40,12 @@ let RateLimitGuard = class RateLimitGuard {
             await limiter.consume(key);
             return true;
         }
-        catch {
-            throw new common_1.HttpException('Rate limit exceeded', common_1.HttpStatus.TOO_MANY_REQUESTS);
+        catch (error) {
+            const retryAfterSeconds = Math.max(1, Math.ceil(Number(error?.msBeforeNext || config.duration * 1000) / 1000));
+            throw new common_1.HttpException({
+                message: `Rate limit exceeded. Try again in ${retryAfterSeconds} seconds.`,
+                retryAfterSeconds,
+            }, common_1.HttpStatus.TOO_MANY_REQUESTS);
         }
     }
     getLimiter(config) {

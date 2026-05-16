@@ -25,10 +25,12 @@ const subscriptions_module_1 = require("./subscriptions/subscriptions.module");
 const telemetry_module_1 = require("./telemetry/telemetry.module");
 const admin_module_1 = require("./admin/admin.module");
 const risk_zones_module_1 = require("./risk-zones/risk-zones.module");
+const nearby_safety_mesh_module_1 = require("./nearby-safety-mesh/nearby-safety-mesh.module");
 const supabase_module_1 = require("./supabase/supabase.module");
 const waitlist_module_1 = require("./waitlist/waitlist.module");
 const ws_module_1 = require("./ws/ws.module");
 const queues_module_1 = require("./queues/queues.module");
+const health_module_1 = require("./health/health.module");
 const db_module_1 = require("./db/db.module");
 let AppModule = class AppModule {
     configure(consumer) {
@@ -55,10 +57,12 @@ exports.AppModule = AppModule = __decorate([
             telemetry_module_1.TelemetryModule,
             admin_module_1.AdminModule,
             risk_zones_module_1.RiskZonesModule,
+            nearby_safety_mesh_module_1.NearbySafetyMeshModule,
             supabase_module_1.SupabaseModule,
             waitlist_module_1.WaitlistModule,
             ws_module_1.WsModule,
             queues_module_1.QueuesModule,
+            health_module_1.HealthModule,
         ],
         providers: [rate_limit_guard_1.RateLimitGuard],
     })

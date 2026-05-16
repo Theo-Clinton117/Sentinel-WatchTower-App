@@ -10,7 +10,12 @@ import {
   classifyReviewerReport,
   getReviewerQueue,
 } from '../services/admin';
-import { AppNotification, listNotifications } from '../services/notifications';
+import {
+  AlertAuditEvent,
+  AppNotification,
+  listAlertAuditEvents,
+  listNotifications,
+} from '../services/notifications';
 import { getCurrentUser } from '../services/users';
 import { useAppStore } from '../store/useAppStore';
 import { useAppTheme } from '../theme';
@@ -356,6 +361,15 @@ export const NotificationsScreen = () => {
     queryKey: ['notifications'],
     queryFn: listNotifications,
   });
+  const auditQuery = useQuery<AlertAuditEvent[]>({
+    queryKey: ['alert-audit-events'],
+    queryFn: listAlertAuditEvents,
+  });
+  const deliveryIssueCount =
+    notificationsQuery.data?.filter(
+      (item: AppNotification) => item.status === 'failed' || item.status === 'skipped',
+    )
+      .length ?? 0;
 
   return (
     <ScreenFrame
@@ -381,6 +395,28 @@ export const NotificationsScreen = () => {
         </MotionView>
       ) : notificationsQuery.data?.length ? (
         <View style={styles.reviewList}>
+          {auditQuery.data?.length ? (
+            <MotionView delay={80} style={[styles.card, theme.shadow.card]}>
+              <Text style={styles.cardTitle}>Recent alert timeline</Text>
+              {auditQuery.data.slice(0, 5).map((event: AlertAuditEvent) => (
+                <View key={event.id} style={styles.timelineRow}>
+                  <Text style={styles.reviewDescription}>
+                    {titleCase(event.eventType)} via {titleCase(event.source)}
+                    {event.toStage ? ` -> ${titleCase(event.toStage)}` : ''}
+                  </Text>
+                  <Text style={styles.metaText}>{formatDateTime(event.createdAt)}</Text>
+                </View>
+              ))}
+            </MotionView>
+          ) : null}
+          {deliveryIssueCount > 0 ? (
+            <MotionView delay={90} style={[styles.card, theme.shadow.card]}>
+              <Text style={styles.cardTitle}>Some deliveries need attention</Text>
+              <Text style={styles.cardCopy}>
+                {deliveryIssueCount} trusted-contact delivery {deliveryIssueCount === 1 ? 'record was' : 'records were'} failed or skipped. Check the entries below before assuming every contact was reached.
+              </Text>
+            </MotionView>
+          ) : null}
           {notificationsQuery.data.map((item: AppNotification, index: number) => {
             const message =
               readPayloadString(item.payload, 'message') ||
@@ -846,6 +882,12 @@ const createStyles = (theme: ReturnType<typeof useAppTheme>) =>
     metaText: {
       color: theme.colors.muted,
       lineHeight: 18,
+    },
+    timelineRow: {
+      paddingTop: 10,
+      marginTop: 10,
+      borderTopWidth: 1,
+      borderTopColor: theme.colors.border,
     },
     metricRow: {
       flexDirection: 'row',
