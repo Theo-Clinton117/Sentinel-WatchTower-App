@@ -46,13 +46,13 @@ const toneColors = {
 function formatSyncStatus(value?: string | null) {
   switch (value) {
     case 'verified':
-      return 'Server verified';
+      return 'Checked';
     case 'revenuecat_not_configured':
-      return 'RevenueCat not configured';
+      return 'Store setup needed';
     case 'cached':
-      return 'Using saved status';
+      return 'Saved status';
     default:
-      return 'Subscription status';
+      return 'Plan status';
   }
 }
 
@@ -112,10 +112,10 @@ function describePlanAction(
   }
 
   if (!offers?.[plan.id]?.isAvailable) {
-    return 'Not mapped yet';
+    return 'Coming soon';
   }
 
-  return 'Subscribe in store';
+  return 'Subscribe';
 }
 
 type RestoreResult = {
@@ -182,8 +182,8 @@ export const SubscriptionScreen = () => {
       Alert.alert(
         'Purchases restored',
         getFirstActiveEntitlement(customerInfo)
-          ? 'Your store purchases were restored and your server-side access has been refreshed.'
-          : 'No active paid entitlement was found for this account yet, but your access has been refreshed.',
+          ? 'Your purchases were restored and Sentinel updated your access.'
+          : 'No active paid plan was found for this account, but Sentinel checked again.',
       );
     },
     onError: (error: unknown) => {
@@ -208,8 +208,8 @@ export const SubscriptionScreen = () => {
       Alert.alert(
         'Subscription updated',
         getFirstActiveEntitlement(customerInfo)
-          ? `${plan.name} was purchased and your backend access has been refreshed.`
-          : 'The purchase completed, but the active entitlement was not available yet. Pull to refresh or try the refresh button again in a moment.',
+          ? `${plan.name} is active now.`
+          : 'The purchase finished, but the plan is still updating. Try Refresh access in a moment.',
       );
     },
     onError: (error: unknown) => {
@@ -256,14 +256,14 @@ export const SubscriptionScreen = () => {
         <MotionView delay={40}>
           <Text style={styles.title}>Subscription</Text>
           <Text style={styles.subtitle}>
-            Loading your plan catalogue and server-verified access.
+            Loading your current plan and available upgrades.
           </Text>
         </MotionView>
 
         <MotionView delay={120} style={[styles.emptyCard, theme.shadow.card]}>
-          <Text style={styles.emptyTitle}>Preparing your subscription workspace</Text>
+          <Text style={styles.emptyTitle}>Checking your plan</Text>
           <Text style={styles.emptyText}>
-            Sentinel checks the backend before it unlocks paid safety features.
+            This only takes a moment. Paid features stay locked until your store purchase is confirmed.
           </Text>
         </MotionView>
       </ScrollView>
@@ -280,7 +280,7 @@ export const SubscriptionScreen = () => {
         <MotionView delay={40}>
           <Text style={styles.title}>Subscription</Text>
           <Text style={styles.subtitle}>
-            Sentinel could not load your subscription state right now.
+            Sentinel could not load your plan right now.
           </Text>
         </MotionView>
 
@@ -289,7 +289,7 @@ export const SubscriptionScreen = () => {
           <Text style={styles.emptyText}>
             {subscriptionQuery.error instanceof Error
               ? subscriptionQuery.error.message
-              : 'Please retry once the backend is reachable.'}
+              : 'Please retry once your connection is stable.'}
           </Text>
           <Pressable
             onPress={() => subscriptionQuery.refetch()}
@@ -313,8 +313,7 @@ export const SubscriptionScreen = () => {
       <MotionView delay={40}>
         <Text style={styles.title}>Subscription</Text>
         <Text style={styles.subtitle}>
-          Native App Store and Google Play purchases, with backend verification before access is
-          granted.
+          Choose the safety plan that matches how much support you want around you.
         </Text>
       </MotionView>
 
@@ -342,7 +341,7 @@ export const SubscriptionScreen = () => {
             </View>
           </View>
 
-          <Text style={styles.heroEyebrow}>Current access</Text>
+          <Text style={styles.heroEyebrow}>Current plan</Text>
           <Text style={styles.heroTitle}>{activePlan.name}</Text>
           <Text style={[styles.heroPrice, { color: activeTone.accent }]}>
             {resolvePriceLabel(activePlan, offersQuery.data)}{' '}
@@ -352,10 +351,10 @@ export const SubscriptionScreen = () => {
 
           <View style={styles.heroMetaList}>
             <Text style={styles.heroMeta}>
-              Backend source: {data.provider ? data.provider.replace('_', ' ') : 'free tier'}
+              Billing source: {data.provider ? data.provider.replace('_', ' ') : 'free plan'}
             </Text>
             <Text style={styles.heroMeta}>
-              {expirationLabel ? `Current period ends ${expirationLabel}` : 'No paid renewal date yet'}
+              {expirationLabel ? `Renews or ends on ${expirationLabel}` : 'No paid renewal date yet'}
             </Text>
           </View>
         </LinearGradient>
@@ -396,8 +395,7 @@ export const SubscriptionScreen = () => {
       <MotionView delay={190} style={styles.sectionHeader}>
         <Text style={styles.sectionTitle}>Plans</Text>
         <Text style={styles.sectionText}>
-          Keep core safety available for everyone, then monetize higher-trust automation and
-          family coverage.
+          Start with the free safety basics. Upgrade only if you want more automation, coverage, or family support.
         </Text>
       </MotionView>
 
@@ -484,17 +482,16 @@ export const SubscriptionScreen = () => {
       </View>
 
       <MotionView delay={430} style={[styles.noteCard, theme.shadow.card]}>
-        <Text style={styles.noteTitle}>Billing and verification</Text>
+        <Text style={styles.noteTitle}>Billing and access</Text>
         <Text style={styles.noteText}>
-          Purchases happen in the native store, then Sentinel syncs RevenueCat-backed status to the
-          backend before paid features should be trusted.
+          Purchases happen through the App Store or Google Play. After payment, Sentinel checks your account before turning on paid features.
         </Text>
         <Text style={styles.noteText}>
           {offersQuery.error instanceof Error
             ? offersQuery.error.message
             : data.revenueCat.configured
-              ? 'Store packages will appear as soon as the current offering is mapped to your plan identifiers.'
-              : 'Set the RevenueCat project secret on the backend and platform public keys in Expo env to complete the flow.'}
+              ? 'If a plan says Coming soon, it still needs to be connected to a store product.'
+              : 'Store payments are not connected for this build yet.'}
         </Text>
         <Pressable onPress={handleManageBilling} style={[styles.manageButton, theme.shadow.glow]}>
           <Text style={styles.manageButtonText}>Manage billing in store</Text>

@@ -358,15 +358,15 @@ export const ActiveEmergencyScreen = () => {
   const isSoftAlert = activeSession.alertStage === 'soft_alert';
   const stageLabel = (activeSession.alertStage || 'high_alert').replace('_', ' ').toUpperCase();
   const triggerLabel = activeSession.triggerSource || 'panic';
-  const headerTitle = isSoftAlert ? 'Silent Verification' : 'Emergency Active';
-  const headerBadge = isSoftAlert ? 'GUARDIAN VERIFYING' : 'SOS BROADCAST';
+  const headerTitle = isSoftAlert ? 'Safety Check' : 'Emergency Active';
+  const headerBadge = isSoftAlert ? 'CHECKING RISK' : 'SOS ACTIVE';
   const routeDetail = isSoftAlert
     ? syncing
-      ? 'Verifying route context and waiting for the cancel window to close'
-      : 'Trusted contacts will be pulled in if the verification window expires or risk rises'
+      ? 'Checking your situation before alerting more people'
+      : 'If you do nothing, this can become a full emergency alert'
     : syncing
-      ? 'Syncing session feed'
-      : 'Emergency route visible to your trusted circle';
+      ? 'Updating your emergency details'
+      : 'Your trusted contacts can use this route to check on you';
 
   return (
     <View style={styles.container}>
@@ -394,7 +394,7 @@ export const ActiveEmergencyScreen = () => {
               <Text style={styles.softAlertTitle}>Cancel window</Text>
               <Text style={styles.timer}>{countdown || '00:10'}</Text>
               <Text style={styles.softAlertText}>
-                Trigger source: {triggerLabel}. If you do nothing, Guardian promotes this to a high alert automatically.
+                Started by {triggerLabel.replace('_', ' ')}. If you do nothing, Sentinel will treat this as a real emergency.
               </Text>
             </>
           ) : (
@@ -424,9 +424,9 @@ export const ActiveEmergencyScreen = () => {
 
       <Text style={styles.note}>
         {isSoftAlert
-          ? `Risk score ${activeSession.riskScore ?? 0}/100. ${activeSession.detectionSummary?.[0] || 'Guardian is validating multiple signals before broad escalation.'}`
+          ? `Risk level ${activeSession.riskScore ?? 0}/100. ${activeSession.detectionSummary?.[0] || 'Sentinel is checking your location and recent activity before escalating.'}`
           : syncing
-          ? 'Syncing session state and location feed...'
+          ? 'Updating emergency status and location...'
           : latestLocation
             ? `Latest update at ${new Date(
                 latestLocation.recordedAt || latestLocation.createdAt || Date.now(),

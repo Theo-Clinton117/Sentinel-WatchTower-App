@@ -108,16 +108,16 @@ export const OnboardingContactsScreen = () => {
       <MotionView delay={20}>
         <AuthArtPanel
           eyebrow="Trusted Circle"
-          title="Build your first response network."
-          caption="These are the people who should receive your location, emergency notice, and follow-up signals first."
-          chipA="LOCATION READY"
-          chipB="FALLBACK SMS"
+          title="Choose who hears from you first."
+          caption="Add people you trust to check on you if you start an alert or ask someone to watch your trip."
+          chipA="LIVE LOCATION"
+          chipB="TEXT BACKUP"
         />
       </MotionView>
       <MotionView delay={40}>
         <Text style={styles.title}>Add Trusted Contacts</Text>
         <Text style={styles.subtitle}>
-          Add the people who should hear from you first when an emergency alert starts.
+          Start with one person who knows you well and is likely to respond quickly.
         </Text>
       </MotionView>
 
@@ -151,7 +151,7 @@ export const OnboardingContactsScreen = () => {
         <View style={styles.preferenceRow}>
           <View style={styles.preferenceTextWrap}>
             <Text style={styles.preferenceTitle}>Share live location</Text>
-            <Text style={styles.preferenceCaption}>Let this contact see your emergency map.</Text>
+            <Text style={styles.preferenceCaption}>Let this person see where you are during an alert or watch session.</Text>
           </View>
           <Switch
             value={canViewLocation}
@@ -164,7 +164,7 @@ export const OnboardingContactsScreen = () => {
         <View style={styles.preferenceRow}>
           <View style={styles.preferenceTextWrap}>
             <Text style={styles.preferenceTitle}>Send SMS fallback</Text>
-            <Text style={styles.preferenceCaption}>Use text messaging if push delivery is delayed.</Text>
+            <Text style={styles.preferenceCaption}>Send a text message if in-app updates are not enough.</Text>
           </View>
           <Switch
             value={canSms}

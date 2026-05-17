@@ -59,6 +59,16 @@ const DEV_TEST_NAME =
   process.env.EXPO_PUBLIC_DEV_TEST_NAME || 'Sentinel Tester';
 const DEV_TEST_OTP =
   process.env.EXPO_PUBLIC_DEV_TEST_OTP || '123456';
+const sidebarScreens = new Set([
+  'settings',
+  'notifications',
+  'support',
+  'about',
+  'reviewer-dashboard',
+  'subscription',
+]);
+
+const isSidebarScreen = (screen: string) => sidebarScreens.has(screen);
 
 const ScreenRouter = () => {
   const { currentScreen, screenStack, sessionStatus, authStatus, onboardingComplete, setScreen } = useAppStore(
@@ -340,6 +350,7 @@ const AppChrome = ({ showBootSplash }: { showBootSplash: boolean }) => {
     sessionStatus,
     closeSidebar,
     goBack,
+    openSidebar,
     setScreen,
   } = useAppStore(
     (state) => ({
@@ -351,6 +362,7 @@ const AppChrome = ({ showBootSplash }: { showBootSplash: boolean }) => {
       sessionStatus: state.sessionStatus,
       closeSidebar: state.closeSidebar,
       goBack: state.goBack,
+      openSidebar: state.openSidebar,
       setScreen: state.setScreen,
     }),
     shallow,
@@ -368,6 +380,17 @@ const AppChrome = ({ showBootSplash }: { showBootSplash: boolean }) => {
     onboardingComplete &&
     ['home', 'risk-log', 'contacts', 'profile'].includes(currentScreen);
 
+  const leaveCurrentScreen = React.useCallback(() => {
+    const shouldRestoreSidebar = isSidebarScreen(currentScreen);
+    goBack();
+
+    if (shouldRestoreSidebar) {
+      requestAnimationFrame(() => {
+        openSidebar();
+      });
+    }
+  }, [currentScreen, goBack, openSidebar]);
+
   React.useEffect(() => {
     const subscription = BackHandler.addEventListener('hardwareBackPress', () => {
       if (sessionStatus === 'active' || sessionStatus === 'soft_alert') {
@@ -380,7 +403,7 @@ const AppChrome = ({ showBootSplash }: { showBootSplash: boolean }) => {
       }
 
       if (canGoBack) {
-        goBack();
+        leaveCurrentScreen();
         return true;
       }
 
@@ -393,7 +416,7 @@ const AppChrome = ({ showBootSplash }: { showBootSplash: boolean }) => {
     });
 
     return () => subscription.remove();
-  }, [canGoBack, closeSidebar, currentScreen, goBack, sessionStatus, setScreen, showTabs, sidebarOpen]);
+  }, [canGoBack, closeSidebar, currentScreen, leaveCurrentScreen, sessionStatus, setScreen, showTabs, sidebarOpen]);
 
   if (showBootSplash) {
     return <BootSplash />;
@@ -404,7 +427,7 @@ const AppChrome = ({ showBootSplash }: { showBootSplash: boolean }) => {
       {canGoBack ? (
         <View style={styles.backHeader}>
           <Pressable
-            onPress={goBack}
+            onPress={leaveCurrentScreen}
             hitSlop={8}
             style={[
               styles.backButton,

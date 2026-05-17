@@ -76,6 +76,7 @@ export const ContactsScreen = () => {
   const [saving, setSaving] = useState(false);
   const [deletingContactId, setDeletingContactId] = useState<string | null>(null);
   const [savingEntryKey, setSavingEntryKey] = useState<string | null>(null);
+  const [showDiscoveryTools, setShowDiscoveryTools] = useState(false);
   const [contactName, setContactName] = useState('');
   const [contactPhone, setContactPhone] = useState('');
   const [contactEmail, setContactEmail] = useState('');
@@ -362,7 +363,7 @@ export const ContactsScreen = () => {
       <MotionView delay={40}>
         <Text style={styles.title}>Contacts</Text>
         <Text style={styles.subtitle}>
-          Bring in your phone contacts, see who already uses Sentinel, or search directly by email.
+          Choose the people Sentinel should contact first when you need help or want someone to watch your trip.
         </Text>
       </MotionView>
 
@@ -375,7 +376,7 @@ export const ContactsScreen = () => {
           onChangeText={setSearchQuery}
         />
         <Text style={styles.searchHint}>
-          Contacts already on Sentinel are marked clearly so you can add them faster.
+          Search by name, phone, or email. Keep this list focused on people who will actually respond.
         </Text>
       </MotionView>
 
@@ -385,7 +386,7 @@ export const ContactsScreen = () => {
           {loading ? <ActivityIndicator color={theme.colors.blueGlow} /> : null}
         </View>
         {filteredContacts.length === 0 && !loading ? (
-          <Text style={styles.emptyText}>No trusted contacts yet. Add one from your phone contacts, email search, or manually.</Text>
+          <Text style={styles.emptyText}>No trusted contacts yet. Add one person you would call first in a difficult moment.</Text>
         ) : null}
         {filteredContacts.map((contact) => {
           const active = selectedContactId === contact.id;
@@ -441,162 +442,170 @@ export const ContactsScreen = () => {
       <MotionView delay={210} style={[styles.sectionCard, theme.shadow.card]}>
         <View style={styles.sectionHeader}>
           <View style={styles.sectionHeaderCopy}>
-            <Text style={styles.sectionTitle}>Phone contacts</Text>
+            <Text style={styles.sectionTitle}>Find more people</Text>
             <Text style={styles.sectionMeta}>
-              Load your device contact list and spot the people who already have Sentinel.
+              Import from your phone or search by email when you want to add more trusted people.
             </Text>
           </View>
-          <Pressable style={styles.inlineButton} onPress={handleLoadDeviceContacts}>
-            {loadingDeviceContacts ? (
-              <ActivityIndicator color={theme.colors.text} />
-            ) : (
-              <Text style={styles.inlineButtonText}>
-                {deviceContacts.length > 0 ? 'Refresh' : 'Load'}
-              </Text>
-            )}
+          <Pressable
+            style={styles.inlineButton}
+            onPress={() => setShowDiscoveryTools((value) => !value)}
+          >
+            <Text style={styles.inlineButtonText}>{showDiscoveryTools ? 'Hide' : 'Open'}</Text>
           </Pressable>
         </View>
-        {filteredDeviceContacts.length === 0 && !loadingDeviceContacts ? (
-          <Text style={styles.emptyText}>
-            {deviceContacts.length === 0
-              ? 'No phone contacts loaded yet.'
-              : 'No imported phone contact matches this search.'}
-          </Text>
-        ) : null}
-        {filteredDeviceContacts.slice(0, 12).map((entry) => {
-          const alreadyTrusted = isAlreadyTrusted({
-            userId: entry.sentinelMatch?.userId,
-            email: entry.primaryEmail,
-            phone: entry.primaryPhone,
-          });
-          const buttonBusy = savingEntryKey === `device:${entry.id}`;
 
-          return (
-            <View key={entry.id} style={styles.directoryRow}>
-              <View style={styles.directoryCopy}>
-                <View style={styles.directoryTitleRow}>
-                  <Text style={styles.directoryName}>{entry.name}</Text>
-                  <View
-                    style={[
-                      styles.discoveryBadge,
-                      entry.hasSentinel ? styles.discoveryBadgeActive : styles.discoveryBadgeMuted,
-                    ]}
-                  >
-                    <Text style={styles.discoveryBadgeText}>
-                      {entry.hasSentinel ? 'On Sentinel' : 'Phone contact'}
+        {showDiscoveryTools ? (
+          <>
+            <View style={styles.discoveryBlock}>
+              <View style={styles.sectionHeader}>
+                <View style={styles.sectionHeaderCopy}>
+                  <Text style={styles.compactTitle}>Phone contacts</Text>
+                  <Text style={styles.compactMeta}>Find people from your phone book and add them faster.</Text>
+                </View>
+                <Pressable style={styles.inlineButton} onPress={handleLoadDeviceContacts}>
+                  {loadingDeviceContacts ? (
+                    <ActivityIndicator color={theme.colors.text} />
+                  ) : (
+                    <Text style={styles.inlineButtonText}>
+                      {deviceContacts.length > 0 ? 'Refresh' : 'Load'}
                     </Text>
-                  </View>
-                </View>
-                {entry.primaryPhone ? <Text style={styles.directoryMeta}>{entry.primaryPhone}</Text> : null}
-                {entry.primaryEmail ? <Text style={styles.directoryMeta}>{entry.primaryEmail}</Text> : null}
-                {entry.sentinelMatch ? (
-                  <Text style={styles.directoryNote}>
-                    Matched by {entry.sentinelMatch.matchSource === 'email' ? 'email' : 'phone'}.
-                  </Text>
-                ) : null}
+                  )}
+                </Pressable>
               </View>
-              <Pressable
-                style={[styles.directoryButton, alreadyTrusted && styles.directoryButtonDisabled]}
-                onPress={() =>
-                  addTrustedContact({
-                    key: `device:${entry.id}`,
-                    name: entry.sentinelMatch?.name || entry.name,
-                    phone: entry.sentinelMatch?.phone || entry.primaryPhone,
-                    email: entry.sentinelMatch?.email || entry.primaryEmail,
-                    contactUserId: entry.sentinelMatch?.userId,
-                  })
-                }
-                disabled={alreadyTrusted || buttonBusy}
-              >
-                {buttonBusy ? (
-                  <ActivityIndicator color={theme.colors.text} />
-                ) : (
-                  <Text style={styles.directoryButtonText}>
-                    {alreadyTrusted ? 'Added' : 'Add'}
-                  </Text>
-                )}
-              </Pressable>
-            </View>
-          );
-        })}
-      </MotionView>
+              {filteredDeviceContacts.length === 0 && !loadingDeviceContacts ? (
+                <Text style={styles.emptyText}>
+                  {deviceContacts.length === 0
+                    ? 'No phone contacts loaded yet.'
+                    : 'No imported phone contact matches this search.'}
+                </Text>
+              ) : null}
+              {filteredDeviceContacts.slice(0, 8).map((entry) => {
+                const alreadyTrusted = isAlreadyTrusted({
+                  userId: entry.sentinelMatch?.userId,
+                  email: entry.primaryEmail,
+                  phone: entry.primaryPhone,
+                });
+                const buttonBusy = savingEntryKey === `device:${entry.id}`;
 
-      <MotionView delay={260} style={[styles.sectionCard, theme.shadow.card]}>
-        <Text style={styles.sectionTitle}>Search by email</Text>
-        <Text style={styles.sectionMeta}>
-          Search directly for a Sentinel user by email and add them into your trusted circle.
-        </Text>
-        <View style={styles.emailSearchRow}>
-          <TextInput
-            placeholder="name@example.com"
-            placeholderTextColor={theme.colors.muted}
-            style={[styles.searchInput, styles.emailSearchInput]}
-            value={emailSearchQuery}
-            autoCapitalize="none"
-            keyboardType="email-address"
-            onChangeText={setEmailSearchQuery}
-          />
-          <Pressable style={styles.inlineButtonWide} onPress={handleEmailSearch}>
-            {searchingByEmail ? (
-              <ActivityIndicator color={theme.colors.text} />
-            ) : (
-              <Text style={styles.inlineButtonText}>Search</Text>
-            )}
-          </Pressable>
-        </View>
-        {emailSearchResults.length === 0 && !searchingByEmail ? (
-          <Text style={styles.emptyText}>No email search results yet.</Text>
+                return (
+                  <View key={entry.id} style={styles.directoryRow}>
+                    <View style={styles.directoryCopy}>
+                      <View style={styles.directoryTitleRow}>
+                        <Text style={styles.directoryName}>{entry.name}</Text>
+                        <View
+                          style={[
+                            styles.discoveryBadge,
+                            entry.hasSentinel ? styles.discoveryBadgeActive : styles.discoveryBadgeMuted,
+                          ]}
+                        >
+                          <Text style={styles.discoveryBadgeText}>
+                            {entry.hasSentinel ? 'On Sentinel' : 'Phone contact'}
+                          </Text>
+                        </View>
+                      </View>
+                      {entry.primaryPhone ? <Text style={styles.directoryMeta}>{entry.primaryPhone}</Text> : null}
+                      {entry.primaryEmail ? <Text style={styles.directoryMeta}>{entry.primaryEmail}</Text> : null}
+                    </View>
+                    <Pressable
+                      style={[styles.directoryButton, alreadyTrusted && styles.directoryButtonDisabled]}
+                      onPress={() =>
+                        addTrustedContact({
+                          key: `device:${entry.id}`,
+                          name: entry.sentinelMatch?.name || entry.name,
+                          phone: entry.sentinelMatch?.phone || entry.primaryPhone,
+                          email: entry.sentinelMatch?.email || entry.primaryEmail,
+                          contactUserId: entry.sentinelMatch?.userId,
+                        })
+                      }
+                      disabled={alreadyTrusted || buttonBusy}
+                    >
+                      {buttonBusy ? (
+                        <ActivityIndicator color={theme.colors.text} />
+                      ) : (
+                        <Text style={styles.directoryButtonText}>
+                          {alreadyTrusted ? 'Added' : 'Add'}
+                        </Text>
+                      )}
+                    </Pressable>
+                  </View>
+                );
+              })}
+            </View>
+
+            <View style={styles.discoveryBlock}>
+              <Text style={styles.compactTitle}>Search by email</Text>
+              <View style={styles.emailSearchRow}>
+                <TextInput
+                  placeholder="name@example.com"
+                  placeholderTextColor={theme.colors.muted}
+                  style={[styles.searchInput, styles.emailSearchInput]}
+                  value={emailSearchQuery}
+                  autoCapitalize="none"
+                  keyboardType="email-address"
+                  onChangeText={setEmailSearchQuery}
+                />
+                <Pressable style={styles.inlineButtonWide} onPress={handleEmailSearch}>
+                  {searchingByEmail ? (
+                    <ActivityIndicator color={theme.colors.text} />
+                  ) : (
+                    <Text style={styles.inlineButtonText}>Search</Text>
+                  )}
+                </Pressable>
+              </View>
+              {emailSearchResults.map((result) => {
+                const alreadyTrusted = isAlreadyTrusted({
+                  userId: result.userId,
+                  email: result.email,
+                  phone: result.phone,
+                });
+                const buttonBusy = savingEntryKey === `email:${result.userId}`;
+
+                return (
+                  <View key={result.userId} style={styles.directoryRow}>
+                    <View style={styles.directoryCopy}>
+                      <View style={styles.directoryTitleRow}>
+                        <Text style={styles.directoryName}>{result.name || result.email || 'Sentinel user'}</Text>
+                        <View style={[styles.discoveryBadge, styles.discoveryBadgeActive]}>
+                          <Text style={styles.discoveryBadgeText}>On Sentinel</Text>
+                        </View>
+                      </View>
+                      {result.email ? <Text style={styles.directoryMeta}>{result.email}</Text> : null}
+                      {result.phone ? <Text style={styles.directoryMeta}>{result.phone}</Text> : null}
+                    </View>
+                    <Pressable
+                      style={[styles.directoryButton, alreadyTrusted && styles.directoryButtonDisabled]}
+                      onPress={() =>
+                        addTrustedContact({
+                          key: `email:${result.userId}`,
+                          name: result.name || result.email || 'Sentinel user',
+                          phone: result.phone,
+                          email: result.email,
+                          contactUserId: result.userId,
+                        })
+                      }
+                      disabled={alreadyTrusted || buttonBusy}
+                    >
+                      {buttonBusy ? (
+                        <ActivityIndicator color={theme.colors.text} />
+                      ) : (
+                        <Text style={styles.directoryButtonText}>
+                          {alreadyTrusted ? 'Added' : 'Add'}
+                        </Text>
+                      )}
+                    </Pressable>
+                  </View>
+                );
+              })}
+            </View>
+          </>
         ) : null}
-        {emailSearchResults.map((result) => {
-          const alreadyTrusted = isAlreadyTrusted({
-            userId: result.userId,
-            email: result.email,
-            phone: result.phone,
-          });
-          const buttonBusy = savingEntryKey === `email:${result.userId}`;
-
-          return (
-            <View key={result.userId} style={styles.directoryRow}>
-              <View style={styles.directoryCopy}>
-                <View style={styles.directoryTitleRow}>
-                  <Text style={styles.directoryName}>{result.name || result.email || 'Sentinel user'}</Text>
-                  <View style={[styles.discoveryBadge, styles.discoveryBadgeActive]}>
-                    <Text style={styles.discoveryBadgeText}>On Sentinel</Text>
-                  </View>
-                </View>
-                {result.email ? <Text style={styles.directoryMeta}>{result.email}</Text> : null}
-                {result.phone ? <Text style={styles.directoryMeta}>{result.phone}</Text> : null}
-              </View>
-              <Pressable
-                style={[styles.directoryButton, alreadyTrusted && styles.directoryButtonDisabled]}
-                onPress={() =>
-                  addTrustedContact({
-                    key: `email:${result.userId}`,
-                    name: result.name || result.email || 'Sentinel user',
-                    phone: result.phone,
-                    email: result.email,
-                    contactUserId: result.userId,
-                  })
-                }
-                disabled={alreadyTrusted || buttonBusy}
-              >
-                {buttonBusy ? (
-                  <ActivityIndicator color={theme.colors.text} />
-                ) : (
-                  <Text style={styles.directoryButtonText}>
-                    {alreadyTrusted ? 'Added' : 'Add'}
-                  </Text>
-                )}
-              </Pressable>
-            </View>
-          );
-        })}
       </MotionView>
 
       <MotionView delay={310} style={[styles.sectionCard, theme.shadow.card]}>
         <Text style={styles.sectionTitle}>Watch session</Text>
         <Text style={styles.sectionMeta}>
-          Give a trusted contact temporary permission to track your movements while you commute or travel.
+          Let one trusted contact follow your route for a limited time, such as during a commute, walk, or trip.
         </Text>
         <View style={styles.watchHero}>
           <Text style={styles.watchHeroLabel}>Selected contact</Text>
@@ -611,7 +620,7 @@ export const ContactsScreen = () => {
                   hour: '2-digit',
                   minute: '2-digit',
                 })}`
-              : 'The session ends automatically after the duration you choose.'}
+            : 'This ends automatically after the time you choose.'}
           </Text>
         </View>
         <View style={styles.durationRow}>
@@ -680,7 +689,7 @@ export const ContactsScreen = () => {
           <View style={styles.toggleRow}>
             <View style={styles.toggleCopy}>
               <Text style={styles.toggleTitle}>Allow live tracking</Text>
-              <Text style={styles.toggleNote}>Turn this on if this person can join watch sessions.</Text>
+            <Text style={styles.toggleNote}>Turn this on if this person can see your route during an alert or watch session.</Text>
             </View>
             <Switch
               value={canViewLocation}
@@ -791,10 +800,27 @@ const createStyles = (theme: ReturnType<typeof useAppTheme>) =>
       fontWeight: '800',
       marginBottom: 6,
     },
+    compactTitle: {
+      color: theme.colors.text,
+      fontSize: 16,
+      fontWeight: '800',
+      marginBottom: 5,
+    },
+    compactMeta: {
+      color: theme.colors.muted,
+      fontSize: 12,
+      lineHeight: 17,
+    },
     sectionMeta: {
       color: theme.colors.muted,
       lineHeight: 18,
       marginBottom: 14,
+    },
+    discoveryBlock: {
+      paddingTop: 14,
+      marginTop: 12,
+      borderTopWidth: 1,
+      borderTopColor: theme.colors.border,
     },
     emptyText: {
       color: theme.colors.muted,

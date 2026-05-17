@@ -6,41 +6,64 @@ import {
   Text,
   View,
 } from 'react-native';
+import {
+  Bell,
+  ChevronRight,
+  CreditCard,
+  HelpCircle,
+  Info,
+  LucideIcon,
+  Settings2,
+  ShieldCheck,
+} from 'lucide-react-native';
 import { shallow } from 'zustand/shallow';
 import { ProfileGlyph } from './ProfileGlyph';
 import { Screen, useAppStore } from '../store/useAppStore';
 import { useAppTheme } from '../theme';
 
-const drawerItems: Array<{ label: string; screen: Screen; blurb: string }> = [
+const drawerItems: Array<{
+  label: string;
+  screen: Screen;
+  section: 'Account' | 'Operations' | 'Help';
+  icon: LucideIcon;
+  roles?: Array<'admin' | 'reviewer'>;
+}> = [
   {
     label: 'Settings',
     screen: 'settings',
-    blurb: 'Control privacy, device management, and local data on this device.',
+    section: 'Account',
+    icon: Settings2,
   },
   {
     label: 'Notifications',
     screen: 'notifications',
-    blurb: 'See alert updates and trusted-contact activity delivered through Sentinel.',
-  },
-  {
-    label: 'Reviewer Dashboard',
-    screen: 'reviewer-dashboard',
-    blurb: 'Review and manage user reports and credibility scores.',
+    section: 'Account',
+    icon: Bell,
   },
   {
     label: 'Subscriptions',
     screen: 'subscription',
-    blurb: 'Manage your plan and premium safety features.',
+    section: 'Account',
+    icon: CreditCard,
+  },
+  {
+    label: 'Reviewer Dashboard',
+    screen: 'reviewer-dashboard',
+    section: 'Operations',
+    icon: ShieldCheck,
+    roles: ['admin', 'reviewer'],
   },
   {
     label: 'Support',
     screen: 'support',
-    blurb: 'Get help with alerts, account access, and troubleshooting.',
+    section: 'Help',
+    icon: HelpCircle,
   },
   {
     label: 'About',
     screen: 'about',
-    blurb: 'Learn more about Sentinel Watchtower and the app version.',
+    section: 'Help',
+    icon: Info,
   },
 ];
 
@@ -101,6 +124,29 @@ export const SidebarDrawer = () => {
     return null;
   }
 
+  const visibleItems = drawerItems.filter((item) => {
+    if (!item.roles?.length) {
+      return true;
+    }
+
+    const roles = user?.roles || [];
+    return item.roles.some((role) => roles.includes(role));
+  });
+  const sectionedItems = visibleItems.reduce<Array<{ section: string; items: typeof visibleItems }>>(
+    (groups, item) => {
+      const existing = groups.find((group) => group.section === item.section);
+      if (existing) {
+        existing.items.push(item);
+      } else {
+        groups.push({ section: item.section, items: [item] });
+      }
+      return groups;
+    },
+    [],
+  );
+  const displayName = user?.name || user?.email || user?.phone || 'Safety account';
+  const initial = displayName.trim().slice(0, 1).toUpperCase() || 'S';
+
   const handleNavigate = (screen: Screen) => {
     closeSidebar();
     pushScreen(screen);
@@ -122,35 +168,53 @@ export const SidebarDrawer = () => {
       >
         <View style={[styles.drawer, theme.shadow.card]}>
           <View style={styles.header}>
-            <Pressable onPress={closeSidebar} style={styles.closeButton}>
-              <ProfileGlyph name="chevron-left" size={18} color={theme.colors.text} />
-            </Pressable>
-            <Text style={styles.eyebrow}>MENU</Text>
-            <Text style={styles.title}>Sentinel Watchtower</Text>
-            <Text style={styles.userText}>
-              {user?.name || user?.email || user?.phone || 'Safety account'}
-            </Text>
+            <View style={styles.headerTop}>
+              <Text style={styles.eyebrow}>MENU</Text>
+              <Pressable onPress={closeSidebar} style={styles.closeButton}>
+                <ProfileGlyph name="chevron-left" size={18} color={theme.colors.text} />
+              </Pressable>
+            </View>
+            <Text style={styles.title}>Watchtower</Text>
+            <View style={styles.accountPill}>
+              <View style={styles.avatar}>
+                <Text style={styles.avatarText}>{initial}</Text>
+              </View>
+              <Text numberOfLines={1} style={styles.userText}>
+                {displayName}
+              </Text>
+            </View>
           </View>
 
-          <View style={styles.menuList}>
-            {drawerItems.map((item, index) => (
-              <Pressable
-                key={item.label}
-                onPress={() => handleNavigate(item.screen)}
-                style={({ pressed }) => [
-                  styles.menuItem,
-                  index < drawerItems.length - 1 && styles.menuItemBorder,
-                  pressed && styles.menuItemPressed,
-                ]}
-              >
-                <View style={styles.menuCopy}>
-                  <Text style={styles.menuLabel}>{item.label}</Text>
-                  <Text style={styles.menuBlurb}>{item.blurb}</Text>
-                </View>
-                <ProfileGlyph name="chevron-right" size={18} color={theme.colors.muted} />
-              </Pressable>
-            ))}
-          </View>
+          {sectionedItems.map((group) => (
+            <View key={group.section} style={styles.section}>
+              <Text style={styles.sectionLabel}>{group.section}</Text>
+              <View style={styles.menuList}>
+                {group.items.map((item, index) => {
+                  const Icon = item.icon;
+
+                  return (
+                    <Pressable
+                      key={item.label}
+                      onPress={() => handleNavigate(item.screen)}
+                      style={({ pressed }) => [
+                        styles.menuItem,
+                        index < group.items.length - 1 && styles.menuItemBorder,
+                        pressed && styles.menuItemPressed,
+                      ]}
+                    >
+                      <View style={styles.menuCopy}>
+                        <View style={styles.menuIcon}>
+                          <Icon color={theme.colors.muted} size={18} strokeWidth={2.2} />
+                        </View>
+                        <Text numberOfLines={1} style={styles.menuLabel}>{item.label}</Text>
+                      </View>
+                      <ChevronRight size={17} color={theme.colors.muted} strokeWidth={2.2} />
+                    </Pressable>
+                  );
+                })}
+              </View>
+            </View>
+          ))}
         </View>
       </Animated.View>
     </View>
@@ -169,63 +233,103 @@ const createStyles = (theme: ReturnType<typeof useAppTheme>) =>
       justifyContent: 'flex-start',
     },
     drawer: {
-      width: 286,
+      width: 304,
       height: '100%',
-      paddingTop: 26,
-      paddingHorizontal: 18,
+      paddingTop: 22,
+      paddingHorizontal: 16,
       paddingBottom: 24,
       backgroundColor: theme.colors.surfaceStrong,
       borderRightWidth: 1,
       borderRightColor: theme.colors.border,
     },
     header: {
-      paddingBottom: 22,
+      paddingBottom: 18,
+    },
+    headerTop: {
+      flexDirection: 'row',
+      justifyContent: 'space-between',
+      alignItems: 'center',
+      marginBottom: 14,
     },
     closeButton: {
-      width: 38,
-      height: 38,
-      borderRadius: 19,
+      width: 36,
+      height: 36,
+      borderRadius: 18,
       borderWidth: 1,
       borderColor: theme.colors.border,
       backgroundColor: theme.colors.backgroundElevated,
       alignItems: 'center',
       justifyContent: 'center',
-      marginBottom: 18,
     },
     eyebrow: {
       color: theme.colors.blue,
       fontSize: 11,
       fontWeight: '800',
-      letterSpacing: 1.8,
-      marginBottom: 10,
+      letterSpacing: 1.4,
     },
     title: {
       color: theme.colors.text,
-      fontSize: 25,
+      fontSize: 24,
       fontWeight: '800',
-      lineHeight: 31,
-      marginBottom: 8,
+      lineHeight: 30,
+      marginBottom: 12,
+    },
+    accountPill: {
+      minHeight: 46,
+      borderRadius: 16,
+      borderWidth: 1,
+      borderColor: theme.colors.border,
+      backgroundColor: theme.colors.backgroundElevated,
+      flexDirection: 'row',
+      alignItems: 'center',
+      gap: 10,
+      paddingHorizontal: 10,
+    },
+    avatar: {
+      width: 30,
+      height: 30,
+      borderRadius: 15,
+      backgroundColor: theme.colors.blueSoft,
+      alignItems: 'center',
+      justifyContent: 'center',
+    },
+    avatarText: {
+      color: theme.colors.text,
+      fontSize: 13,
+      fontWeight: '800',
     },
     userText: {
       color: theme.colors.muted,
-      lineHeight: 20,
+      flex: 1,
+      fontWeight: '700',
+    },
+    section: {
+      marginBottom: 16,
+    },
+    sectionLabel: {
+      color: theme.colors.muted,
+      fontSize: 11,
+      fontWeight: '800',
+      letterSpacing: 1,
+      textTransform: 'uppercase',
+      marginBottom: 8,
     },
     menuList: {
-      borderRadius: 24,
+      borderRadius: 18,
       borderWidth: 1,
       borderColor: theme.colors.border,
       overflow: 'hidden',
       backgroundColor: theme.colors.backgroundElevated,
     },
     menuItem: {
-      minHeight: 86,
-      paddingHorizontal: 16,
-      paddingVertical: 16,
+      minHeight: 54,
+      paddingHorizontal: 12,
+      paddingVertical: 10,
       flexDirection: 'row',
       alignItems: 'center',
       justifyContent: 'space-between',
       backgroundColor: theme.colors.surfaceStrong,
-      gap: 12,
+      gap: 10,
     },
     menuItemBorder: {
       borderBottomWidth: 1,
@@ -235,16 +339,23 @@ const createStyles = (theme: ReturnType<typeof useAppTheme>) =>
       backgroundColor: theme.colors.blueSoft,
     },
     menuCopy: {
+      flexDirection: 'row',
+      alignItems: 'center',
       flex: 1,
-      gap: 4,
+      gap: 10,
+    },
+    menuIcon: {
+      width: 32,
+      height: 32,
+      borderRadius: 12,
+      alignItems: 'center',
+      justifyContent: 'center',
+      backgroundColor: theme.colors.backgroundElevated,
     },
     menuLabel: {
       color: theme.colors.text,
-      fontSize: 18,
+      fontSize: 15,
       fontWeight: '800',
-    },
-    menuBlurb: {
-      color: theme.colors.muted,
-      lineHeight: 18,
+      flex: 1,
     },
   });

@@ -1,5 +1,5 @@
 import React from 'react';
-import { Alert, Pressable, StyleSheet, Text, View } from 'react-native';
+import { Alert, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { shallow } from 'zustand/shallow';
 import { MotionView } from '../components/MotionView';
 import { ThemePreference, useAppStore } from '../store/useAppStore';
@@ -29,7 +29,7 @@ export const SettingsScreen = () => {
   const handleDeleteLocalData = () => {
     Alert.alert(
       'Delete local data',
-      'This will clear Sentinel data on this device and sign you out. Full account deletion is not connected here yet.',
+      'This clears saved app data on this phone and signs you out. It does not delete your account from the server.',
       [
         { text: 'Cancel', style: 'cancel' },
         {
@@ -42,10 +42,14 @@ export const SettingsScreen = () => {
   };
 
   return (
-    <View style={styles.container}>
+    <ScrollView
+      style={styles.container}
+      contentContainerStyle={styles.content}
+      showsVerticalScrollIndicator={false}
+    >
       <MotionView delay={40}>
         <Text style={styles.title}>Settings</Text>
-        <Text style={styles.subtitle}>Control the app appearance and the account currently active on this device.</Text>
+        <Text style={styles.subtitle}>Adjust how Sentinel looks, review privacy choices, and sign out of this phone.</Text>
       </MotionView>
       <MotionView delay={120} style={[styles.profileCard, theme.shadow.card]}>
         <Text style={styles.profileLabel}>Signed in as</Text>
@@ -73,25 +77,27 @@ export const SettingsScreen = () => {
         </View>
       </MotionView>
       <MotionView delay={240}>
+        <Text style={styles.groupLabel}>Account controls</Text>
         <Pressable style={styles.item} onPress={() => pushScreen('profile-privacy')}>
           <Text style={styles.itemText}>Privacy Controls</Text>
-          <Text style={styles.itemMeta}>Review privacy choices and data-use guidance.</Text>
+          <Text style={styles.itemMeta}>Choose what this phone saves and how nearby safety context is used.</Text>
         </Pressable>
         <Pressable style={styles.item} onPress={() => pushScreen('profile-login-security')}>
           <Text style={styles.itemText}>Device Management</Text>
-          <Text style={styles.itemMeta}>View this device session and account security details.</Text>
+          <Text style={styles.itemMeta}>Check sign-in details and clear access from this phone.</Text>
         </Pressable>
         <Pressable style={styles.item} onPress={handleDeleteLocalData}>
           <Text style={styles.itemText}>Delete My Data</Text>
-          <Text style={styles.itemMeta}>Currently clears local device data and signs you out.</Text>
+          <Text style={styles.itemMeta}>Clears saved app data from this phone and signs you out.</Text>
         </Pressable>
       </MotionView>
       <MotionView delay={300}>
+        <Text style={styles.groupLabel}>Danger zone</Text>
         <Pressable style={styles.logout} onPress={clearAuthSession}>
           <Text style={styles.logoutText}>Sign Out</Text>
         </Pressable>
       </MotionView>
-    </View>
+    </ScrollView>
   );
 };
 
@@ -99,8 +105,11 @@ const createStyles = (theme: ReturnType<typeof useAppTheme>) =>
   StyleSheet.create({
     container: {
       flex: 1,
-      padding: 20,
       backgroundColor: 'transparent',
+    },
+    content: {
+      padding: 20,
+      paddingBottom: 120,
     },
     title: {
       color: theme.colors.text,
@@ -184,6 +193,15 @@ const createStyles = (theme: ReturnType<typeof useAppTheme>) =>
       backgroundColor: theme.colors.surface,
       marginBottom: 12,
       ...theme.shadow.card,
+    },
+    groupLabel: {
+      color: theme.colors.muted,
+      fontSize: 11,
+      fontWeight: '800',
+      letterSpacing: 1,
+      textTransform: 'uppercase',
+      marginBottom: 10,
+      marginTop: 2,
     },
     itemText: {
       color: theme.colors.text,

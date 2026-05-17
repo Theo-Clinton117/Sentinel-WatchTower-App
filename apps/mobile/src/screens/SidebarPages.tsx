@@ -21,9 +21,9 @@ import { useAppStore } from '../store/useAppStore';
 import { useAppTheme } from '../theme';
 
 const reviewerFilters: Array<{ label: string; value: ReviewerFilter }> = [
-  { label: 'Queue', value: 'pending' },
+  { label: 'Needs review', value: 'pending' },
   { label: 'Reviewed', value: 'reviewed' },
-  { label: 'Flagged', value: 'flagged' },
+  { label: 'Reported by users', value: 'flagged' },
   { label: 'All', value: 'all' },
 ];
 
@@ -32,11 +32,11 @@ const reviewerActions: Array<{
   classification: ReviewerClassification;
   responseOutcome: 'validated' | 'pending' | 'dismissed';
 }> = [
-  { label: 'Confirm', classification: 'confirmed_true', responseOutcome: 'validated' },
-  { label: 'Likely', classification: 'likely_true', responseOutcome: 'validated' },
-  { label: 'Reset', classification: 'inconclusive', responseOutcome: 'pending' },
-  { label: 'False', classification: 'false', responseOutcome: 'dismissed' },
-  { label: 'Malicious', classification: 'malicious', responseOutcome: 'dismissed' },
+  { label: 'True', classification: 'confirmed_true', responseOutcome: 'validated' },
+  { label: 'Probably true', classification: 'likely_true', responseOutcome: 'validated' },
+  { label: 'Unsure', classification: 'inconclusive', responseOutcome: 'pending' },
+  { label: 'Not true', classification: 'false', responseOutcome: 'dismissed' },
+  { label: 'Abuse', classification: 'malicious', responseOutcome: 'dismissed' },
 ];
 
 const ScreenFrame = ({
@@ -233,21 +233,21 @@ const ReviewerReportCard = ({
       </View>
 
       <View style={styles.metaRow}>
-        <Text style={styles.metaText}>Distribution: {titleCase(report.distribution.status)}</Text>
-        <Text style={styles.metaText}>Outcome: {titleCase(report.classification.responseOutcome)}</Text>
+        <Text style={styles.metaText}>Reach: {titleCase(report.distribution.status)}</Text>
+        <Text style={styles.metaText}>Decision: {titleCase(report.classification.responseOutcome)}</Text>
       </View>
 
       <View style={styles.metricRow}>
         <View style={styles.metricChip}>
-          <Text style={styles.metricLabel}>AI</Text>
+          <Text style={styles.metricLabel}>Auto check</Text>
           <Text style={styles.metricValue}>{Math.round(report.classification.aiConfidence * 100)}%</Text>
         </View>
         <View style={styles.metricChip}>
-          <Text style={styles.metricLabel}>Quality</Text>
+          <Text style={styles.metricLabel}>Detail</Text>
           <Text style={styles.metricValue}>{Math.round(report.classification.qualityScore)}</Text>
         </View>
         <View style={styles.metricChip}>
-          <Text style={styles.metricLabel}>Corroboration</Text>
+          <Text style={styles.metricLabel}>Support</Text>
           <Text style={styles.metricValue}>{report.classification.corroborationCount}</Text>
         </View>
       </View>
@@ -333,19 +333,24 @@ export const SupportScreen = () => {
   return (
     <ScreenFrame
       title="Support"
-      subtitle="Find the fastest way to get help with alerts, account access, and app issues."
+      subtitle="Get help with setup, alerts, contacts, billing, or anything that feels confusing."
     >
       <InfoCard
-        title="Help options"
-        copy="If something feels off, start here before an emergency moment becomes stressful. Contact support opens an email draft with your account context included."
+        title="When to contact support"
+        copy="Reach out if you cannot sign in, an alert does not behave as expected, your contacts are not updating, or a payment looks wrong."
         delay={110}
       />
       <InfoCard
-        title="Common help topics"
-        copy="Alert not starting, account login problems, live location concerns, trusted contact setup, and subscription questions."
+        title="Before an emergency"
+        copy="Test your trusted contacts, check that location access is enabled, and make sure at least one person can receive a text or email from you."
         delay={170}
       />
-      <MotionView delay={230}>
+      <InfoCard
+        title="What to include"
+        copy="Tell us what you were trying to do, what happened instead, your phone model if you know it, and whether the problem happens every time."
+        delay={230}
+      />
+      <MotionView delay={290}>
         <Pressable style={[styles.primaryButton, theme.shadow.glow]} onPress={handleContactSupport}>
           <Text style={styles.primaryButtonText}>Contact support</Text>
         </Pressable>
@@ -374,12 +379,12 @@ export const NotificationsScreen = () => {
   return (
     <ScreenFrame
       title="Notifications"
-      subtitle="Track alert broadcasts, safe confirmations, and the contact updates Sentinel recorded for this account."
+      subtitle="See what Sentinel tried to send, who it was for, and whether anything needs your attention."
     >
       {notificationsQuery.isLoading ? (
         <MotionView delay={110} style={[styles.card, theme.shadow.card]}>
           <Text style={styles.cardTitle}>Loading notifications</Text>
-          <Text style={styles.cardCopy}>Pulling your latest in-app and delivery history.</Text>
+          <Text style={styles.cardCopy}>Checking for recent alerts, safe confirmations, and messages to your trusted contacts.</Text>
         </MotionView>
       ) : notificationsQuery.isError ? (
         <MotionView delay={110} style={[styles.card, theme.shadow.card]}>
@@ -387,7 +392,7 @@ export const NotificationsScreen = () => {
           <Text style={styles.cardCopy}>
             {notificationsQuery.error instanceof Error
               ? notificationsQuery.error.message
-              : 'Sentinel could not load your notifications right now.'}
+              : 'Sentinel could not load your updates right now.'}
           </Text>
           <Pressable onPress={() => notificationsQuery.refetch()} style={[styles.primaryButton, styles.inlineButton]}>
             <Text style={styles.primaryButtonText}>Retry notifications</Text>
@@ -397,11 +402,11 @@ export const NotificationsScreen = () => {
         <View style={styles.reviewList}>
           {auditQuery.data?.length ? (
             <MotionView delay={80} style={[styles.card, theme.shadow.card]}>
-              <Text style={styles.cardTitle}>Recent alert timeline</Text>
+              <Text style={styles.cardTitle}>Recent alert activity</Text>
               {auditQuery.data.slice(0, 5).map((event: AlertAuditEvent) => (
                 <View key={event.id} style={styles.timelineRow}>
                   <Text style={styles.reviewDescription}>
-                    {titleCase(event.eventType)} via {titleCase(event.source)}
+                    {titleCase(event.eventType)} from {titleCase(event.source)}
                     {event.toStage ? ` -> ${titleCase(event.toStage)}` : ''}
                   </Text>
                   <Text style={styles.metaText}>{formatDateTime(event.createdAt)}</Text>
@@ -411,9 +416,9 @@ export const NotificationsScreen = () => {
           ) : null}
           {deliveryIssueCount > 0 ? (
             <MotionView delay={90} style={[styles.card, theme.shadow.card]}>
-              <Text style={styles.cardTitle}>Some deliveries need attention</Text>
+              <Text style={styles.cardTitle}>Some messages may not have reached people</Text>
               <Text style={styles.cardCopy}>
-                {deliveryIssueCount} trusted-contact delivery {deliveryIssueCount === 1 ? 'record was' : 'records were'} failed or skipped. Check the entries below before assuming every contact was reached.
+                {deliveryIssueCount} contact {deliveryIssueCount === 1 ? 'message was' : 'messages were'} not sent successfully. Check the list below before assuming everyone was reached.
               </Text>
             </MotionView>
           ) : null}
@@ -422,7 +427,7 @@ export const NotificationsScreen = () => {
               readPayloadString(item.payload, 'message') ||
               readPayloadString(item.payload, 'subject') ||
               readPayloadString(item.payload, 'reason') ||
-              'Sentinel recorded an update for this alert.';
+              'Sentinel saved an update for this alert.';
             const recipient =
               readPayloadString(item.payload, 'recipientName') ||
               readPayloadString(item.payload, 'recipientEmail') ||
@@ -486,7 +491,7 @@ export const NotificationsScreen = () => {
         <MotionView delay={110} style={[styles.card, theme.shadow.card]}>
           <Text style={styles.cardTitle}>No notifications yet</Text>
           <Text style={styles.cardCopy}>
-            When Sentinel alerts, cancellations, or trusted-contact deliveries happen for your account, they will show up here.
+            When alerts start, get cancelled, or messages go to your trusted contacts, the record will appear here.
           </Text>
         </MotionView>
       )}
@@ -498,22 +503,27 @@ export const AboutScreen = () => {
   return (
     <ScreenFrame
       title="About"
-      subtitle="A quick overview of what Sentinel Watchtower is built to do."
+      subtitle="What Sentinel is for, what it can do today, and what you should still do outside the app."
     >
       <InfoCard
-        title="Mission"
-        copy="Sentinel Watchtower focuses on faster emergency response, trusted-circle visibility, and calmer safety workflows during urgent moments."
+        title="What Sentinel helps with"
+        copy="Sentinel gives you a quick way to start an alert, share your location with trusted people, and keep a simple record of safety activity."
         delay={110}
       />
       <InfoCard
-        title="What this app includes"
-        copy="Location-aware alerts, watch sessions, trusted contacts, account safety controls, and a cleaner emergency-first mobile experience."
+        title="What it does not replace"
+        copy="This app does not replace local emergency services, police, medical help, or your own judgement. In immediate danger, call emergency services first when you can."
         delay={170}
       />
       <InfoCard
-        title="Version note"
-        copy="This page is ready for real version metadata later if you want to surface build number and release details."
+        title="What is included now"
+        copy="SOS alerts, live location tracking, trusted contacts, watch sessions, notification records, subscriptions, and reviewer tools for approved accounts."
         delay={230}
+      />
+      <InfoCard
+        title="Good habits"
+        copy="Keep contacts updated, check permissions after phone updates, and review your saved home or work address before relying on them in an urgent moment."
+        delay={290}
       />
     </ScreenFrame>
   );
@@ -590,15 +600,14 @@ export const ReviewerDashboardScreen = () => {
   return (
     <ScreenFrame
       title="Reviewer Dashboard"
-      subtitle="Triage incoming reports, verify trust signals, and keep the moderation queue moving."
+      subtitle="Help decide whether community reports look true, unclear, mistaken, or abusive."
     >
       {!canReview ? (
         <>
           <MotionView delay={110} style={[styles.card, theme.shadow.card]}>
             <Text style={styles.cardTitle}>Reviewer access required</Text>
             <Text style={styles.cardCopy}>
-              This workspace unlocks once your account has the reviewer or admin role. If your
-              request was just approved, refresh your account roles below.
+              This page is only for approved reviewers and admins. If your request was approved recently, refresh your account below.
             </Text>
             <Text style={styles.helperText}>
               Current status: {user?.reviewerRequest?.status ? titleCase(user.reviewerRequest.status) : 'No reviewer request yet'}
@@ -646,7 +655,7 @@ export const ReviewerDashboardScreen = () => {
           </MotionView>
 
           <MotionView delay={250} style={[styles.filterCard, theme.shadow.card]}>
-            <Text style={styles.cardTitle}>Queue filter</Text>
+            <Text style={styles.cardTitle}>Show reports</Text>
             <View style={styles.filterWrap}>
               {reviewerFilters.map((option) => (
                 <Pressable
@@ -678,21 +687,21 @@ export const ReviewerDashboardScreen = () => {
 
           {queueQuery.isLoading ? (
             <MotionView delay={300} style={[styles.card, theme.shadow.card]}>
-              <Text style={styles.cardTitle}>Loading moderation queue</Text>
+              <Text style={styles.cardTitle}>Loading reports</Text>
               <Text style={styles.cardCopy}>
-                Pulling the latest reports that need reviewer attention.
+                Checking for reports that need a human decision.
               </Text>
             </MotionView>
           ) : queueQuery.isError ? (
             <MotionView delay={300} style={[styles.card, theme.shadow.card]}>
-              <Text style={styles.cardTitle}>Queue unavailable</Text>
+              <Text style={styles.cardTitle}>Reports unavailable</Text>
               <Text style={styles.cardCopy}>
                 {queueQuery.error instanceof Error
                   ? queueQuery.error.message
-                  : 'The reviewer queue could not be loaded right now.'}
+                  : 'The report list could not be loaded right now.'}
               </Text>
               <Pressable onPress={() => queueQuery.refetch()} style={[styles.primaryButton, styles.inlineButton]}>
-                <Text style={styles.primaryButtonText}>Retry queue</Text>
+                <Text style={styles.primaryButtonText}>Retry</Text>
               </Pressable>
             </MotionView>
           ) : queueQuery.data?.reports.length ? (
@@ -711,10 +720,9 @@ export const ReviewerDashboardScreen = () => {
             </View>
           ) : (
             <MotionView delay={300} style={[styles.card, theme.shadow.card]}>
-              <Text style={styles.cardTitle}>Queue clear</Text>
+              <Text style={styles.cardTitle}>Nothing to review here</Text>
               <Text style={styles.cardCopy}>
-                No reports match the current filter right now. Switch filters or check back after
-                new community reports arrive.
+                No reports match this view right now. Try another filter or check again later.
               </Text>
             </MotionView>
           )}

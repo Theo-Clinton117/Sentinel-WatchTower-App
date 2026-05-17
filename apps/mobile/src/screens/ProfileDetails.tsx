@@ -33,13 +33,13 @@ const resolveTrustSummary = (
     case 'ban':
       return 'Account access is blocked from sending new public reports.';
     case 'shadow_restriction':
-      return 'Recent reports are being sandboxed while trust signals recover.';
+      return 'Recent public reports may be shown to fewer people until the account builds trust again.';
     case 'temporary_restriction':
-      return 'New reports are temporarily throttled until your safety score improves.';
+      return 'New public reports may be slowed down for a while because earlier reports need review.';
     case 'warning':
-      return 'A warning is active because recent reports need stronger corroboration.';
+      return 'A warning is active because recent reports need more proof or community support.';
     default:
-      return 'Consistent and accurate reporting helps alerts move faster through the network.';
+      return 'Clear, accurate reports help people respond with more confidence.';
   }
 };
 
@@ -71,7 +71,7 @@ const formatReviewerStatus = (
     return 'Reviewer request approved. Refresh if your role chip has not updated yet.';
   }
 
-  return 'Request reviewer access when you are ready to help validate community reports.';
+  return 'Request reviewer access if you want to help check community reports.';
 };
 
 const formatSavedPlaceUpdatedAt = (value?: string | null) => {
@@ -266,7 +266,7 @@ const SavedPlaceContent = ({
   return (
     <ScreenFrame
       title={title}
-      subtitle="Save familiar places so alerts, watch sessions, and quick references feel more personal."
+      subtitle="Save familiar places so you can find and share them faster when time matters."
     >
       <DetailCard title="Saved place" delay={110}>
         <View style={styles.savedPlaceHero}>
@@ -349,7 +349,7 @@ const SavedPlaceContent = ({
           }
         />
         <InfoRow label="Last updated" value={formatSavedPlaceUpdatedAt(savedPlace?.updatedAt)} />
-        <InfoRow label="Best use" value="Fast recall during an alert or check-in" isLast />
+        <InfoRow label="Best use" value="Quick reference during an alert, check-in, or watch session" isLast />
       </DetailCard>
     </ScreenFrame>
   );
@@ -365,7 +365,7 @@ export const PersonalInfoScreen = () => {
   return (
     <ScreenFrame
       title="Personal info"
-      subtitle="Review the identity and contact details tied to this account."
+      subtitle="Check the name, email, and phone number people may use to recognize or reach you."
     >
       <MotionView delay={100} style={[styles.profileIdentityCard, theme.shadow.card]}>
         <View style={styles.avatarLarge}>
@@ -373,7 +373,7 @@ export const PersonalInfoScreen = () => {
         </View>
         <View style={styles.profileIdentityCopy}>
           <Text style={styles.identityName}>{displayName}</Text>
-          <Text style={styles.identityHint}>Keep your core profile details accurate for smoother support and alerts.</Text>
+          <Text style={styles.identityHint}>Keep these details current so support and trusted contacts know who they are helping.</Text>
         </View>
       </MotionView>
 
@@ -411,11 +411,11 @@ export const FamilyProfileScreen = () => {
   return (
     <ScreenFrame
       title="Family profile"
-      subtitle="Keep the people closest to you ready for live alerts, check-ins, and watch sessions."
+      subtitle="Keep the people closest to you ready for alerts, check-ins, and shared trips."
     >
       <DetailCard title="Trusted circle" delay={110}>
         <Text style={styles.bodyText}>
-          Your family profile is where nearby support and emergency context come together. Use your trusted contacts list to keep the right people in the loop.
+          Your family profile is built from your trusted contacts. Add the people who should know when you need help or want someone to watch your route.
         </Text>
       </DetailCard>
 
@@ -425,7 +425,7 @@ export const FamilyProfileScreen = () => {
           label="Live watch session"
           value={activeWatchSession ? `Active with ${activeWatchSession.contactName}` : 'No watch session running'}
         />
-        <InfoRow label="Family visibility" value="Shared only when safety workflows need it" isLast />
+        <InfoRow label="Family visibility" value="Shared only during alerts or watch sessions" isLast />
       </DetailCard>
 
       <MotionView delay={230}>
@@ -466,7 +466,7 @@ export const SafetyScreen = () => {
     try {
       setIsRequestingReviewer(true);
       setReviewerMessage('');
-      await requestReviewerRole('I want to help validate incoming community reports as a reviewer.');
+      await requestReviewerRole('I want to help check incoming community reports as a reviewer.');
       const freshUser = await getCurrentUser();
       setUser(freshUser);
       setReviewerMessage('Reviewer request sent. An admin will review it.');
@@ -482,7 +482,7 @@ export const SafetyScreen = () => {
   return (
     <ScreenFrame
       title="Safety"
-      subtitle="Monitor trust signals, response readiness, and reviewer access from one place."
+      subtitle="Understand your safety score, report history, and whether you can help review community reports."
     >
       <DetailCard title="Safety rating" delay={110}>
         <View style={styles.trustRow}>
@@ -498,9 +498,9 @@ export const SafetyScreen = () => {
             </Text>
             <Text style={styles.bodyText}>{resolveTrustSummary(credibility?.restrictionLevel)}</Text>
             <Text style={styles.trustStats}>
-              {credibility?.confirmedTrueReportsCount ?? 0} confirmed
+              {credibility?.confirmedTrueReportsCount ?? 0} true
               {'  -  '}
-              {credibility?.likelyTrueReportsCount ?? 0} likely true
+              {credibility?.likelyTrueReportsCount ?? 0} likely
               {'  -  '}
               {(credibility?.falseReportsCount ?? 0) + (credibility?.maliciousReportsCount ?? 0)} harmful
             </Text>
@@ -543,7 +543,7 @@ export const LoginSecurityScreen = () => {
   return (
     <ScreenFrame
       title="Login & security"
-      subtitle="Manage sign-in details, device presence, and secure session behavior."
+      subtitle="Review how you sign in and clear access from this phone when needed."
     >
       <DetailCard title="Sign-in details" delay={110}>
         <InfoRow label="Email" value={user?.email || 'Not added yet'} />
@@ -581,12 +581,12 @@ export const PrivacyScreen = () => {
   return (
     <ScreenFrame
       title="Privacy"
-      subtitle="Choose how safety data, appearance, and visibility behave on this device."
+      subtitle="Control what this phone saves, what contacts may see, and whether nearby safety context is used."
     >
       <DetailCard title="How data is used" delay={110}>
         <InfoRow label="Location sharing" value="Used when alerts or live sessions need it" />
-        <InfoRow label="Trusted contacts" value="Notified only through your safety workflows" />
-        <InfoRow label="Data requests" value="Delete-my-data flow can be connected here later" isLast />
+        <InfoRow label="Trusted contacts" value="Contacted only for alerts and watch sessions" />
+        <InfoRow label="Data requests" value="Use Settings to clear local data from this phone" isLast />
       </DetailCard>
 
       <DetailCard title="Nearby Safety Mesh" delay={180}>
@@ -596,7 +596,7 @@ export const PrivacyScreen = () => {
               {nearbySafetyMeshEnabled ? 'Mesh context enabled' : 'Mesh context disabled'}
             </Text>
             <Text style={styles.bodyText}>
-              Use anonymized nearby movement patterns from opted-in Sentinel devices to refine passive danger checks.
+              Use anonymous nearby activity from opted-in Sentinel phones to help spot unusual situations.
             </Text>
           </View>
           <Switch
@@ -611,11 +611,11 @@ export const PrivacyScreen = () => {
         </View>
         <InfoRow
           label="Shared signal"
-          value="Ephemeral proximity and motion state only"
+          value="Nearby movement state only"
         />
         <InfoRow
           label="Identity"
-          value="No names, phone numbers, or raw location are shared peer-to-peer"
+          value="No names, phone numbers, or exact routes are shared with nearby phones"
           isLast
         />
       </DetailCard>
@@ -626,7 +626,7 @@ export const PrivacyScreen = () => {
 
       <DetailCard title="Privacy note" delay={300}>
         <Text style={styles.bodyText}>
-          Keep sensitive information minimal and review shared contacts regularly so your response circle stays intentional.
+          Keep your contact list small and intentional. Only add people you trust to act calmly if something goes wrong.
         </Text>
       </DetailCard>
     </ScreenFrame>
@@ -645,7 +645,7 @@ export const WorkAddressScreen = () => (
   <SavedPlaceContent
     placeKey="work"
     title="Work address"
-    helper="Save your work location to make commute-related safety flows easier to recognize and share."
+    helper="Save your work location so commute check-ins and alerts are easier to understand."
   />
 );
 

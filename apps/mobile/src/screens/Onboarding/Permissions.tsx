@@ -87,16 +87,16 @@ export const OnboardingPermissionsScreen = () => {
       <MotionView delay={20}>
         <AuthArtPanel
           eyebrow="Device Access"
-          title="Let WatchTower stay with you."
-          caption="Background location and notifications keep emergency broadcasts alive even after the screen changes."
-          chipA="BACKGROUND GPS"
-          chipB="ALERT DELIVERY"
+          title="Let Sentinel work when it matters."
+          caption="Location and notifications help the app show where you are and tell people when you need help."
+          chipA="LOCATION"
+          chipB="ALERTS"
         />
       </MotionView>
       <MotionView delay={40}>
         <Text style={styles.title}>Permissions</Text>
         <Text style={styles.subtitle}>
-          Enable location and notifications so the app can alert trusted contacts and keep your live session visible.
+          These permissions make alerts useful. You can finish setup now and change them later in your phone settings.
         </Text>
       </MotionView>
 
@@ -104,17 +104,17 @@ export const OnboardingPermissionsScreen = () => {
         {renderStatus(
           'Foreground location',
           snapshot.foregroundLocation,
-          'Needed to detect your position while the app is open.',
+          'Shows your current position while you are using Sentinel.',
         )}
         {renderStatus(
           'Background location',
           snapshot.backgroundLocation,
-          'Needed to keep emergency sessions active after you leave the screen.',
+          'Keeps location updates going if the screen changes during an alert.',
         )}
         {renderStatus(
           'Notifications',
           snapshot.notifications,
-          'Needed for alerts, reminders, and escalations.',
+          'Lets Sentinel show important safety updates on your phone.',
         )}
       </MotionView>
 

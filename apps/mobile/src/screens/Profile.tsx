@@ -143,9 +143,9 @@ export const ProfileScreen = () => {
           </View>
           <View style={styles.verificationTextWrap}>
             <Text style={styles.verificationTitle}>
-              Complete your verification for smoother access and safer alerts
+              Keep your details ready before you need help
             </Text>
-            <Text style={styles.verificationMeta}>Review your account details and keep your identity ready.</Text>
+            <Text style={styles.verificationMeta}>Check your name, phone, and email so trusted people can recognize you quickly.</Text>
           </View>
         </Pressable>
       </MotionView>
