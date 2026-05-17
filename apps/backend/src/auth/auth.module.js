@@ -14,6 +14,7 @@ const auth_controller_1 = require("./auth.controller");
 const auth_service_1 = require("./auth.service");
 const jwt_strategy_1 = require("./jwt.strategy");
 const supabase_module_1 = require("../supabase/supabase.module");
+const runtime_1 = require("../config/runtime");
 let AuthModule = class AuthModule {
 };
 exports.AuthModule = AuthModule;
@@ -22,7 +23,7 @@ exports.AuthModule = AuthModule = __decorate([
         imports: [
             passport_1.PassportModule,
             jwt_1.JwtModule.register({
-                secret: process.env.JWT_ACCESS_SECRET || 'change-me',
+                secret: (0, runtime_1.getJwtAccessSecret)(),
                 signOptions: { expiresIn: process.env.JWT_ACCESS_TTL || '900s' },
             }),
             supabase_module_1.SupabaseModule,

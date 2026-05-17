@@ -16,6 +16,7 @@ const db_service_1 = require("../db/db.service");
 const credibility_logic_1 = require("../credibility/credibility.logic");
 const roles_logic_1 = require("../roles/roles.logic");
 const supabase_service_1 = require("../supabase/supabase.service");
+const runtime_1 = require("../config/runtime");
 function normalizeEmail(email) {
     return String(email || '').trim().toLowerCase();
 }
@@ -189,7 +190,7 @@ let AuthService = class AuthService {
         const payload = { sub: user.id, email: user.email };
         const accessToken = this.jwt.sign(payload);
         const refreshToken = this.jwt.sign(payload, {
-            secret: process.env.JWT_REFRESH_SECRET || 'change-me',
+            secret: (0, runtime_1.getJwtRefreshSecret)(),
             expiresIn: process.env.JWT_REFRESH_TTL || '30d',
         });
         return {
@@ -202,7 +203,7 @@ let AuthService = class AuthService {
     async refresh(refreshToken) {
         try {
             const payload = this.jwt.verify(refreshToken, {
-                secret: process.env.JWT_REFRESH_SECRET || 'change-me',
+                secret: (0, runtime_1.getJwtRefreshSecret)(),
             });
             const result = await this.db.query('select * from users where id = $1 limit 1', [payload.sub]);
             const user = result.rows[0];

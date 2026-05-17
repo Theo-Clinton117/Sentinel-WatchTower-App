@@ -1,3 +1,23 @@
+alter table watch_sessions add column if not exists user_id uuid references users(id) on delete cascade;
+alter table watch_sessions add column if not exists alert_id uuid references alerts(id) on delete cascade;
+alter table watch_sessions add column if not exists status text default 'active';
+alter table watch_sessions add column if not exists started_at timestamptz default now();
+alter table alerts add column if not exists user_id uuid references users(id) on delete cascade;
+alter table alerts add column if not exists status text default 'active';
+alter table alerts add column if not exists created_at timestamptz default now();
+alter table reports add column if not exists user_id uuid references users(id) on delete cascade;
+alter table reports add column if not exists created_at timestamptz default now();
+alter table trusted_contacts add column if not exists user_id uuid references users(id) on delete cascade;
+alter table trusted_contacts add column if not exists priority int default 0;
+alter table trusted_contacts add column if not exists created_at timestamptz default now();
+alter table notifications add column if not exists user_id uuid references users(id) on delete cascade;
+alter table notifications add column if not exists created_at timestamptz default now();
+alter table subscriptions add column if not exists user_id uuid references users(id) on delete cascade;
+alter table subscriptions add column if not exists started_at timestamptz default now();
+alter table subscriptions add column if not exists current_period_end timestamptz;
+alter table latency_metrics add column if not exists user_id uuid references users(id) on delete cascade;
+alter table latency_metrics add column if not exists recorded_at timestamptz default now();
+
 create index if not exists idx_watch_sessions_user_status_started
   on watch_sessions(user_id, status, started_at desc);
 

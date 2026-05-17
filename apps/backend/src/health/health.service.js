@@ -27,13 +27,17 @@ let HealthService = class HealthService {
                 ok: configured(process.env.TWILIO_ACCOUNT_SID, process.env.TWILIO_AUTH_TOKEN, process.env.TWILIO_FROM_NUMBER),
                 configured: configured(process.env.TWILIO_ACCOUNT_SID, process.env.TWILIO_AUTH_TOKEN, process.env.TWILIO_FROM_NUMBER),
             },
+            phoneVerification: {
+                ok: configured(process.env.TWILIO_ACCOUNT_SID, process.env.TWILIO_AUTH_TOKEN, process.env.TWILIO_VERIFY_SERVICE_SID),
+                configured: configured(process.env.TWILIO_ACCOUNT_SID, process.env.TWILIO_AUTH_TOKEN, process.env.TWILIO_VERIFY_SERVICE_SID),
+            },
             email: {
                 ok: configured(process.env.RESEND_API_KEY, process.env.OTP_EMAIL_FROM),
                 configured: configured(process.env.RESEND_API_KEY, process.env.OTP_EMAIL_FROM),
             },
             revenueCat: {
-                ok: configured(process.env.REVENUECAT_SECRET_KEY),
-                configured: configured(process.env.REVENUECAT_SECRET_KEY),
+                ok: configured(process.env.REVENUECAT_PROJECT_ID, process.env.REVENUECAT_SECRET_API_KEY),
+                configured: configured(process.env.REVENUECAT_PROJECT_ID, process.env.REVENUECAT_SECRET_API_KEY),
             },
         };
         try {

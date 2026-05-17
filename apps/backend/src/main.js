@@ -6,11 +6,12 @@ const common_1 = require("@nestjs/common");
 const app_module_1 = require("./app.module");
 const http_exception_filter_1 = require("./common/filters/http-exception.filter");
 const rate_limit_guard_1 = require("./common/guards/rate-limit.guard");
+const runtime_1 = require("./config/runtime");
 async function bootstrap() {
+    (0, runtime_1.validateRuntimeConfig)();
     const app = await core_1.NestFactory.create(app_module_1.AppModule);
-    const origins = process.env.CORS_ORIGINS?.split(',').map((value) => value.trim()).filter(Boolean);
     app.enableCors({
-        origin: origins && origins.length > 0 ? origins : true,
+        origin: (0, runtime_1.getCorsOrigins)(),
         credentials: true,
         methods: ['GET', 'POST', 'PATCH', 'DELETE'],
         allowedHeaders: ['Authorization', 'Content-Type'],

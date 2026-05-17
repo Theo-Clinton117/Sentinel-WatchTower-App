@@ -330,7 +330,7 @@ let AlertsService = class AlertsService {
         }
         return mapAlertSessionRow(result);
     }
-    async cancel(userId, id) {
+    async cancel(userId, id, body = {}) {
         const result = await this.db.transaction(async (client) => {
             const alertResult = await client.query(`
         update alerts
