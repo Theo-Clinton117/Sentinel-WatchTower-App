@@ -47,7 +47,7 @@ test("health reports optional provider configuration using the env names service
                 async query() {
                     return { rows: [{ ok: 1 }] };
                 },
-            });
+            }, async () => ({ ok: false, configured: false }));
 
             const health = await service.getHealth();
 
@@ -56,6 +56,27 @@ test("health reports optional provider configuration using the env names service
             assert.equal(health.checks.phoneVerification.configured, true);
             assert.equal(health.checks.email.configured, true);
             assert.equal(health.checks.revenueCat.configured, true);
+        },
+    );
+});
+
+test("health degrades when configured Redis is unreachable", async () => {
+    await withEnv(
+        {
+            REDIS_URL: "redis://localhost:6379",
+        },
+        async () => {
+            const service = new HealthService({
+                async query() {
+                    return { rows: [{ ok: 1 }] };
+                },
+            }, async () => ({ ok: false, configured: true, error: "connection refused" }));
+
+            const health = await service.getHealth();
+
+            assert.equal(health.status, "degraded");
+            assert.equal(health.checks.redis.configured, true);
+            assert.equal(health.checks.redis.ok, false);
         },
     );
 });

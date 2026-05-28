@@ -15,6 +15,7 @@ Object.defineProperty(exports, "__esModule", { value: true });
 exports.ReportsController = void 0;
 const common_1 = require("@nestjs/common");
 const jwt_auth_guard_1 = require("../common/guards/jwt-auth.guard");
+const rate_limit_decorator_1 = require("../common/guards/rate-limit.decorator");
 const reports_service_1 = require("./reports.service");
 let ReportsController = class ReportsController {
     constructor(reportsService) {
@@ -55,6 +56,7 @@ __decorate([
 ], ReportsController.prototype, "getById", null);
 __decorate([
     (0, common_1.Post)(),
+    (0, rate_limit_decorator_1.RateLimit)({ points: 20, duration: 3600 }),
     __param(0, (0, common_1.Req)()),
     __param(1, (0, common_1.Body)()),
     __metadata("design:type", Function),
@@ -63,6 +65,7 @@ __decorate([
 ], ReportsController.prototype, "create", null);
 __decorate([
     (0, common_1.Post)(':id/flag'),
+    (0, rate_limit_decorator_1.RateLimit)({ points: 60, duration: 3600 }),
     __param(0, (0, common_1.Req)()),
     __param(1, (0, common_1.Param)('id')),
     __param(2, (0, common_1.Body)()),
@@ -72,6 +75,7 @@ __decorate([
 ], ReportsController.prototype, "flag", null);
 __decorate([
     (0, common_1.Post)(':id/confirm'),
+    (0, rate_limit_decorator_1.RateLimit)({ points: 120, duration: 3600 }),
     __param(0, (0, common_1.Req)()),
     __param(1, (0, common_1.Param)('id')),
     __metadata("design:type", Function),

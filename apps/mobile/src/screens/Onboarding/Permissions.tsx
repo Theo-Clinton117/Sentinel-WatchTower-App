@@ -179,7 +179,7 @@ const createStyles = (theme: ReturnType<typeof useAppTheme>) => StyleSheet.creat
     alignItems: 'center',
     gap: 14,
     padding: 16,
-    borderRadius: 18,
+    borderRadius: 8,
     borderWidth: 1,
     borderColor: theme.colors.border,
     backgroundColor: theme.colors.surface,
@@ -199,7 +199,7 @@ const createStyles = (theme: ReturnType<typeof useAppTheme>) => StyleSheet.creat
   badge: {
     paddingHorizontal: 12,
     paddingVertical: 8,
-    borderRadius: 999,
+    borderRadius: 8,
     borderWidth: 1,
   },
   badgeGranted: {
@@ -229,7 +229,7 @@ const createStyles = (theme: ReturnType<typeof useAppTheme>) => StyleSheet.creat
   button: {
     backgroundColor: theme.colors.blue,
     padding: 14,
-    borderRadius: 16,
+    borderRadius: 8,
     alignItems: 'center',
     marginBottom: 12,
     minHeight: 52,
@@ -245,7 +245,7 @@ const createStyles = (theme: ReturnType<typeof useAppTheme>) => StyleSheet.creat
   },
   secondary: {
     padding: 14,
-    borderRadius: 16,
+    borderRadius: 8,
     borderWidth: 1,
     borderColor: theme.colors.border,
     alignItems: 'center',

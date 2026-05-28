@@ -10,7 +10,12 @@
     "dev:mobile": "npm --workspace apps/mobile run start",
     "build:backend": "npm --workspace apps/backend run build",
     "build:mobile": "npm --workspace apps/mobile run build",
-    "test:backend": "npm --workspace apps/backend run test"
+    "test:backend": "npm --workspace apps/backend run test",
+    "test:integration": "node --test apps/backend/test/integration/*.test.js",
+    "db:migrate": "node scripts/run-migrations.js",
+    "validate:production": "node scripts/validate-production-env.js",
+    "smoke:backend": "node scripts/backend-smoke.js",
+    "smoke:emergency": "node scripts/emergency-flow-smoke.js"
   },
   "devDependencies": {
     "@types/node": "25.6.0",

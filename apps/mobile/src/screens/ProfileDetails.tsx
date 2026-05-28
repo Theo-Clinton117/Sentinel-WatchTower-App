@@ -673,7 +673,7 @@ const createStyles = (theme: ReturnType<typeof useAppTheme>) =>
     },
     card: {
       padding: 18,
-      borderRadius: 24,
+      borderRadius: 8,
       borderWidth: 1,
       borderColor: theme.colors.border,
       backgroundColor: theme.colors.surfaceStrong,
@@ -690,7 +690,7 @@ const createStyles = (theme: ReturnType<typeof useAppTheme>) =>
       alignItems: 'center',
       gap: 14,
       padding: 18,
-      borderRadius: 24,
+      borderRadius: 8,
       borderWidth: 1,
       borderColor: theme.colors.border,
       backgroundColor: theme.colors.surfaceStrong,
@@ -699,7 +699,7 @@ const createStyles = (theme: ReturnType<typeof useAppTheme>) =>
     avatarLarge: {
       width: 62,
       height: 62,
-      borderRadius: 31,
+      borderRadius: 8,
       backgroundColor: theme.isDark ? 'rgba(255,255,255,0.08)' : '#F1F4FA',
       alignItems: 'center',
       justifyContent: 'center',
@@ -745,7 +745,7 @@ const createStyles = (theme: ReturnType<typeof useAppTheme>) =>
     roleChip: {
       paddingHorizontal: 12,
       paddingVertical: 8,
-      borderRadius: 999,
+      borderRadius: 8,
       borderWidth: 1,
       borderColor: theme.colors.border,
       backgroundColor: theme.colors.backgroundElevated,
@@ -777,7 +777,7 @@ const createStyles = (theme: ReturnType<typeof useAppTheme>) =>
     },
     primaryButton: {
       minHeight: 50,
-      borderRadius: 16,
+      borderRadius: 8,
       backgroundColor: theme.colors.blue,
       alignItems: 'center',
       justifyContent: 'center',
@@ -809,7 +809,7 @@ const createStyles = (theme: ReturnType<typeof useAppTheme>) =>
     trustScoreBubble: {
       width: 92,
       height: 92,
-      borderRadius: 28,
+      borderRadius: 8,
       borderWidth: 1,
       borderColor: theme.colors.border,
       backgroundColor: theme.colors.backgroundElevated,
@@ -842,7 +842,7 @@ const createStyles = (theme: ReturnType<typeof useAppTheme>) =>
     },
     logoutButton: {
       minHeight: 52,
-      borderRadius: 18,
+      borderRadius: 8,
       backgroundColor: theme.gradients.emergency[0],
       borderWidth: 1,
       borderColor: theme.colors.red,
@@ -855,7 +855,7 @@ const createStyles = (theme: ReturnType<typeof useAppTheme>) =>
     },
     secondaryButton: {
       minHeight: 50,
-      borderRadius: 16,
+      borderRadius: 8,
       backgroundColor: theme.colors.backgroundElevated,
       borderWidth: 1,
       borderColor: theme.colors.borderStrong,
@@ -875,7 +875,7 @@ const createStyles = (theme: ReturnType<typeof useAppTheme>) =>
     modeChip: {
       flex: 1,
       minHeight: 46,
-      borderRadius: 16,
+      borderRadius: 8,
       borderWidth: 1,
       borderColor: theme.colors.border,
       backgroundColor: theme.colors.backgroundElevated,
@@ -901,7 +901,7 @@ const createStyles = (theme: ReturnType<typeof useAppTheme>) =>
     savedPlaceIcon: {
       width: 48,
       height: 48,
-      borderRadius: 16,
+      borderRadius: 8,
       backgroundColor: theme.colors.blueSoft,
       alignItems: 'center',
       justifyContent: 'center',
@@ -922,7 +922,7 @@ const createStyles = (theme: ReturnType<typeof useAppTheme>) =>
     input: {
       borderWidth: 1,
       borderColor: theme.colors.border,
-      borderRadius: 14,
+      borderRadius: 8,
       paddingHorizontal: 14,
       paddingVertical: 13,
       color: theme.colors.text,
@@ -931,7 +931,7 @@ const createStyles = (theme: ReturnType<typeof useAppTheme>) =>
     },
     ghostButton: {
       minHeight: 46,
-      borderRadius: 16,
+      borderRadius: 8,
       borderWidth: 1,
       borderColor: theme.colors.border,
       alignItems: 'center',

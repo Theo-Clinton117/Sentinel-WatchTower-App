@@ -80,6 +80,9 @@ const createStyles = (theme: ReturnType<typeof useAppTheme>) =>
       color: theme.colors.muted,
       fontSize: 11,
       fontWeight: '700',
+      lineHeight: 14,
+      textAlign: 'center',
+      flexShrink: 1,
     },
     labelActive: {
       color: theme.colors.blue,
@@ -87,7 +90,7 @@ const createStyles = (theme: ReturnType<typeof useAppTheme>) =>
     iconWrap: {
       width: 36,
       height: 36,
-      borderRadius: 18,
+      borderRadius: 8,
       alignItems: 'center',
       justifyContent: 'center',
       backgroundColor: theme.isDark ? 'rgba(255,255,255,0.04)' : 'transparent',

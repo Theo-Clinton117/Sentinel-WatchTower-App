@@ -31,6 +31,33 @@ function mapSessionRow(row) {
         detectionSummary: Array.isArray(row.detection_summary) ? row.detection_summary : [],
     };
 }
+async function recordSessionAudit(queryable, { alertId, sessionId, userId, eventType, source, fromStage, toStage, metadata }) {
+    if (!alertId || !eventType) {
+        return;
+    }
+    await queryable.query(`
+      insert into alert_audit_events (
+        alert_id,
+        session_id,
+        user_id,
+        event_type,
+        source,
+        from_stage,
+        to_stage,
+        metadata
+      )
+      values ($1, $2, $3, $4, $5, $6, $7, $8::jsonb)
+    `, [
+        alertId,
+        sessionId || null,
+        userId || null,
+        eventType,
+        source || 'user',
+        fromStage || null,
+        toStage || null,
+        JSON.stringify(metadata || {}),
+    ]);
+}
 let SessionsService = class SessionsService {
     constructor(db, queues, ws) {
         this.db = db;
@@ -111,7 +138,21 @@ let SessionsService = class SessionsService {
         where s.id = $1
         limit 1
       `, [session.id]);
-            return hydrated.rows[0];
+            const hydratedRow = hydrated.rows[0];
+            await recordSessionAudit(client, {
+                alertId: session.alert_id,
+                sessionId: session.id,
+                userId,
+                eventType: 'session_closed',
+                source: 'user',
+                fromStage: hydratedRow?.stage || null,
+                toStage: 'resolved',
+                metadata: {
+                    previousSessionStatus: session.status,
+                    alertStatus: hydratedRow?.alert_status || 'resolved',
+                },
+            });
+            return hydratedRow;
         });
         await this.queues.cancelEscalation(result.alert_id);
         this.ws.emitSessionStatus(result.id, 'resolved', result.stage || 'resolved');

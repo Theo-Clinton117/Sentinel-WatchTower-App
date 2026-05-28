@@ -74,6 +74,14 @@ async function recordAlertAudit(queryable, { alertId, sessionId, userId, eventTy
         JSON.stringify(metadata || {}),
     ]);
 }
+async function bestEffort(work, onError) {
+    try {
+        await work();
+    }
+    catch (error) {
+        onError(error);
+    }
+}
 let AlertsService = class AlertsService {
     constructor(db, queues, ws) {
         this.db = db;
@@ -183,7 +191,9 @@ let AlertsService = class AlertsService {
         const alertId = created.alert.id;
         const sessionId = created.session.id;
         this.logger.log(`alert_created alertId=${alertId} sessionId=${sessionId} userId=${userId} stage=${alertStage} trigger=${triggerSource}`);
-        await this.queues.scheduleEscalation({ alertId, sessionId, stage: alertStage });
+        await bestEffort(() => this.queues.scheduleEscalation({ alertId, sessionId, stage: alertStage }), (error) => {
+            this.logger.error(`Alert escalation scheduling failed after create: ${error instanceof Error ? error.message : 'unknown error'}`);
+        });
         this.ws.emitSessionStatus(sessionId, 'active', alertStage);
         if ((0, alert_stages_1.compareAlertStages)(alertStage, 'high_alert') >= 0) {
             this.queues.enqueueAlertNotifications({
@@ -306,10 +316,12 @@ let AlertsService = class AlertsService {
         });
         if (result.session_id && result.didEscalate) {
             this.logger.warn(`alert_escalated alertId=${result.alert_id} sessionId=${result.session_id} userId=${userId} stage=${result.stage}`);
-            await this.queues.scheduleEscalation({
+            await bestEffort(() => this.queues.scheduleEscalation({
                 alertId: result.alert_id,
                 sessionId: result.session_id,
                 stage: result.stage,
+            }), (error) => {
+                this.logger.error(`Alert escalation scheduling failed after manual escalation: ${error instanceof Error ? error.message : 'unknown error'}`);
             });
             this.ws.emitSessionStatus(result.session_id, 'active', result.stage);
             if ((0, alert_stages_1.compareAlertStages)(result.stage, 'high_alert') >= 0) {

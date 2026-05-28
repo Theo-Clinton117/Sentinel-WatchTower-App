@@ -27,8 +27,8 @@ let AlertsController = class AlertsController {
     escalate(req, id, body) {
         return this.alertsService.escalate(req.user.sub, id, body);
     }
-    cancel(req, id) {
-        return this.alertsService.cancel(req.user.sub, id);
+    cancel(req, id, body) {
+        return this.alertsService.cancel(req.user.sub, id, body);
     }
 };
 exports.AlertsController = AlertsController;
@@ -43,6 +43,7 @@ __decorate([
 ], AlertsController.prototype, "create", null);
 __decorate([
     (0, common_1.Post)(':id/escalate'),
+    (0, rate_limit_decorator_1.RateLimit)({ points: 20, duration: 3600 }),
     __param(0, (0, common_1.Req)()),
     __param(1, (0, common_1.Param)('id')),
     __param(2, (0, common_1.Body)()),
@@ -52,10 +53,12 @@ __decorate([
 ], AlertsController.prototype, "escalate", null);
 __decorate([
     (0, common_1.Post)(':id/cancel'),
+    (0, rate_limit_decorator_1.RateLimit)({ points: 10, duration: 3600 }),
     __param(0, (0, common_1.Req)()),
     __param(1, (0, common_1.Param)('id')),
+    __param(2, (0, common_1.Body)()),
     __metadata("design:type", Function),
-    __metadata("design:paramtypes", [Object, String]),
+    __metadata("design:paramtypes", [Object, String, Object]),
     __metadata("design:returntype", void 0)
 ], AlertsController.prototype, "cancel", null);
 exports.AlertsController = AlertsController = __decorate([

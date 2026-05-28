@@ -48,14 +48,14 @@ export const AuthArtPanel = ({ eyebrow, title, caption, chipA, chipB }: Props) =
 const createStyles = (theme: ReturnType<typeof useAppTheme>) =>
   StyleSheet.create({
     wrap: {
-      borderRadius: 30,
+      borderRadius: 8,
       overflow: 'hidden',
       marginBottom: 18,
       ...theme.shadow.card,
     },
     panel: {
       padding: 20,
-      borderRadius: 30,
+      borderRadius: 8,
       borderWidth: 1,
       borderColor: theme.colors.border,
     },
@@ -68,7 +68,7 @@ const createStyles = (theme: ReturnType<typeof useAppTheme>) =>
     chip: {
       paddingHorizontal: 10,
       paddingVertical: 7,
-      borderRadius: 999,
+      borderRadius: 8,
       backgroundColor: theme.colors.surface,
       borderWidth: 1,
       borderColor: theme.colors.borderStrong,
@@ -133,7 +133,7 @@ const createStyles = (theme: ReturnType<typeof useAppTheme>) =>
     centerCard: {
       paddingHorizontal: 18,
       paddingVertical: 14,
-      borderRadius: 18,
+      borderRadius: 8,
       backgroundColor: theme.colors.surface,
       borderWidth: 1,
       borderColor: theme.colors.border,

@@ -51,6 +51,7 @@ __decorate([
 ], AuthController.prototype, "verifyOtp", null);
 __decorate([
     (0, common_1.Post)('refresh'),
+    (0, rate_limit_decorator_1.RateLimit)({ points: 30, duration: 60 }),
     __param(0, (0, common_1.Body)()),
     __metadata("design:type", Function),
     __metadata("design:paramtypes", [Object]),

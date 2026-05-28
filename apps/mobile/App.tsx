@@ -2,6 +2,7 @@ import React from 'react';
 import {
   Animated,
   BackHandler,
+  PanResponder,
   Pressable,
   SafeAreaView,
   StatusBar,
@@ -51,6 +52,8 @@ import { OnboardingContactsScreen } from './src/screens/Onboarding/Contacts';
 import { OnboardingPermissionsScreen } from './src/screens/Onboarding/Permissions';
 
 const queryClient = new QueryClient();
+const DRAWER_WIDTH = 304;
+const OPEN_DRAWER_SWIPE_THRESHOLD = 0.28;
 const DEV_TEST_SESSION_ENABLED =
   __DEV__ && process.env.EXPO_PUBLIC_ENABLE_DEV_TEST_SESSION !== 'false';
 const DEV_TEST_EMAIL =
@@ -341,6 +344,8 @@ const BootSplash = () => {
 
 const AppChrome = ({ showBootSplash }: { showBootSplash: boolean }) => {
   const theme = useAppTheme();
+  const drawerGestureProgress = React.useRef(new Animated.Value(0)).current;
+  const [drawerGestureActive, setDrawerGestureActive] = React.useState(false);
   const {
     authStatus,
     onboardingComplete,
@@ -379,6 +384,14 @@ const AppChrome = ({ showBootSplash }: { showBootSplash: boolean }) => {
     authStatus === 'authenticated' &&
     onboardingComplete &&
     ['home', 'risk-log', 'contacts', 'profile'].includes(currentScreen);
+  const canSwipeOpenSidebar =
+    authStatus === 'authenticated' &&
+    onboardingComplete &&
+    currentScreen === 'home' &&
+    sessionStatus !== 'active' &&
+    sessionStatus !== 'soft_alert' &&
+    !sidebarOpen &&
+    !showBootSplash;
 
   const leaveCurrentScreen = React.useCallback(() => {
     const shouldRestoreSidebar = isSidebarScreen(currentScreen);
@@ -418,6 +431,63 @@ const AppChrome = ({ showBootSplash }: { showBootSplash: boolean }) => {
     return () => subscription.remove();
   }, [canGoBack, closeSidebar, currentScreen, leaveCurrentScreen, sessionStatus, setScreen, showTabs, sidebarOpen]);
 
+  const drawerPanResponder = React.useMemo(
+    () => {
+      const shouldStartDrawerPan = (gestureState: { dx: number; dy: number }) => {
+          if (!canSwipeOpenSidebar) {
+            return false;
+          }
+
+          const horizontalIntent = Math.abs(gestureState.dx) > Math.abs(gestureState.dy) * 1.35;
+          return gestureState.dx > 16 && horizontalIntent;
+      };
+
+      return PanResponder.create({
+        onMoveShouldSetPanResponderCapture: (_event, gestureState) =>
+          shouldStartDrawerPan(gestureState),
+        onMoveShouldSetPanResponder: (_event, gestureState) =>
+          shouldStartDrawerPan(gestureState),
+        onPanResponderGrant: () => {
+          drawerGestureProgress.stopAnimation();
+          drawerGestureProgress.setValue(0);
+          setDrawerGestureActive(true);
+        },
+        onPanResponderMove: (_event, gestureState) => {
+          const progress = Math.max(0, Math.min(gestureState.dx / DRAWER_WIDTH, 1));
+          drawerGestureProgress.setValue(progress);
+        },
+        onPanResponderRelease: (_event, gestureState) => {
+          const progress = Math.max(0, Math.min(gestureState.dx / DRAWER_WIDTH, 1));
+          const shouldOpen =
+            progress >= OPEN_DRAWER_SWIPE_THRESHOLD || gestureState.vx > 0.55;
+
+          Animated.timing(drawerGestureProgress, {
+            toValue: shouldOpen ? 1 : 0,
+            duration: shouldOpen ? 120 : 160,
+            useNativeDriver: false,
+          }).start(() => {
+            if (shouldOpen) {
+              openSidebar();
+            }
+            setDrawerGestureActive(false);
+            drawerGestureProgress.setValue(0);
+          });
+        },
+        onPanResponderTerminate: () => {
+          Animated.timing(drawerGestureProgress, {
+            toValue: 0,
+            duration: 160,
+            useNativeDriver: false,
+          }).start(() => {
+            setDrawerGestureActive(false);
+            drawerGestureProgress.setValue(0);
+          });
+        },
+      });
+    },
+    [canSwipeOpenSidebar, drawerGestureProgress, openSidebar],
+  );
+
   if (showBootSplash) {
     return <BootSplash />;
   }
@@ -443,12 +513,15 @@ const AppChrome = ({ showBootSplash }: { showBootSplash: boolean }) => {
         </View>
       ) : null}
 
-      <View style={styles.screen}>
+      <View style={styles.screen} {...drawerPanResponder.panHandlers}>
         <ScreenRouter />
       </View>
 
       {showTabs ? <AppTabBar /> : null}
-      <SidebarDrawer />
+      <SidebarDrawer
+        gestureActive={drawerGestureActive}
+        gestureProgress={drawerGestureProgress}
+      />
       <AlertTransition />
       {sessionStatus === 'active' || sessionStatus === 'soft_alert' ? <BlareOverlay /> : null}
     </>

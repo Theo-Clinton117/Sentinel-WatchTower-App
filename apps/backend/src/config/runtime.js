@@ -46,11 +46,28 @@ function validateRuntimeConfig() {
     getJwtRefreshSecret();
     if (isProduction()) {
         const databaseUrl = String(process.env.SUPABASE_DB_URL || process.env.DATABASE_URL || "").trim();
+        const redisUrl = String(process.env.REDIS_URL || "").trim();
+        const supabaseEmailOtpConfigured = Boolean(String(process.env.SUPABASE_URL || "").trim() &&
+            String(process.env.SUPABASE_SERVICE_ROLE_KEY || "").trim());
+        const resendEmailOtpConfigured = Boolean(String(process.env.RESEND_API_KEY || "").trim() &&
+            String(process.env.OTP_EMAIL_FROM || "").trim());
+        const twilioVerifyConfigured = Boolean(String(process.env.TWILIO_ACCOUNT_SID || "").trim() &&
+            String(process.env.TWILIO_AUTH_TOKEN || "").trim() &&
+            String(process.env.TWILIO_VERIFY_SERVICE_SID || "").trim());
         if (!databaseUrl) {
             throw new Error("DATABASE_URL or SUPABASE_DB_URL must be set in production.");
         }
+        if (!redisUrl) {
+            throw new Error("REDIS_URL must be set in production.");
+        }
         if (String(process.env.OTP_BYPASS_CODE || "").trim()) {
             throw new Error("OTP_BYPASS_CODE must be empty in production.");
+        }
+        if (!supabaseEmailOtpConfigured && !resendEmailOtpConfigured) {
+            throw new Error("Production email OTP requires Supabase auth or Resend email configuration.");
+        }
+        if (!twilioVerifyConfigured) {
+            throw new Error("Production phone OTP requires Twilio Verify configuration.");
         }
         getCorsOrigins();
     }

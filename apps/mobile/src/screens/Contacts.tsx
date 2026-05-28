@@ -755,7 +755,7 @@ const createStyles = (theme: ReturnType<typeof useAppTheme>) =>
     },
     searchCard: {
       backgroundColor: theme.colors.surface,
-      borderRadius: 24,
+      borderRadius: 8,
       padding: 16,
       borderWidth: 1,
       borderColor: theme.colors.border,
@@ -764,7 +764,7 @@ const createStyles = (theme: ReturnType<typeof useAppTheme>) =>
     searchInput: {
       borderWidth: 1,
       borderColor: theme.colors.border,
-      borderRadius: 16,
+      borderRadius: 8,
       paddingHorizontal: 14,
       paddingVertical: 14,
       color: theme.colors.text,
@@ -778,7 +778,7 @@ const createStyles = (theme: ReturnType<typeof useAppTheme>) =>
     },
     sectionCard: {
       backgroundColor: theme.colors.surface,
-      borderRadius: 24,
+      borderRadius: 8,
       padding: 16,
       borderWidth: 1,
       borderColor: theme.colors.border,
@@ -793,6 +793,7 @@ const createStyles = (theme: ReturnType<typeof useAppTheme>) =>
     },
     sectionHeaderCopy: {
       flex: 1,
+      minWidth: 0,
     },
     sectionTitle: {
       color: theme.colors.text,
@@ -828,7 +829,7 @@ const createStyles = (theme: ReturnType<typeof useAppTheme>) =>
     },
     contactCard: {
       padding: 14,
-      borderRadius: 18,
+      borderRadius: 8,
       backgroundColor: theme.colors.backgroundElevated,
       borderWidth: 1,
       borderColor: theme.colors.border,
@@ -842,7 +843,7 @@ const createStyles = (theme: ReturnType<typeof useAppTheme>) =>
     contactActionButton: {
       flex: 1,
       minHeight: 42,
-      borderRadius: 14,
+      borderRadius: 8,
       borderWidth: 1,
       borderColor: theme.colors.blueGlow,
       backgroundColor: theme.colors.blueSoft,
@@ -869,7 +870,7 @@ const createStyles = (theme: ReturnType<typeof useAppTheme>) =>
     contactAvatar: {
       width: 42,
       height: 42,
-      borderRadius: 21,
+      borderRadius: 8,
       alignItems: 'center',
       justifyContent: 'center',
       backgroundColor: theme.colors.surfaceStrong,
@@ -883,21 +884,26 @@ const createStyles = (theme: ReturnType<typeof useAppTheme>) =>
     },
     contactCopy: {
       flex: 1,
+      minWidth: 0,
     },
     contactName: {
       color: theme.colors.text,
       fontWeight: '700',
       marginBottom: 4,
+      lineHeight: 20,
+      flexShrink: 1,
     },
     contactMeta: {
       color: theme.colors.muted,
       fontSize: 12,
       marginTop: 2,
+      lineHeight: 17,
+      flexShrink: 1,
     },
     contactBadge: {
       paddingHorizontal: 10,
       paddingVertical: 6,
-      borderRadius: 999,
+      borderRadius: 8,
       backgroundColor: theme.colors.surfaceStrong,
       borderWidth: 1,
       borderColor: theme.colors.border,
@@ -906,12 +912,14 @@ const createStyles = (theme: ReturnType<typeof useAppTheme>) =>
       color: theme.colors.text,
       fontSize: 11,
       fontWeight: '700',
+      lineHeight: 15,
+      textAlign: 'center',
     },
     inlineButton: {
       minWidth: 84,
       minHeight: 42,
       paddingHorizontal: 14,
-      borderRadius: 14,
+      borderRadius: 8,
       alignItems: 'center',
       justifyContent: 'center',
       backgroundColor: theme.colors.blueSoft,
@@ -922,7 +930,7 @@ const createStyles = (theme: ReturnType<typeof useAppTheme>) =>
       minWidth: 92,
       minHeight: 54,
       paddingHorizontal: 14,
-      borderRadius: 16,
+      borderRadius: 8,
       alignItems: 'center',
       justifyContent: 'center',
       backgroundColor: theme.colors.blueSoft,
@@ -944,6 +952,7 @@ const createStyles = (theme: ReturnType<typeof useAppTheme>) =>
     },
     directoryCopy: {
       flex: 1,
+      minWidth: 0,
     },
     directoryTitleRow: {
       flexDirection: 'row',
@@ -955,11 +964,15 @@ const createStyles = (theme: ReturnType<typeof useAppTheme>) =>
     directoryName: {
       color: theme.colors.text,
       fontWeight: '700',
+      lineHeight: 20,
+      flexShrink: 1,
     },
     directoryMeta: {
       color: theme.colors.muted,
       fontSize: 12,
       marginTop: 2,
+      lineHeight: 17,
+      flexShrink: 1,
     },
     directoryNote: {
       color: theme.colors.blue,
@@ -971,7 +984,7 @@ const createStyles = (theme: ReturnType<typeof useAppTheme>) =>
       minWidth: 74,
       paddingVertical: 10,
       paddingHorizontal: 14,
-      borderRadius: 14,
+      borderRadius: 8,
       alignItems: 'center',
       justifyContent: 'center',
       backgroundColor: theme.colors.blueSoft,
@@ -988,7 +1001,7 @@ const createStyles = (theme: ReturnType<typeof useAppTheme>) =>
     discoveryBadge: {
       paddingHorizontal: 9,
       paddingVertical: 5,
-      borderRadius: 999,
+      borderRadius: 8,
       borderWidth: 1,
     },
     discoveryBadgeActive: {
@@ -1015,7 +1028,7 @@ const createStyles = (theme: ReturnType<typeof useAppTheme>) =>
     },
     watchHero: {
       padding: 16,
-      borderRadius: 18,
+      borderRadius: 8,
       backgroundColor: theme.colors.backgroundElevated,
       borderWidth: 1,
       borderColor: theme.colors.border,
@@ -1049,7 +1062,7 @@ const createStyles = (theme: ReturnType<typeof useAppTheme>) =>
     durationChip: {
       paddingHorizontal: 14,
       paddingVertical: 11,
-      borderRadius: 999,
+      borderRadius: 8,
       borderWidth: 1,
       borderColor: theme.colors.border,
       backgroundColor: theme.colors.backgroundElevated,
@@ -1068,7 +1081,7 @@ const createStyles = (theme: ReturnType<typeof useAppTheme>) =>
     noteInput: {
       borderWidth: 1,
       borderColor: theme.colors.border,
-      borderRadius: 14,
+      borderRadius: 8,
       paddingHorizontal: 14,
       paddingVertical: 13,
       color: theme.colors.text,
@@ -1078,7 +1091,7 @@ const createStyles = (theme: ReturnType<typeof useAppTheme>) =>
     input: {
       borderWidth: 1,
       borderColor: theme.colors.border,
-      borderRadius: 14,
+      borderRadius: 8,
       paddingHorizontal: 14,
       paddingVertical: 13,
       color: theme.colors.text,
@@ -1092,7 +1105,7 @@ const createStyles = (theme: ReturnType<typeof useAppTheme>) =>
       alignItems: 'center',
       marginTop: 12,
       padding: 12,
-      borderRadius: 14,
+      borderRadius: 8,
       borderWidth: 1,
       borderColor: theme.colors.border,
       backgroundColor: theme.colors.backgroundElevated,
@@ -1113,7 +1126,7 @@ const createStyles = (theme: ReturnType<typeof useAppTheme>) =>
     primaryButton: {
       minHeight: 52,
       paddingHorizontal: 16,
-      borderRadius: 16,
+      borderRadius: 8,
       backgroundColor: theme.colors.blue,
       alignItems: 'center',
       justifyContent: 'center',
@@ -1126,7 +1139,7 @@ const createStyles = (theme: ReturnType<typeof useAppTheme>) =>
     secondaryButton: {
       minHeight: 48,
       paddingHorizontal: 16,
-      borderRadius: 16,
+      borderRadius: 8,
       backgroundColor: theme.colors.surfaceStrong,
       borderWidth: 1,
       borderColor: theme.colors.borderStrong,

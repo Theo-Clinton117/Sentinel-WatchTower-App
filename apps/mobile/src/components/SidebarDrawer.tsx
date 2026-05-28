@@ -21,6 +21,8 @@ import { ProfileGlyph } from './ProfileGlyph';
 import { Screen, useAppStore } from '../store/useAppStore';
 import { useAppTheme } from '../theme';
 
+const DRAWER_WIDTH = 304;
+
 const drawerItems: Array<{
   label: string;
   screen: Screen;
@@ -67,7 +69,12 @@ const drawerItems: Array<{
   },
 ];
 
-export const SidebarDrawer = () => {
+type Props = {
+  gestureActive?: boolean;
+  gestureProgress?: Animated.Value;
+};
+
+export const SidebarDrawer = ({ gestureActive = false, gestureProgress }: Props) => {
   const theme = useAppTheme();
   const styles = createStyles(theme);
   const { sidebarOpen, closeSidebar, pushScreen, user } = useAppStore(
@@ -81,9 +88,14 @@ export const SidebarDrawer = () => {
   );
   const slide = React.useRef(new Animated.Value(-320)).current;
   const fade = React.useRef(new Animated.Value(0)).current;
-  const [isMounted, setIsMounted] = React.useState(sidebarOpen);
+  const [isMounted, setIsMounted] = React.useState(sidebarOpen || gestureActive);
 
   React.useEffect(() => {
+    if (gestureActive) {
+      setIsMounted(true);
+      return;
+    }
+
     if (sidebarOpen) {
       setIsMounted(true);
       Animated.parallel([
@@ -118,11 +130,26 @@ export const SidebarDrawer = () => {
         setIsMounted(false);
       }
     });
-  }, [fade, sidebarOpen, slide]);
+  }, [fade, gestureActive, sidebarOpen, slide]);
 
   if (!isMounted) {
     return null;
   }
+
+  const gestureSlide =
+    gestureProgress?.interpolate({
+      inputRange: [0, 1],
+      outputRange: [-DRAWER_WIDTH, 0],
+      extrapolate: 'clamp',
+    }) ?? slide;
+  const gestureFade =
+    gestureProgress?.interpolate({
+      inputRange: [0, 1],
+      outputRange: [0, 1],
+      extrapolate: 'clamp',
+    }) ?? fade;
+  const drawerTranslateX = gestureActive ? gestureSlide : slide;
+  const scrimOpacity = gestureActive ? gestureFade : fade;
 
   const visibleItems = drawerItems.filter((item) => {
     if (!item.roles?.length) {
@@ -154,7 +181,7 @@ export const SidebarDrawer = () => {
 
   return (
     <View pointerEvents="box-none" style={StyleSheet.absoluteFill}>
-      <Animated.View style={[styles.scrim, { opacity: fade }]}>
+      <Animated.View style={[styles.scrim, { opacity: scrimOpacity }]}>
         <Pressable style={StyleSheet.absoluteFill} onPress={closeSidebar} />
       </Animated.View>
 
@@ -162,7 +189,7 @@ export const SidebarDrawer = () => {
         style={[
           styles.drawerWrap,
           {
-            transform: [{ translateX: slide }],
+            transform: [{ translateX: drawerTranslateX }],
           },
         ]}
       >
@@ -179,7 +206,7 @@ export const SidebarDrawer = () => {
               <View style={styles.avatar}>
                 <Text style={styles.avatarText}>{initial}</Text>
               </View>
-              <Text numberOfLines={1} style={styles.userText}>
+              <Text style={styles.userText}>
                 {displayName}
               </Text>
             </View>
@@ -206,7 +233,7 @@ export const SidebarDrawer = () => {
                         <View style={styles.menuIcon}>
                           <Icon color={theme.colors.muted} size={18} strokeWidth={2.2} />
                         </View>
-                        <Text numberOfLines={1} style={styles.menuLabel}>{item.label}</Text>
+                        <Text style={styles.menuLabel}>{item.label}</Text>
                       </View>
                       <ChevronRight size={17} color={theme.colors.muted} strokeWidth={2.2} />
                     </Pressable>
@@ -233,7 +260,7 @@ const createStyles = (theme: ReturnType<typeof useAppTheme>) =>
       justifyContent: 'flex-start',
     },
     drawer: {
-      width: 304,
+      width: DRAWER_WIDTH,
       height: '100%',
       paddingTop: 22,
       paddingHorizontal: 16,
@@ -254,7 +281,7 @@ const createStyles = (theme: ReturnType<typeof useAppTheme>) =>
     closeButton: {
       width: 36,
       height: 36,
-      borderRadius: 18,
+      borderRadius: 8,
       borderWidth: 1,
       borderColor: theme.colors.border,
       backgroundColor: theme.colors.backgroundElevated,
@@ -276,7 +303,7 @@ const createStyles = (theme: ReturnType<typeof useAppTheme>) =>
     },
     accountPill: {
       minHeight: 46,
-      borderRadius: 16,
+      borderRadius: 8,
       borderWidth: 1,
       borderColor: theme.colors.border,
       backgroundColor: theme.colors.backgroundElevated,
@@ -288,7 +315,7 @@ const createStyles = (theme: ReturnType<typeof useAppTheme>) =>
     avatar: {
       width: 30,
       height: 30,
-      borderRadius: 15,
+      borderRadius: 8,
       backgroundColor: theme.colors.blueSoft,
       alignItems: 'center',
       justifyContent: 'center',
@@ -302,6 +329,8 @@ const createStyles = (theme: ReturnType<typeof useAppTheme>) =>
       color: theme.colors.muted,
       flex: 1,
       fontWeight: '700',
+      lineHeight: 20,
+      flexShrink: 1,
     },
     section: {
       marginBottom: 16,
@@ -315,7 +344,7 @@ const createStyles = (theme: ReturnType<typeof useAppTheme>) =>
       marginBottom: 8,
     },
     menuList: {
-      borderRadius: 18,
+      borderRadius: 8,
       borderWidth: 1,
       borderColor: theme.colors.border,
       overflow: 'hidden',
@@ -343,11 +372,12 @@ const createStyles = (theme: ReturnType<typeof useAppTheme>) =>
       alignItems: 'center',
       flex: 1,
       gap: 10,
+      minWidth: 0,
     },
     menuIcon: {
       width: 32,
       height: 32,
-      borderRadius: 12,
+      borderRadius: 8,
       alignItems: 'center',
       justifyContent: 'center',
       backgroundColor: theme.colors.backgroundElevated,
@@ -357,5 +387,7 @@ const createStyles = (theme: ReturnType<typeof useAppTheme>) =>
       fontSize: 15,
       fontWeight: '800',
       flex: 1,
+      lineHeight: 20,
+      flexShrink: 1,
     },
   });

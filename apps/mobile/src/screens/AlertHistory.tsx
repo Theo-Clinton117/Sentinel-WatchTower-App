@@ -106,7 +106,7 @@ const createStyles = (theme: ReturnType<typeof useAppTheme>) =>
     },
     card: {
       backgroundColor: theme.colors.surface,
-      borderRadius: 24,
+      borderRadius: 8,
       padding: 16,
       borderWidth: 1,
       borderColor: theme.colors.border,

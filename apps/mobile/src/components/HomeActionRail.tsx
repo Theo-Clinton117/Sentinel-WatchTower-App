@@ -41,7 +41,7 @@ const createStyles = (theme: ReturnType<typeof useAppTheme>) =>
       top: 18,
       right: 16,
       width: 92,
-      borderRadius: 24,
+      borderRadius: 8,
       paddingVertical: 10,
       paddingHorizontal: 10,
       backgroundColor: theme.colors.surface,

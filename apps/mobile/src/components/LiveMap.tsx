@@ -152,7 +152,6 @@ const LiveMapBase = ({
         rotateEnabled={true}
         pitchEnabled={true}
         toolbarEnabled={false}
-        cacheEnabled
         scrollEnabled={true}
         zoomEnabled={true}
         minZoomLevel={3}
@@ -251,7 +250,7 @@ const createStyles = (theme: ReturnType<typeof useAppTheme>) =>
   StyleSheet.create({
     container: {
       flex: 1,
-      borderRadius: 22,
+      borderRadius: 8,
       overflow: 'hidden',
     },
     markerWrap: {
@@ -280,7 +279,7 @@ const createStyles = (theme: ReturnType<typeof useAppTheme>) =>
     markerBadgeMinimal: {
       width: 54,
       height: 54,
-      borderRadius: 27,
+      borderRadius: 8,
       alignItems: 'center',
       justifyContent: 'center',
       shadowColor: '#A05E1D',
@@ -313,7 +312,7 @@ const createStyles = (theme: ReturnType<typeof useAppTheme>) =>
       gap: 8,
       paddingHorizontal: 12,
       paddingVertical: 9,
-      borderRadius: 999,
+      borderRadius: 8,
       backgroundColor: theme.colors.surface,
       borderWidth: 1,
       borderColor: theme.colors.border,
@@ -328,6 +327,7 @@ const createStyles = (theme: ReturnType<typeof useAppTheme>) =>
       color: theme.colors.text,
       fontSize: 12,
       fontWeight: '700',
+      flexShrink: 1,
     },
     bottomCard: {
       position: 'absolute',
@@ -335,7 +335,7 @@ const createStyles = (theme: ReturnType<typeof useAppTheme>) =>
       right: 14,
       bottom: 14,
       padding: 14,
-      borderRadius: 18,
+      borderRadius: 8,
       backgroundColor: theme.colors.surface,
       borderWidth: 1,
       borderColor: theme.colors.border,
@@ -344,10 +344,12 @@ const createStyles = (theme: ReturnType<typeof useAppTheme>) =>
       color: theme.colors.text,
       fontWeight: '700',
       marginBottom: 4,
+      lineHeight: 20,
     },
     bottomMeta: {
       color: theme.colors.muted,
       fontSize: 12,
+      lineHeight: 17,
     },
     attribution: {
       color: theme.colors.muted,
@@ -364,6 +366,6 @@ const createStyles = (theme: ReturnType<typeof useAppTheme>) =>
       backgroundColor: 'rgba(255,255,255,0.84)',
       paddingHorizontal: 8,
       paddingVertical: 4,
-      borderRadius: 999,
+      borderRadius: 8,
     },
   });

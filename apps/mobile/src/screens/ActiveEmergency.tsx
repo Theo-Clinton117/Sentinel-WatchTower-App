@@ -373,7 +373,7 @@ export const ActiveEmergencyScreen = () => {
       <MotionView delay={40} style={[styles.headerWrap, theme.shadow.card]}>
         <LinearGradient colors={theme.gradients.emergency} style={styles.headerCard}>
           <View style={styles.headerRow}>
-            <View>
+            <View style={styles.headerCopy}>
               <View style={styles.alertBadgeRow}>
                 <View style={styles.alertBadgeWrap}>
                   <Animated.View style={[styles.alertBadgePulse, pulseStyle]} />
@@ -470,13 +470,13 @@ const createStyles = (theme: ReturnType<typeof useAppTheme>) =>
       backgroundColor: 'transparent',
     },
     headerWrap: {
-      borderRadius: 28,
+      borderRadius: 8,
       overflow: 'hidden',
       marginBottom: 12,
     },
     headerCard: {
       padding: 18,
-      borderRadius: 28,
+      borderRadius: 8,
       borderWidth: 1,
       borderColor: theme.colors.border,
     },
@@ -522,6 +522,10 @@ const createStyles = (theme: ReturnType<typeof useAppTheme>) =>
       alignItems: 'flex-start',
       gap: 12,
     },
+    headerCopy: {
+      flex: 1,
+      minWidth: 0,
+    },
     subTitle: {
       color: theme.colors.muted,
       marginTop: 4,
@@ -529,16 +533,19 @@ const createStyles = (theme: ReturnType<typeof useAppTheme>) =>
     statusPill: {
       paddingHorizontal: 12,
       paddingVertical: 8,
-      borderRadius: 999,
+      borderRadius: 8,
       borderWidth: 1,
       borderColor: theme.colors.red,
       backgroundColor: theme.gradients.emergency[0],
+      maxWidth: '46%',
     },
     statusPillText: {
       color: theme.colors.text,
       fontSize: 12,
       fontWeight: '700',
       textTransform: 'uppercase',
+      lineHeight: 16,
+      textAlign: 'center',
     },
     softAlertTitle: {
       color: theme.colors.muted,
@@ -567,7 +574,7 @@ const createStyles = (theme: ReturnType<typeof useAppTheme>) =>
     metricCard: {
       flex: 1,
       padding: 14,
-      borderRadius: 20,
+      borderRadius: 8,
       borderWidth: 1,
       borderColor: theme.colors.border,
       backgroundColor: theme.colors.surface,
@@ -585,7 +592,7 @@ const createStyles = (theme: ReturnType<typeof useAppTheme>) =>
     mapWrap: {
       flex: 1,
       marginBottom: 16,
-      borderRadius: 24,
+      borderRadius: 8,
       overflow: 'hidden',
     },
     note: {
@@ -601,7 +608,7 @@ const createStyles = (theme: ReturnType<typeof useAppTheme>) =>
     cancel: {
       backgroundColor: theme.colors.red,
       padding: 16,
-      borderRadius: 18,
+      borderRadius: 8,
       alignItems: 'center',
       minHeight: 56,
       justifyContent: 'center',
@@ -624,7 +631,7 @@ const createStyles = (theme: ReturnType<typeof useAppTheme>) =>
     secondaryAction: {
       flex: 1,
       minHeight: 56,
-      borderRadius: 18,
+      borderRadius: 8,
       alignItems: 'center',
       justifyContent: 'center',
       borderWidth: 1,

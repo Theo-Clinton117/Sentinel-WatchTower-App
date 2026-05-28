@@ -11,18 +11,48 @@ var __metadata = (this && this.__metadata) || function (k, v) {
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.HealthService = void 0;
 const common_1 = require("@nestjs/common");
+const ioredis_1 = require("ioredis");
 const db_service_1 = require("../db/db.service");
 function configured(...values) {
     return values.every((value) => String(value || '').trim().length > 0);
 }
+async function checkRedisHealth() {
+    const redisUrl = String(process.env.REDIS_URL || '').trim();
+    if (!redisUrl) {
+        return { ok: false, configured: false };
+    }
+    const Redis = ioredis_1.default || ioredis_1;
+    const redis = new Redis(redisUrl, {
+        connectTimeout: 1000,
+        enableOfflineQueue: false,
+        lazyConnect: true,
+        maxRetriesPerRequest: 1,
+    });
+    try {
+        await redis.connect();
+        const pong = await redis.ping();
+        return { ok: pong === 'PONG', configured: true };
+    }
+    catch (error) {
+        return {
+            ok: false,
+            configured: true,
+            error: error instanceof Error ? error.message : 'Redis check failed',
+        };
+    }
+    finally {
+        redis.disconnect();
+    }
+}
 let HealthService = class HealthService {
-    constructor(db) {
+    constructor(db, redisHealthCheck = checkRedisHealth) {
         this.db = db;
+        this.redisHealthCheck = redisHealthCheck;
     }
     async getHealth() {
         const checks = {
             database: { ok: false },
-            redis: { ok: configured(process.env.REDIS_URL), configured: configured(process.env.REDIS_URL) },
+            redis: { ok: false, configured: configured(process.env.REDIS_URL) },
             sms: {
                 ok: configured(process.env.TWILIO_ACCOUNT_SID, process.env.TWILIO_AUTH_TOKEN, process.env.TWILIO_FROM_NUMBER),
                 configured: configured(process.env.TWILIO_ACCOUNT_SID, process.env.TWILIO_AUTH_TOKEN, process.env.TWILIO_FROM_NUMBER),
@@ -50,7 +80,11 @@ let HealthService = class HealthService {
                 error: error instanceof Error ? error.message : 'Database check failed',
             };
         }
+        checks.redis = await this.redisHealthCheck();
         const required = [checks.database];
+        if (checks.redis.configured) {
+            required.push(checks.redis);
+        }
         const status = required.every((check) => check.ok) ? 'ok' : 'degraded';
         return {
             status,

@@ -120,7 +120,13 @@ test("production runtime validation requires database config and disables OTP by
             CORS_ORIGINS: "https://app.example.com",
             DATABASE_URL: undefined,
             SUPABASE_DB_URL: undefined,
+            REDIS_URL: "redis://localhost:6379",
             OTP_BYPASS_CODE: undefined,
+            SUPABASE_URL: "https://example.supabase.co",
+            SUPABASE_SERVICE_ROLE_KEY: "service-role",
+            TWILIO_ACCOUNT_SID: "sid",
+            TWILIO_AUTH_TOKEN: "token",
+            TWILIO_VERIFY_SERVICE_SID: "verify",
         },
         () => {
             assert.throws(() => validateRuntimeConfig(), /DATABASE_URL|SUPABASE_DB_URL/);
@@ -135,10 +141,61 @@ test("production runtime validation requires database config and disables OTP by
             CORS_ORIGINS: "https://app.example.com",
             DATABASE_URL: "postgres://postgres:postgres@localhost:5432/sentinel",
             SUPABASE_DB_URL: undefined,
+            REDIS_URL: "redis://localhost:6379",
             OTP_BYPASS_CODE: "123456",
+            SUPABASE_URL: "https://example.supabase.co",
+            SUPABASE_SERVICE_ROLE_KEY: "service-role",
+            TWILIO_ACCOUNT_SID: "sid",
+            TWILIO_AUTH_TOKEN: "token",
+            TWILIO_VERIFY_SERVICE_SID: "verify",
         },
         () => {
             assert.throws(() => validateRuntimeConfig(), /OTP_BYPASS_CODE/);
+        },
+    );
+});
+
+test("production runtime validation requires real email and phone OTP providers", () => {
+    const base = {
+        NODE_ENV: "production",
+        JWT_ACCESS_SECRET: "a".repeat(32),
+        JWT_REFRESH_SECRET: "b".repeat(32),
+        CORS_ORIGINS: "https://app.example.com",
+        DATABASE_URL: "postgres://postgres:postgres@localhost:5432/sentinel",
+        SUPABASE_DB_URL: undefined,
+        REDIS_URL: "redis://localhost:6379",
+        OTP_BYPASS_CODE: undefined,
+    };
+
+    withEnv(
+        {
+            ...base,
+            SUPABASE_URL: undefined,
+            SUPABASE_SERVICE_ROLE_KEY: undefined,
+            RESEND_API_KEY: undefined,
+            OTP_EMAIL_FROM: undefined,
+            TWILIO_ACCOUNT_SID: "sid",
+            TWILIO_AUTH_TOKEN: "token",
+            TWILIO_VERIFY_SERVICE_SID: "verify",
+        },
+        () => {
+            assert.throws(() => validateRuntimeConfig(), /email OTP/);
+        },
+    );
+
+    withEnv(
+        {
+            ...base,
+            SUPABASE_URL: "https://example.supabase.co",
+            SUPABASE_SERVICE_ROLE_KEY: "service-role",
+            RESEND_API_KEY: undefined,
+            OTP_EMAIL_FROM: undefined,
+            TWILIO_ACCOUNT_SID: undefined,
+            TWILIO_AUTH_TOKEN: undefined,
+            TWILIO_VERIFY_SERVICE_SID: undefined,
+        },
+        () => {
+            assert.throws(() => validateRuntimeConfig(), /Twilio Verify/);
         },
     );
 });
@@ -152,10 +209,43 @@ test("production runtime validation passes with required launch config", () => {
             CORS_ORIGINS: "https://app.example.com",
             DATABASE_URL: "postgres://postgres:postgres@localhost:5432/sentinel",
             SUPABASE_DB_URL: undefined,
+            REDIS_URL: "redis://localhost:6379",
             OTP_BYPASS_CODE: undefined,
+            SUPABASE_URL: "https://example.supabase.co",
+            SUPABASE_SERVICE_ROLE_KEY: "service-role",
+            RESEND_API_KEY: undefined,
+            OTP_EMAIL_FROM: undefined,
+            TWILIO_ACCOUNT_SID: "sid",
+            TWILIO_AUTH_TOKEN: "token",
+            TWILIO_VERIFY_SERVICE_SID: "verify",
         },
         () => {
             assert.equal(validateRuntimeConfig(), true);
+        },
+    );
+});
+
+test("production runtime validation requires Redis for queue durability", () => {
+    withEnv(
+        {
+            NODE_ENV: "production",
+            JWT_ACCESS_SECRET: "a".repeat(32),
+            JWT_REFRESH_SECRET: "b".repeat(32),
+            CORS_ORIGINS: "https://app.example.com",
+            DATABASE_URL: "postgres://postgres:postgres@localhost:5432/sentinel",
+            SUPABASE_DB_URL: undefined,
+            REDIS_URL: undefined,
+            OTP_BYPASS_CODE: undefined,
+            SUPABASE_URL: "https://example.supabase.co",
+            SUPABASE_SERVICE_ROLE_KEY: "service-role",
+            RESEND_API_KEY: undefined,
+            OTP_EMAIL_FROM: undefined,
+            TWILIO_ACCOUNT_SID: "sid",
+            TWILIO_AUTH_TOKEN: "token",
+            TWILIO_VERIFY_SERVICE_SID: "verify",
+        },
+        () => {
+            assert.throws(() => validateRuntimeConfig(), /REDIS_URL/);
         },
     );
 });

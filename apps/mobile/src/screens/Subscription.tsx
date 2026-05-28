@@ -524,12 +524,12 @@ const createStyles = (theme: ReturnType<typeof useAppTheme>) =>
       marginBottom: 18,
     },
     heroWrap: {
-      borderRadius: 24,
+      borderRadius: 8,
       overflow: 'hidden',
       marginBottom: 16,
     },
     heroCard: {
-      borderRadius: 24,
+      borderRadius: 8,
       padding: 20,
       borderWidth: 1,
     },
@@ -539,6 +539,7 @@ const createStyles = (theme: ReturnType<typeof useAppTheme>) =>
       alignItems: 'center',
       gap: 12,
       marginBottom: 14,
+      flexWrap: 'wrap',
     },
     heroEyebrow: {
       color: theme.colors.blue,
@@ -552,6 +553,7 @@ const createStyles = (theme: ReturnType<typeof useAppTheme>) =>
       color: theme.colors.text,
       fontSize: 24,
       fontWeight: '800',
+      lineHeight: 30,
     },
     heroPrice: {
       fontSize: 28,
@@ -577,7 +579,7 @@ const createStyles = (theme: ReturnType<typeof useAppTheme>) =>
       lineHeight: 19,
     },
     planBadge: {
-      borderRadius: 999,
+      borderRadius: 8,
       paddingHorizontal: 10,
       paddingVertical: 6,
     },
@@ -588,7 +590,7 @@ const createStyles = (theme: ReturnType<typeof useAppTheme>) =>
       letterSpacing: 0.8,
     },
     syncPill: {
-      borderRadius: 999,
+      borderRadius: 8,
       borderWidth: 1,
       paddingHorizontal: 10,
       paddingVertical: 6,
@@ -607,7 +609,7 @@ const createStyles = (theme: ReturnType<typeof useAppTheme>) =>
     secondaryButton: {
       flex: 1,
       minHeight: 48,
-      borderRadius: 16,
+      borderRadius: 8,
       borderWidth: 1,
       alignItems: 'center',
       justifyContent: 'center',
@@ -635,7 +637,7 @@ const createStyles = (theme: ReturnType<typeof useAppTheme>) =>
       gap: 14,
     },
     planCard: {
-      borderRadius: 24,
+      borderRadius: 8,
       padding: 18,
       borderWidth: 1,
     },
@@ -650,6 +652,7 @@ const createStyles = (theme: ReturnType<typeof useAppTheme>) =>
       alignItems: 'center',
       gap: 10,
       flexShrink: 1,
+      minWidth: 0,
     },
     planDot: {
       width: 12,
@@ -660,9 +663,11 @@ const createStyles = (theme: ReturnType<typeof useAppTheme>) =>
       color: theme.colors.text,
       fontSize: 18,
       fontWeight: '800',
+      lineHeight: 23,
+      flexShrink: 1,
     },
     planPill: {
-      borderRadius: 999,
+      borderRadius: 8,
       borderWidth: 1,
       paddingHorizontal: 10,
       paddingVertical: 6,
@@ -671,6 +676,8 @@ const createStyles = (theme: ReturnType<typeof useAppTheme>) =>
       fontSize: 10,
       fontWeight: '900',
       letterSpacing: 0.8,
+      lineHeight: 14,
+      textAlign: 'center',
     },
     planPrice: {
       fontSize: 28,
@@ -701,7 +708,7 @@ const createStyles = (theme: ReturnType<typeof useAppTheme>) =>
     planAction: {
       marginTop: 18,
       minHeight: 48,
-      borderRadius: 16,
+      borderRadius: 8,
       alignItems: 'center',
       justifyContent: 'center',
       paddingHorizontal: 14,
@@ -712,7 +719,7 @@ const createStyles = (theme: ReturnType<typeof useAppTheme>) =>
     },
     noteCard: {
       marginTop: 22,
-      borderRadius: 24,
+      borderRadius: 8,
       borderWidth: 1,
       borderColor: theme.colors.border,
       backgroundColor: theme.colors.surfaceStrong,
@@ -731,7 +738,7 @@ const createStyles = (theme: ReturnType<typeof useAppTheme>) =>
     manageButton: {
       marginTop: 8,
       minHeight: 50,
-      borderRadius: 18,
+      borderRadius: 8,
       backgroundColor: theme.colors.blue,
       alignItems: 'center',
       justifyContent: 'center',
@@ -743,7 +750,7 @@ const createStyles = (theme: ReturnType<typeof useAppTheme>) =>
       textAlign: 'center',
     },
     emptyCard: {
-      borderRadius: 24,
+      borderRadius: 8,
       borderWidth: 1,
       borderColor: theme.colors.border,
       backgroundColor: theme.colors.surfaceStrong,
@@ -762,7 +769,7 @@ const createStyles = (theme: ReturnType<typeof useAppTheme>) =>
     retryButton: {
       marginTop: 8,
       minHeight: 48,
-      borderRadius: 16,
+      borderRadius: 8,
       backgroundColor: theme.colors.blue,
       alignItems: 'center',
       justifyContent: 'center',

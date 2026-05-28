@@ -124,7 +124,7 @@ const createStyles = (theme: ReturnType<typeof useAppTheme>) =>
     },
     profileCard: {
       padding: 18,
-      borderRadius: 24,
+      borderRadius: 8,
       borderWidth: 1,
       borderColor: theme.colors.border,
       backgroundColor: theme.colors.surface,
@@ -148,7 +148,7 @@ const createStyles = (theme: ReturnType<typeof useAppTheme>) =>
     },
     themeCard: {
       padding: 18,
-      borderRadius: 24,
+      borderRadius: 8,
       borderWidth: 1,
       borderColor: theme.colors.border,
       backgroundColor: theme.colors.surface,
@@ -167,7 +167,7 @@ const createStyles = (theme: ReturnType<typeof useAppTheme>) =>
     modeChip: {
       flex: 1,
       minHeight: 46,
-      borderRadius: 16,
+      borderRadius: 8,
       borderWidth: 1,
       borderColor: theme.colors.border,
       backgroundColor: theme.colors.backgroundElevated,
@@ -187,7 +187,7 @@ const createStyles = (theme: ReturnType<typeof useAppTheme>) =>
     },
     item: {
       padding: 16,
-      borderRadius: 18,
+      borderRadius: 8,
       borderWidth: 1,
       borderColor: theme.colors.border,
       backgroundColor: theme.colors.surface,
@@ -215,7 +215,7 @@ const createStyles = (theme: ReturnType<typeof useAppTheme>) =>
     logout: {
       marginTop: 8,
       padding: 15,
-      borderRadius: 18,
+      borderRadius: 8,
       backgroundColor: theme.gradients.emergency[0],
       borderWidth: 1,
       borderColor: theme.colors.red,

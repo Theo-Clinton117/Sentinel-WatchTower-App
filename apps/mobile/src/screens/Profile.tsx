@@ -208,7 +208,7 @@ const createStyles = (theme: ReturnType<typeof useAppTheme>) =>
     avatar: {
       width: 86,
       height: 86,
-      borderRadius: 43,
+      borderRadius: 8,
       backgroundColor: theme.isDark ? 'rgba(255,255,255,0.08)' : '#F1F4FA',
       alignItems: 'center',
       justifyContent: 'center',
@@ -220,6 +220,7 @@ const createStyles = (theme: ReturnType<typeof useAppTheme>) =>
       fontWeight: '800',
       textAlign: 'center',
       marginBottom: 8,
+      lineHeight: 24,
     },
     ratingRow: {
       flexDirection: 'row',
@@ -240,7 +241,7 @@ const createStyles = (theme: ReturnType<typeof useAppTheme>) =>
       alignItems: 'center',
       gap: 14,
       padding: 18,
-      borderRadius: 18,
+      borderRadius: 8,
       borderWidth: 1,
       borderColor: theme.isDark ? 'rgba(67,201,139,0.28)' : '#D1E8D8',
       backgroundColor: theme.isDark ? 'rgba(67,201,139,0.14)' : '#E8F6ED',
@@ -253,7 +254,7 @@ const createStyles = (theme: ReturnType<typeof useAppTheme>) =>
     verificationIcon: {
       width: 40,
       height: 40,
-      borderRadius: 14,
+      borderRadius: 8,
       backgroundColor: theme.isDark ? 'rgba(255,255,255,0.08)' : 'rgba(255,255,255,0.7)',
       alignItems: 'center',
       justifyContent: 'center',
@@ -261,6 +262,7 @@ const createStyles = (theme: ReturnType<typeof useAppTheme>) =>
     verificationTextWrap: {
       flex: 1,
       gap: 4,
+      minWidth: 0,
     },
     verificationTitle: {
       color: theme.isDark ? '#F0FFF7' : '#173925',
@@ -273,7 +275,7 @@ const createStyles = (theme: ReturnType<typeof useAppTheme>) =>
       lineHeight: 18,
     },
     menuCard: {
-      borderRadius: 24,
+      borderRadius: 8,
       borderWidth: 1,
       borderColor: theme.colors.border,
       backgroundColor: theme.colors.surfaceStrong,
@@ -300,6 +302,7 @@ const createStyles = (theme: ReturnType<typeof useAppTheme>) =>
       alignItems: 'center',
       gap: 14,
       flex: 1,
+      minWidth: 0,
     },
     menuIconWrap: {
       width: 24,
@@ -309,6 +312,8 @@ const createStyles = (theme: ReturnType<typeof useAppTheme>) =>
       color: theme.colors.text,
       fontSize: 18,
       fontWeight: '600',
+      lineHeight: 24,
+      flexShrink: 1,
     },
     sectionHeader: {
       marginBottom: 10,

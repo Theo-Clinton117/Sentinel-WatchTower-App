@@ -40,7 +40,7 @@ const createStyles = (theme: ReturnType<typeof useAppTheme>, size: number) =>
     shell: {
       width: size,
       height: size,
-      borderRadius: size / 2,
+      borderRadius: 8,
       overflow: 'hidden',
       borderWidth: 1,
       borderColor: theme.isDark ? 'rgba(169, 204, 255, 0.18)' : 'rgba(255, 255, 255, 0.95)',
@@ -60,7 +60,7 @@ const createStyles = (theme: ReturnType<typeof useAppTheme>, size: number) =>
       left: 5,
       right: 5,
       height: size * 0.34,
-      borderRadius: size / 2,
+      borderRadius: 8,
       backgroundColor: theme.isDark ? 'rgba(255, 255, 255, 0.16)' : 'rgba(255, 255, 255, 0.74)',
     },
     innerGlow: {
@@ -68,7 +68,7 @@ const createStyles = (theme: ReturnType<typeof useAppTheme>, size: number) =>
       bottom: -size * 0.08,
       width: size * 0.76,
       height: size * 0.44,
-      borderRadius: size / 2,
+      borderRadius: 8,
       backgroundColor: theme.isDark ? 'rgba(64, 134, 255, 0.2)' : 'rgba(82, 154, 255, 0.18)',
     },
     content: {

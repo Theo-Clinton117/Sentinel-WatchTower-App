@@ -373,7 +373,7 @@ export const HomeScreen = () => {
       </Pressable>
 
       <MotionView delay={20} style={[styles.locationStrip, theme.shadow.card]}>
-        <Text numberOfLines={1} style={styles.locationStripText}>
+        <Text style={styles.locationStripText}>
           {locationBannerText}
         </Text>
       </MotionView>
@@ -462,7 +462,7 @@ const createStyles = (theme: ReturnType<typeof useAppTheme>) =>
       minWidth: 124,
       height: 58,
       paddingHorizontal: 28,
-      borderRadius: 29,
+      borderRadius: 8,
       backgroundColor: theme.colors.blue,
       alignItems: 'center',
       justifyContent: 'center',
@@ -499,7 +499,7 @@ const createStyles = (theme: ReturnType<typeof useAppTheme>) =>
       left: 16,
       width: 56,
       height: 56,
-      borderRadius: 28,
+      borderRadius: 8,
       backgroundColor: theme.colors.blue,
       alignItems: 'center',
       justifyContent: 'center',
@@ -521,7 +521,8 @@ const createStyles = (theme: ReturnType<typeof useAppTheme>) =>
       right: 18,
       minHeight: 56,
       paddingHorizontal: 18,
-      borderRadius: 999,
+      paddingVertical: 10,
+      borderRadius: 8,
       backgroundColor: theme.colors.surface,
       borderWidth: 1,
       borderColor: theme.colors.border,
@@ -532,5 +533,7 @@ const createStyles = (theme: ReturnType<typeof useAppTheme>) =>
       color: theme.colors.text,
       fontSize: 13,
       fontWeight: '700',
+      lineHeight: 18,
+      flexShrink: 1,
     },
   });

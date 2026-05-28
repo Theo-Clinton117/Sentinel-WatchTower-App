@@ -290,11 +290,11 @@ const createStyles = (theme: ReturnType<typeof useAppTheme>) =>
       marginBottom: 18,
     },
     cardWrap: {
-      borderRadius: 28,
+      borderRadius: 8,
       overflow: 'hidden',
     },
     card: {
-      borderRadius: 28,
+      borderRadius: 8,
       padding: 22,
       borderWidth: 1,
       borderColor: theme.colors.border,
@@ -303,7 +303,7 @@ const createStyles = (theme: ReturnType<typeof useAppTheme>) =>
       flexDirection: 'row',
       gap: 10,
       padding: 6,
-      borderRadius: 20,
+      borderRadius: 8,
       backgroundColor: theme.colors.backgroundElevated,
       borderWidth: 1,
       borderColor: theme.colors.border,
@@ -316,7 +316,7 @@ const createStyles = (theme: ReturnType<typeof useAppTheme>) =>
       alignSelf: 'flex-start',
       paddingHorizontal: 12,
       paddingVertical: 7,
-      borderRadius: 999,
+      borderRadius: 8,
       backgroundColor: theme.colors.blueSoft,
       borderWidth: 1,
       borderColor: theme.colors.borderStrong,
@@ -334,7 +334,7 @@ const createStyles = (theme: ReturnType<typeof useAppTheme>) =>
     contactChip: {
       flex: 1,
       minHeight: 42,
-      borderRadius: 14,
+      borderRadius: 8,
       alignItems: 'center',
       justifyContent: 'center',
       backgroundColor: theme.colors.backgroundElevated,
@@ -356,7 +356,7 @@ const createStyles = (theme: ReturnType<typeof useAppTheme>) =>
     modeChip: {
       flex: 1,
       minHeight: 46,
-      borderRadius: 14,
+      borderRadius: 8,
       alignItems: 'center',
       justifyContent: 'center',
     },
@@ -405,7 +405,7 @@ const createStyles = (theme: ReturnType<typeof useAppTheme>) =>
     input: {
       borderWidth: 1,
       borderColor: theme.colors.border,
-      borderRadius: 16,
+      borderRadius: 8,
       paddingHorizontal: 14,
       paddingVertical: 14,
       color: theme.colors.text,
@@ -424,7 +424,7 @@ const createStyles = (theme: ReturnType<typeof useAppTheme>) =>
     button: {
       backgroundColor: theme.colors.blue,
       padding: 14,
-      borderRadius: 16,
+      borderRadius: 8,
       alignItems: 'center',
       minHeight: 52,
       justifyContent: 'center',

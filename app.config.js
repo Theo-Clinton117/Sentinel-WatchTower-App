@@ -1,3 +1,3 @@
-const mobileConfig = require('./apps/mobile/app.json');
+const mobileConfig = require('./apps/mobile/app.config');
 
-module.exports = () => mobileConfig.expo;
+module.exports = (context) => mobileConfig(context);

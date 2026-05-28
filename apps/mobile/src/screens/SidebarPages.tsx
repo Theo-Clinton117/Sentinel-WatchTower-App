@@ -756,7 +756,7 @@ const createStyles = (theme: ReturnType<typeof useAppTheme>) =>
     },
     card: {
       padding: 18,
-      borderRadius: 24,
+      borderRadius: 8,
       borderWidth: 1,
       borderColor: theme.colors.border,
       backgroundColor: theme.colors.surfaceStrong,
@@ -779,7 +779,7 @@ const createStyles = (theme: ReturnType<typeof useAppTheme>) =>
     },
     primaryButton: {
       minHeight: 50,
-      borderRadius: 18,
+      borderRadius: 8,
       backgroundColor: theme.colors.blue,
       alignItems: 'center',
       justifyContent: 'center',
@@ -803,7 +803,7 @@ const createStyles = (theme: ReturnType<typeof useAppTheme>) =>
     summaryTile: {
       flex: 1,
       minHeight: 104,
-      borderRadius: 22,
+      borderRadius: 8,
       borderWidth: 1,
       borderColor: theme.colors.border,
       backgroundColor: theme.colors.surfaceStrong,
@@ -821,7 +821,7 @@ const createStyles = (theme: ReturnType<typeof useAppTheme>) =>
       fontWeight: '600',
     },
     filterCard: {
-      borderRadius: 24,
+      borderRadius: 8,
       borderWidth: 1,
       borderColor: theme.colors.border,
       backgroundColor: theme.colors.surfaceStrong,
@@ -834,7 +834,7 @@ const createStyles = (theme: ReturnType<typeof useAppTheme>) =>
       gap: 10,
     },
     filterChip: {
-      borderRadius: 999,
+      borderRadius: 8,
       borderWidth: 1,
       paddingHorizontal: 14,
       paddingVertical: 10,
@@ -846,7 +846,7 @@ const createStyles = (theme: ReturnType<typeof useAppTheme>) =>
       gap: 14,
     },
     reviewCard: {
-      borderRadius: 24,
+      borderRadius: 8,
       borderWidth: 1,
       borderColor: theme.colors.border,
       backgroundColor: theme.colors.surfaceStrong,
@@ -859,7 +859,7 @@ const createStyles = (theme: ReturnType<typeof useAppTheme>) =>
       marginBottom: 14,
     },
     tagPill: {
-      borderRadius: 999,
+      borderRadius: 8,
       borderWidth: 1,
       paddingHorizontal: 10,
       paddingVertical: 6,
@@ -905,7 +905,7 @@ const createStyles = (theme: ReturnType<typeof useAppTheme>) =>
     metricChip: {
       flex: 1,
       minHeight: 62,
-      borderRadius: 18,
+      borderRadius: 8,
       borderWidth: 1,
       borderColor: theme.colors.border,
       backgroundColor: theme.colors.surface,
@@ -938,7 +938,7 @@ const createStyles = (theme: ReturnType<typeof useAppTheme>) =>
       marginTop: 16,
     },
     actionChip: {
-      borderRadius: 16,
+      borderRadius: 8,
       borderWidth: 1,
       paddingHorizontal: 14,
       paddingVertical: 10,

@@ -30,9 +30,9 @@ function gradient(...colors: GradientColors): GradientColors {
 
 const palettes: Record<ThemeMode, ThemePalette> = {
   light: {
-    background: '#F4F8FF',
+    background: '#F7F9FC',
     backgroundElevated: '#FFFFFF',
-    surface: 'rgba(255,255,255,0.84)',
+    surface: '#FFFFFF',
     surfaceStrong: '#FFFFFF',
     text: '#10203E',
     muted: '#617291',
@@ -47,9 +47,9 @@ const palettes: Record<ThemeMode, ThemePalette> = {
     overlay: 'rgba(12, 29, 66, 0.06)',
   },
   dark: {
-    background: '#060B16',
+    background: '#070B12',
     backgroundElevated: '#091222',
-    surface: 'rgba(11,20,39,0.82)',
+    surface: '#0B1427',
     surfaceStrong: '#0D1830',
     text: '#EEF4FF',
     muted: '#92A3C4',
@@ -85,8 +85,8 @@ export function buildTheme(mode: ThemeMode) {
     gradients: {
       appBackground:
         mode === 'dark'
-          ? gradient('#07101F', '#0A1730', '#050914')
-          : gradient('#F8FBFF', '#E8F1FF', '#DCE9FF'),
+          ? gradient('#070B12', '#08111F', '#070B12')
+          : gradient('#F7F9FC', '#F7F9FC', '#EEF4FF'),
       hero:
         mode === 'dark'
           ? gradient('rgba(38,94,255,0.25)', 'rgba(18,38,74,0.65)')
@@ -116,24 +116,24 @@ export function buildTheme(mode: ThemeMode) {
         mode === 'dark'
           ? {
               shadowColor: '#000000',
-              shadowOpacity: 0.28,
-              shadowRadius: 18,
-              shadowOffset: { width: 0, height: 12 },
-              elevation: 12,
+              shadowOpacity: 0,
+              shadowRadius: 0,
+              shadowOffset: { width: 0, height: 0 },
+              elevation: 0,
             }
           : {
-              shadowColor: '#7CA9FF',
-              shadowOpacity: 0.18,
-              shadowRadius: 16,
-              shadowOffset: { width: 0, height: 10 },
-              elevation: 8,
+              shadowColor: '#000000',
+              shadowOpacity: 0,
+              shadowRadius: 0,
+              shadowOffset: { width: 0, height: 0 },
+              elevation: 0,
             },
       glow: {
         shadowColor: colors.blueGlow,
-        shadowOpacity: mode === 'dark' ? 0.28 : 0.22,
-        shadowRadius: 24,
-        shadowOffset: { width: 0, height: 14 },
-        elevation: 14,
+        shadowOpacity: mode === 'dark' ? 0.16 : 0.12,
+        shadowRadius: 10,
+        shadowOffset: { width: 0, height: 4 },
+        elevation: 4,
       },
     },
   };
