@@ -12,6 +12,7 @@ var __decorate = (this && this.__decorate) || function (decorators, target, key,
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.SupabaseService = void 0;
 const common_1 = require("@nestjs/common");
+const aws_sns_1 = require("../common/aws-sns");
 function normalizeUrl(value) {
     return String(value || '').trim().replace(/\/+$/, '');
 }
@@ -89,13 +90,10 @@ let SupabaseService = class SupabaseService {
         const publishableKey = String(process.env.SUPABASE_PUBLISHABLE_KEY || '').trim();
         const serviceRoleKey = String(process.env.SUPABASE_SERVICE_ROLE_KEY || '').trim();
         const databaseUrl = String(process.env.SUPABASE_DB_URL || process.env.DATABASE_URL || '').trim();
-        const twilioAccountSid = String(process.env.TWILIO_ACCOUNT_SID || '').trim();
-        const twilioAuthToken = String(process.env.TWILIO_AUTH_TOKEN || '').trim();
-        const twilioVerifyServiceSid = String(process.env.TWILIO_VERIFY_SERVICE_SID || '').trim();
         const connectionSource = detectConnectionSource();
         const sqlConfigured = Boolean(databaseUrl);
         const usingSupabaseSql = /supabase\.co|pooler\.supabase\.com/i.test(databaseUrl);
-        const twilioVerifyConfigured = Boolean(twilioAccountSid && twilioAuthToken && twilioVerifyServiceSid);
+        const snsSmsConfigured = (0, aws_sns_1.isSnsSmsConfigured)();
         const warnings = [];
         if (!projectUrl || !publishableKey) {
             warnings.push('Set SUPABASE_URL and SUPABASE_PUBLISHABLE_KEY on the backend to enable server-side Supabase configuration.');
@@ -106,8 +104,8 @@ let SupabaseService = class SupabaseService {
         if (!serviceRoleKey) {
             warnings.push('SUPABASE_SERVICE_ROLE_KEY is not set, so privileged Supabase REST or storage operations are intentionally unavailable.');
         }
-        if (!twilioVerifyConfigured) {
-            warnings.push('Set TWILIO_ACCOUNT_SID, TWILIO_AUTH_TOKEN, and TWILIO_VERIFY_SERVICE_SID so phone verification can use Twilio Verify.');
+        if (!snsSmsConfigured) {
+            warnings.push('Set AWS_ACCESS_KEY_ID, AWS_SECRET_ACCESS_KEY, and AWS_REGION so phone verification can use Amazon SNS.');
         }
         return {
             configured: Boolean(projectUrl && publishableKey),
@@ -135,9 +133,9 @@ let SupabaseService = class SupabaseService {
                     configured: Boolean(projectUrl && serviceRoleKey),
                 },
                 phone: {
-                    provider: 'twilio',
-                    configured: twilioVerifyConfigured,
-                    verifyServiceConfigured: Boolean(twilioVerifyServiceSid),
+                    provider: 'amazon-sns',
+                    configured: snsSmsConfigured,
+                    region: (0, aws_sns_1.getAwsRegion)() || null,
                 },
             },
             warnings,

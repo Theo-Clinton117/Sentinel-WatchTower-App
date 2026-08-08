@@ -2,19 +2,18 @@ import React from 'react';
 import { Alert, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { useMutation, useQuery } from '@tanstack/react-query';
 import { LinearGradient } from 'expo-linear-gradient';
-import { CustomerInfo } from 'react-native-purchases';
 import { shallow } from 'zustand/shallow';
 import { MotionView } from '../components/MotionView';
 import {
+  CheckoutResult,
   SubscriptionPlan,
   SubscriptionState,
-  RevenueCatPlanOffer,
-  getFirstActiveEntitlement,
-  getRevenueCatPlanOffers,
+  PaystackPlanOffer,
+  getPaystackPlanOffers,
   getSubscriptionState,
-  openNativeSubscriptionManagement,
+  openPaystackBillingManagement,
   purchaseSubscriptionPlan,
-  restoreSubscriptionPurchases,
+  restoreSubscriptionPaymentStatus,
   syncSubscriptionState,
 } from '../services/subscriptions';
 import { useAppStore } from '../store/useAppStore';
@@ -47,8 +46,8 @@ function formatSyncStatus(value?: string | null) {
   switch (value) {
     case 'verified':
       return 'Checked';
-    case 'revenuecat_not_configured':
-      return 'Store setup needed';
+    case 'paystack_not_configured':
+      return 'Payment setup needed';
     case 'cached':
       return 'Saved status';
     default:
@@ -92,7 +91,7 @@ function formatDate(value?: string | null) {
 
 function resolvePriceLabel(
   plan: SubscriptionPlan,
-  offers?: Record<string, RevenueCatPlanOffer>,
+  offers?: Record<string, PaystackPlanOffer>,
 ) {
   const offer = offers?.[plan.id];
   return offer?.priceLabel || plan.priceLabel;
@@ -101,7 +100,7 @@ function resolvePriceLabel(
 function describePlanAction(
   plan: SubscriptionPlan,
   activePlanId: SubscriptionPlan['id'],
-  offers?: Record<string, RevenueCatPlanOffer>,
+  offers?: Record<string, PaystackPlanOffer>,
 ) {
   if (plan.id === activePlanId) {
     return 'Current plan';
@@ -119,13 +118,11 @@ function describePlanAction(
 }
 
 type RestoreResult = {
-  customerInfo: CustomerInfo;
   synced: SubscriptionState;
 };
 
 type PurchaseResult = {
-  customerInfo: CustomerInfo;
-  synced: SubscriptionState;
+  checkout: CheckoutResult;
   plan: SubscriptionPlan;
 };
 
@@ -145,7 +142,7 @@ export const SubscriptionScreen = () => {
     queryFn: getSubscriptionState,
   });
 
-  const offersQuery = useQuery<Record<string, RevenueCatPlanOffer>>({
+  const offersQuery = useQuery<Record<string, PaystackPlanOffer>>({
     queryKey: [
       'subscription-offers',
       user?.id || 'guest',
@@ -155,11 +152,16 @@ export const SubscriptionScreen = () => {
     ],
     enabled: Boolean(user?.id && subscriptionQuery.data?.catalog?.length),
     retry: false,
-    queryFn: () => getRevenueCatPlanOffers(user, subscriptionQuery.data?.catalog || []),
+    queryFn: () =>
+      getPaystackPlanOffers(
+        subscriptionQuery.data?.catalog || [],
+        Boolean(subscriptionQuery.data?.paystack.configured),
+      ),
   });
 
   const refreshMutation = useMutation({
-    mutationFn: async () => syncSubscriptionState('manual'),
+    mutationFn: async (payload?: { reference?: string | null }) =>
+      syncSubscriptionState('manual', payload?.reference),
     onSuccess: async () => {
       await subscriptionQuery.refetch();
     },
@@ -170,20 +172,18 @@ export const SubscriptionScreen = () => {
 
   const restoreMutation = useMutation({
     mutationFn: async (): Promise<RestoreResult> => {
-      const customerInfo = await restoreSubscriptionPurchases(user);
-      const synced = await syncSubscriptionState('restore');
+      const synced = await restoreSubscriptionPaymentStatus();
       return {
-        customerInfo,
         synced,
       };
     },
-    onSuccess: async ({ customerInfo }: RestoreResult) => {
+    onSuccess: async ({ synced }: RestoreResult) => {
       await subscriptionQuery.refetch();
       Alert.alert(
-        'Purchases restored',
-        getFirstActiveEntitlement(customerInfo)
-          ? 'Your purchases were restored and Sentinel updated your access.'
-          : 'No active paid plan was found for this account, but Sentinel checked again.',
+        'Payment status checked',
+        synced.activePlanId !== 'free'
+          ? 'Sentinel updated your paid access.'
+          : 'No active paid plan was found for this account yet.',
       );
     },
     onError: (error: unknown) => {
@@ -194,22 +194,26 @@ export const SubscriptionScreen = () => {
   const purchaseMutation = useMutation({
     mutationFn: async (plan: SubscriptionPlan): Promise<PurchaseResult> => {
       setBusyPlanId(plan.id);
-      const customerInfo = await purchaseSubscriptionPlan(user, plan);
-      const synced = await syncSubscriptionState('purchase');
+      const checkout = await purchaseSubscriptionPlan(user, plan);
       return {
-        customerInfo,
-        synced,
+        checkout,
         plan,
       };
     },
-    onSuccess: async ({ customerInfo, plan }: PurchaseResult) => {
+    onSuccess: async ({ checkout, plan }: PurchaseResult) => {
       setBusyPlanId(null);
-      await subscriptionQuery.refetch();
       Alert.alert(
-        'Subscription updated',
-        getFirstActiveEntitlement(customerInfo)
-          ? `${plan.name} is active now.`
-          : 'The purchase finished, but the plan is still updating. Try Refresh access in a moment.',
+        'Paystack checkout opened',
+        `Complete payment for ${plan.name}, then verify the payment here.`,
+        [
+          { text: 'Later', style: 'cancel' },
+          {
+            text: 'Verify payment',
+            onPress: () => {
+              refreshMutation.mutate({ reference: checkout.reference });
+            },
+          },
+        ],
       );
     },
     onError: (error: unknown) => {
@@ -229,11 +233,11 @@ export const SubscriptionScreen = () => {
   });
 
   const handleManageBilling = React.useCallback(async () => {
-    const opened = await openNativeSubscriptionManagement();
+    const opened = await openPaystackBillingManagement();
     if (!opened) {
       Alert.alert(
-        'Store management unavailable',
-        'Open the App Store or Google Play subscriptions page on this device to manage billing.',
+        'Billing management unavailable',
+        'Use your Paystack receipt or contact Sentinel support to manage billing.',
       );
     }
   }, []);
@@ -473,7 +477,7 @@ export const SubscriptionScreen = () => {
                     { color: actionDisabled ? theme.colors.muted : '#FFFFFF' },
                   ]}
                 >
-                  {isPlanBusy ? 'Opening store...' : ctaLabel}
+                  {isPlanBusy ? 'Opening Paystack...' : ctaLabel}
                 </Text>
               </Pressable>
             </MotionView>
@@ -484,17 +488,17 @@ export const SubscriptionScreen = () => {
       <MotionView delay={430} style={[styles.noteCard, theme.shadow.card]}>
         <Text style={styles.noteTitle}>Billing and access</Text>
         <Text style={styles.noteText}>
-          Purchases happen through the App Store or Google Play. After payment, Sentinel checks your account before turning on paid features.
+          Payments happen through Paystack. After payment, Sentinel verifies the reference before turning on paid features.
         </Text>
         <Text style={styles.noteText}>
           {offersQuery.error instanceof Error
             ? offersQuery.error.message
-            : data.revenueCat.configured
-              ? 'If a plan says Coming soon, it still needs to be connected to a store product.'
-              : 'Store payments are not connected for this build yet.'}
+            : data.paystack.configured
+              ? 'If a plan says Coming soon, Paystack checkout is not available for it yet.'
+              : 'Paystack payments are not connected for this build yet.'}
         </Text>
         <Pressable onPress={handleManageBilling} style={[styles.manageButton, theme.shadow.glow]}>
-          <Text style={styles.manageButtonText}>Manage billing in store</Text>
+          <Text style={styles.manageButtonText}>Manage Paystack billing</Text>
         </Pressable>
       </MotionView>
     </ScrollView>

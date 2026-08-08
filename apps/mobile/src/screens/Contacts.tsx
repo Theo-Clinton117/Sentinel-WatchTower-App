@@ -10,6 +10,9 @@ import {
   TextInput,
   View,
 } from 'react-native';
+import { Search, Users } from 'lucide-react-native';
+import { EmptyState } from '../components/EmptyState';
+import { FeedbackBanner } from '../components/FeedbackBanner';
 import { MotionView } from '../components/MotionView';
 import { ApiError } from '../services/api';
 import {
@@ -386,7 +389,17 @@ export const ContactsScreen = () => {
           {loading ? <ActivityIndicator color={theme.colors.blueGlow} /> : null}
         </View>
         {filteredContacts.length === 0 && !loading ? (
-          <Text style={styles.emptyText}>No trusted contacts yet. Add one person you would call first in a difficult moment.</Text>
+          <EmptyState
+            icon={Users}
+            title={contacts.length === 0 ? 'Build your trusted circle' : 'No contacts match'}
+            message={
+              contacts.length === 0
+                ? 'Add one person you would call first in a difficult moment.'
+                : 'Try a different name, phone, or email.'
+            }
+            actionLabel={contacts.length === 0 ? 'Add manually' : undefined}
+            onAction={contacts.length === 0 ? () => setShowForm(true) : undefined}
+          />
         ) : null}
         {filteredContacts.map((contact) => {
           const active = selectedContactId === contact.id;
@@ -474,11 +487,17 @@ export const ContactsScreen = () => {
                 </Pressable>
               </View>
               {filteredDeviceContacts.length === 0 && !loadingDeviceContacts ? (
-                <Text style={styles.emptyText}>
-                  {deviceContacts.length === 0
-                    ? 'No phone contacts loaded yet.'
-                    : 'No imported phone contact matches this search.'}
-                </Text>
+                <EmptyState
+                  icon={Search}
+                  title={deviceContacts.length === 0 ? 'Phone contacts not loaded' : 'No imported match'}
+                  message={
+                    deviceContacts.length === 0
+                      ? 'Load your phone contacts to add trusted people faster.'
+                      : 'No imported phone contact matches this search.'
+                  }
+                  actionLabel={deviceContacts.length === 0 ? 'Load contacts' : undefined}
+                  onAction={deviceContacts.length === 0 ? handleLoadDeviceContacts : undefined}
+                />
               ) : null}
               {filteredDeviceContacts.slice(0, 8).map((entry) => {
                 const alreadyTrusted = isAlreadyTrusted({
@@ -725,7 +744,7 @@ export const ContactsScreen = () => {
 
       {error ? (
         <MotionView delay={400}>
-          <Text style={styles.error}>{error}</Text>
+          <FeedbackBanner tone="error" title="Action needed" message={error} />
         </MotionView>
       ) : null}
     </ScrollView>

@@ -15,6 +15,7 @@ Object.defineProperty(exports, "__esModule", { value: true });
 exports.SubscriptionsController = void 0;
 const common_1 = require("@nestjs/common");
 const jwt_auth_guard_1 = require("../common/guards/jwt-auth.guard");
+const rate_limit_decorator_1 = require("../common/guards/rate-limit.decorator");
 const subscriptions_service_1 = require("./subscriptions.service");
 let SubscriptionsController = class SubscriptionsController {
     constructor(subscriptionsService) {
@@ -23,11 +24,11 @@ let SubscriptionsController = class SubscriptionsController {
     list(req) {
         return this.subscriptionsService.list(req.user.sub);
     }
-    sync(req) {
-        return this.subscriptionsService.sync(req.user.sub);
+    sync(req, body) {
+        return this.subscriptionsService.syncPayment(req.user.sub, body);
     }
-    checkout() {
-        return this.subscriptionsService.checkout();
+    checkout(req, body) {
+        return this.subscriptionsService.checkout(req.user.sub, req.user.email, body);
     }
 };
 exports.SubscriptionsController = SubscriptionsController;
@@ -40,15 +41,20 @@ __decorate([
 ], SubscriptionsController.prototype, "list", null);
 __decorate([
     (0, common_1.Post)('sync'),
+    (0, rate_limit_decorator_1.RateLimit)({ points: 12, duration: 3600 }),
     __param(0, (0, common_1.Req)()),
+    __param(1, (0, common_1.Body)()),
     __metadata("design:type", Function),
-    __metadata("design:paramtypes", [Object]),
+    __metadata("design:paramtypes", [Object, Object]),
     __metadata("design:returntype", void 0)
 ], SubscriptionsController.prototype, "sync", null);
 __decorate([
     (0, common_1.Post)('checkout'),
+    (0, rate_limit_decorator_1.RateLimit)({ points: 6, duration: 3600 }),
+    __param(0, (0, common_1.Req)()),
+    __param(1, (0, common_1.Body)()),
     __metadata("design:type", Function),
-    __metadata("design:paramtypes", []),
+    __metadata("design:paramtypes", [Object, Object]),
     __metadata("design:returntype", void 0)
 ], SubscriptionsController.prototype, "checkout", null);
 exports.SubscriptionsController = SubscriptionsController = __decorate([

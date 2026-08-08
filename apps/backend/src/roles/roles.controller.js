@@ -22,6 +22,7 @@ const common_1 = require("@nestjs/common");
 const jwt_auth_guard_1 = require("../common/guards/jwt-auth.guard");
 const roles_guard_1 = require("../common/guards/roles.guard");
 const roles_decorator_1 = require("../common/guards/roles.decorator");
+const rate_limit_decorator_1 = require("../common/guards/rate-limit.decorator");
 const roles_service_1 = require("./roles.service");
 let RolesController = class RolesController {
     constructor(rolesService) {
@@ -69,6 +70,7 @@ __decorate([
 ], RolesController.prototype, "getMyReviewerRequest", null);
 __decorate([
     (0, common_1.Post)('reviewer-request'),
+    (0, rate_limit_decorator_1.RateLimit)({ points: 3, duration: 86400 }),
     __param(0, (0, common_1.Req)()),
     __param(1, (0, common_1.Body)()),
     __metadata("design:type", Function),
@@ -86,6 +88,7 @@ __decorate([
 __decorate([
     (0, common_1.Post)('reviewer-requests/:id/resolve'),
     (0, roles_decorator_1.Roles)('admin'),
+    (0, rate_limit_decorator_1.RateLimit)({ points: 60, duration: 3600 }),
     __param(0, (0, common_1.Req)()),
     __param(1, (0, common_1.Param)('id')),
     __param(2, (0, common_1.Body)()),

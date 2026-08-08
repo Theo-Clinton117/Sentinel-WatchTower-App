@@ -124,9 +124,9 @@ test("production runtime validation requires database config and disables OTP by
             OTP_BYPASS_CODE: undefined,
             SUPABASE_URL: "https://example.supabase.co",
             SUPABASE_SERVICE_ROLE_KEY: "service-role",
-            TWILIO_ACCOUNT_SID: "sid",
-            TWILIO_AUTH_TOKEN: "token",
-            TWILIO_VERIFY_SERVICE_SID: "verify",
+            AWS_ACCESS_KEY_ID: "access",
+            AWS_SECRET_ACCESS_KEY: "secret",
+            AWS_REGION: "us-east-1",
         },
         () => {
             assert.throws(() => validateRuntimeConfig(), /DATABASE_URL|SUPABASE_DB_URL/);
@@ -145,9 +145,9 @@ test("production runtime validation requires database config and disables OTP by
             OTP_BYPASS_CODE: "123456",
             SUPABASE_URL: "https://example.supabase.co",
             SUPABASE_SERVICE_ROLE_KEY: "service-role",
-            TWILIO_ACCOUNT_SID: "sid",
-            TWILIO_AUTH_TOKEN: "token",
-            TWILIO_VERIFY_SERVICE_SID: "verify",
+            AWS_ACCESS_KEY_ID: "access",
+            AWS_SECRET_ACCESS_KEY: "secret",
+            AWS_REGION: "us-east-1",
         },
         () => {
             assert.throws(() => validateRuntimeConfig(), /OTP_BYPASS_CODE/);
@@ -174,9 +174,9 @@ test("production runtime validation requires real email and phone OTP providers"
             SUPABASE_SERVICE_ROLE_KEY: undefined,
             RESEND_API_KEY: undefined,
             OTP_EMAIL_FROM: undefined,
-            TWILIO_ACCOUNT_SID: "sid",
-            TWILIO_AUTH_TOKEN: "token",
-            TWILIO_VERIFY_SERVICE_SID: "verify",
+            AWS_ACCESS_KEY_ID: "access",
+            AWS_SECRET_ACCESS_KEY: "secret",
+            AWS_REGION: "us-east-1",
         },
         () => {
             assert.throws(() => validateRuntimeConfig(), /email OTP/);
@@ -190,12 +190,12 @@ test("production runtime validation requires real email and phone OTP providers"
             SUPABASE_SERVICE_ROLE_KEY: "service-role",
             RESEND_API_KEY: undefined,
             OTP_EMAIL_FROM: undefined,
-            TWILIO_ACCOUNT_SID: undefined,
-            TWILIO_AUTH_TOKEN: undefined,
-            TWILIO_VERIFY_SERVICE_SID: undefined,
+            AWS_ACCESS_KEY_ID: undefined,
+            AWS_SECRET_ACCESS_KEY: undefined,
+            AWS_REGION: undefined,
         },
         () => {
-            assert.throws(() => validateRuntimeConfig(), /Twilio Verify/);
+            assert.throws(() => validateRuntimeConfig(), /Amazon SNS/);
         },
     );
 });
@@ -215,9 +215,9 @@ test("production runtime validation passes with required launch config", () => {
             SUPABASE_SERVICE_ROLE_KEY: "service-role",
             RESEND_API_KEY: undefined,
             OTP_EMAIL_FROM: undefined,
-            TWILIO_ACCOUNT_SID: "sid",
-            TWILIO_AUTH_TOKEN: "token",
-            TWILIO_VERIFY_SERVICE_SID: "verify",
+            AWS_ACCESS_KEY_ID: "access",
+            AWS_SECRET_ACCESS_KEY: "secret",
+            AWS_REGION: "us-east-1",
         },
         () => {
             assert.equal(validateRuntimeConfig(), true);
@@ -240,9 +240,9 @@ test("production runtime validation requires Redis for queue durability", () => 
             SUPABASE_SERVICE_ROLE_KEY: "service-role",
             RESEND_API_KEY: undefined,
             OTP_EMAIL_FROM: undefined,
-            TWILIO_ACCOUNT_SID: "sid",
-            TWILIO_AUTH_TOKEN: "token",
-            TWILIO_VERIFY_SERVICE_SID: "verify",
+            AWS_ACCESS_KEY_ID: "access",
+            AWS_SECRET_ACCESS_KEY: "secret",
+            AWS_REGION: "us-east-1",
         },
         () => {
             assert.throws(() => validateRuntimeConfig(), /REDIS_URL/);

@@ -13,6 +13,7 @@ exports.HealthService = void 0;
 const common_1 = require("@nestjs/common");
 const ioredis_1 = require("ioredis");
 const db_service_1 = require("../db/db.service");
+const aws_sns_1 = require("../common/aws-sns");
 function configured(...values) {
     return values.every((value) => String(value || '').trim().length > 0);
 }
@@ -54,20 +55,20 @@ let HealthService = class HealthService {
             database: { ok: false },
             redis: { ok: false, configured: configured(process.env.REDIS_URL) },
             sms: {
-                ok: configured(process.env.TWILIO_ACCOUNT_SID, process.env.TWILIO_AUTH_TOKEN, process.env.TWILIO_FROM_NUMBER),
-                configured: configured(process.env.TWILIO_ACCOUNT_SID, process.env.TWILIO_AUTH_TOKEN, process.env.TWILIO_FROM_NUMBER),
+                ok: (0, aws_sns_1.isSnsSmsConfigured)(),
+                configured: (0, aws_sns_1.isSnsSmsConfigured)(),
             },
             phoneVerification: {
-                ok: configured(process.env.TWILIO_ACCOUNT_SID, process.env.TWILIO_AUTH_TOKEN, process.env.TWILIO_VERIFY_SERVICE_SID),
-                configured: configured(process.env.TWILIO_ACCOUNT_SID, process.env.TWILIO_AUTH_TOKEN, process.env.TWILIO_VERIFY_SERVICE_SID),
+                ok: (0, aws_sns_1.isSnsSmsConfigured)(),
+                configured: (0, aws_sns_1.isSnsSmsConfigured)(),
             },
             email: {
                 ok: configured(process.env.RESEND_API_KEY, process.env.OTP_EMAIL_FROM),
                 configured: configured(process.env.RESEND_API_KEY, process.env.OTP_EMAIL_FROM),
             },
-            revenueCat: {
-                ok: configured(process.env.REVENUECAT_PROJECT_ID, process.env.REVENUECAT_SECRET_API_KEY),
-                configured: configured(process.env.REVENUECAT_PROJECT_ID, process.env.REVENUECAT_SECRET_API_KEY),
+            paystack: {
+                ok: configured(process.env.PAYSTACK_SECRET_KEY),
+                configured: configured(process.env.PAYSTACK_SECRET_KEY),
             },
         };
         try {

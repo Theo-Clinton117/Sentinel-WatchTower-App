@@ -19,6 +19,9 @@ const common_1 = require("@nestjs/common");
 const db_service_1 = require("../db/db.service");
 const credibility_logic_1 = require("../credibility/credibility.logic");
 const pagination_1 = require("../common/pagination");
+const MAX_REPORT_TITLE_LENGTH = 120;
+const MAX_REPORT_DESCRIPTION_LENGTH = 2000;
+const MAX_REPORT_MEDIA_ITEMS = 6;
 function toNumber(value, fallback = 0) {
     const parsed = Number(value);
     return Number.isFinite(parsed) ? parsed : fallback;
@@ -84,6 +87,41 @@ function validateCoordinates(body) {
     if (!Number.isFinite(lng) || lng < -180 || lng > 180) {
         throw new common_1.BadRequestException('lng must be between -180 and 180');
     }
+}
+function normalizeReportText(value, maxLength) {
+    const normalized = String(value || '').trim();
+    if (!normalized) {
+        return null;
+    }
+    return normalized.slice(0, maxLength);
+}
+function normalizeMediaItems(value) {
+    if (!Array.isArray(value)) {
+        return [];
+    }
+    if (value.length > MAX_REPORT_MEDIA_ITEMS) {
+        throw new common_1.BadRequestException(`A maximum of ${MAX_REPORT_MEDIA_ITEMS} media items can be attached`);
+    }
+    return value.map((item) => {
+        const rawUrl = String(item?.url || '').trim();
+        if (!rawUrl) {
+            return null;
+        }
+        let parsedUrl;
+        try {
+            parsedUrl = new URL(rawUrl);
+        }
+        catch {
+            throw new common_1.BadRequestException('media url must be a valid URL');
+        }
+        if (!['http:', 'https:'].includes(parsedUrl.protocol)) {
+            throw new common_1.BadRequestException('media url must use http or https');
+        }
+        return {
+            url: parsedUrl.toString(),
+            mimeType: item?.mimeType ? String(item.mimeType).trim().slice(0, 120) : null,
+        };
+    }).filter(Boolean);
 }
 let ReportsService = class ReportsService {
     constructor(db) {
@@ -168,9 +206,11 @@ let ReportsService = class ReportsService {
         return mapReportRow(row);
     }
     async create(userId, body) {
-        if (!body?.title) {
+        const title = normalizeReportText(body?.title, MAX_REPORT_TITLE_LENGTH);
+        if (!title) {
             throw new common_1.BadRequestException('title is required');
         }
+        const description = normalizeReportText(body?.description, MAX_REPORT_DESCRIPTION_LENGTH);
         validateCoordinates(body);
         if (body?.severity === 'critical' && body?.confirmedSeverity !== true) {
             throw new common_1.BadRequestException('Critical reports require confirmedSeverity=true before they can be distributed');
@@ -178,7 +218,8 @@ let ReportsService = class ReportsService {
         const severity = ['low', 'medium', 'high', 'critical'].includes(String(body?.severity || '').toLowerCase())
             ? String(body.severity).toLowerCase()
             : 'medium';
-        const category = body?.category ? String(body.category).trim().toLowerCase() : null;
+        const category = body?.category ? String(body.category).trim().toLowerCase().slice(0, 80) : null;
+        const mediaItems = normalizeMediaItems(body?.media);
         return this.db.transaction(async (client) => {
             const reporterProfile = await (0, credibility_logic_1.ensureCredibilityProfile)(client, userId);
             if (reporterProfile.restrictionLevel === 'ban') {
@@ -202,8 +243,8 @@ let ReportsService = class ReportsService {
       `, [
                 userId,
                 body?.sessionId ?? null,
-                String(body.title).trim(),
-                body?.description ? String(body.description).trim() : null,
+                title,
+                description,
                 category,
                 severity,
                 body?.lat ?? null,
@@ -212,17 +253,13 @@ let ReportsService = class ReportsService {
             ]);
             const report = reportResult.rows[0];
             report.ai_confidence = body?.aiConfidence ?? null;
-            const mediaItems = Array.isArray(body?.media) ? body.media : [];
             const media = [];
             for (const item of mediaItems) {
-                if (!item?.url) {
-                    continue;
-                }
                 const mediaResult = await client.query(`
           insert into report_media (report_id, url, mime_type)
           values ($1, $2, $3)
           returning id, url, mime_type, created_at
-        `, [report.id, item.url, item?.mimeType ?? null]);
+        `, [report.id, item.url, item.mimeType]);
                 const row = mediaResult.rows[0];
                 media.push({
                     id: row.id,

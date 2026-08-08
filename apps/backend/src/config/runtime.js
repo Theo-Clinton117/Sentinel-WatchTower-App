@@ -1,6 +1,7 @@
 "use strict";
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.getCorsOrigins = exports.validateRuntimeConfig = exports.getJwtRefreshSecret = exports.getJwtAccessSecret = exports.getRequiredSecret = exports.isProduction = void 0;
+const aws_sns_1 = require("../common/aws-sns");
 
 function isProduction() {
     return process.env.NODE_ENV === "production";
@@ -51,9 +52,7 @@ function validateRuntimeConfig() {
             String(process.env.SUPABASE_SERVICE_ROLE_KEY || "").trim());
         const resendEmailOtpConfigured = Boolean(String(process.env.RESEND_API_KEY || "").trim() &&
             String(process.env.OTP_EMAIL_FROM || "").trim());
-        const twilioVerifyConfigured = Boolean(String(process.env.TWILIO_ACCOUNT_SID || "").trim() &&
-            String(process.env.TWILIO_AUTH_TOKEN || "").trim() &&
-            String(process.env.TWILIO_VERIFY_SERVICE_SID || "").trim());
+        const snsSmsConfigured = (0, aws_sns_1.isSnsSmsConfigured)();
         if (!databaseUrl) {
             throw new Error("DATABASE_URL or SUPABASE_DB_URL must be set in production.");
         }
@@ -66,8 +65,8 @@ function validateRuntimeConfig() {
         if (!supabaseEmailOtpConfigured && !resendEmailOtpConfigured) {
             throw new Error("Production email OTP requires Supabase auth or Resend email configuration.");
         }
-        if (!twilioVerifyConfigured) {
-            throw new Error("Production phone OTP requires Twilio Verify configuration.");
+        if (!snsSmsConfigured) {
+            throw new Error("Production phone OTP requires Amazon SNS SMS configuration.");
         }
         getCorsOrigins();
     }

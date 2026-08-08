@@ -3,8 +3,10 @@
 - Backend runs on Node.js with PostgreSQL + Redis.
 - Use Cloudflare or an equivalent WAF in front of the API.
 - Configure environment variables from `.env.example`, then replace all development values before production.
+- Use `docs/operational-geography.md` as the planning reference for nationwide risk-zone hierarchy and response-grid rollout.
 - Run `npm run validate:production` and `npm run db:migrate` before directing mobile traffic to a new backend.
 - The backend health endpoint is `GET /api/health`.
+- Current backend test URL: `https://sentinel-watchtower-backend.onrender.com`.
 
 ## Required Production Environment
 
@@ -14,7 +16,7 @@
 - `JWT_ACCESS_SECRET` and `JWT_REFRESH_SECRET`, each at least 32 characters
 - `CORS_ORIGINS` with explicit HTTPS origins
 - Email OTP through either Supabase auth (`SUPABASE_URL` + `SUPABASE_SERVICE_ROLE_KEY`) or Resend (`RESEND_API_KEY` + `OTP_EMAIL_FROM`)
-- Phone OTP through Twilio Verify (`TWILIO_ACCOUNT_SID`, `TWILIO_AUTH_TOKEN`, `TWILIO_VERIFY_SERVICE_SID`)
+- Phone OTP and SMS delivery through Amazon SNS (`AWS_ACCESS_KEY_ID`, `AWS_SECRET_ACCESS_KEY`, `AWS_REGION`)
 - `OTP_BYPASS_CODE` must be empty
 
 ## Mobile Production Environment
@@ -23,18 +25,19 @@
 - `EXPO_PUBLIC_API_BASE_URL` must be a public HTTPS API URL
 - `EXPO_PUBLIC_WS_URL` must be a public HTTPS API URL for Socket.IO
 - Configure `IOS_BUNDLE_IDENTIFIER`, `IOS_BUILD_NUMBER`, `ANDROID_PACKAGE`, and `ANDROID_VERSION_CODE`
-- Configure RevenueCat public SDK keys before enabling paid plans in release builds
+- Configure `PAYSTACK_SECRET_KEY` and optional `PAYSTACK_CALLBACK_URL` before enabling paid plans in release builds
 
 ## CI/CD
 
+- Run the local release gate before opening a pull request: `npm run ci:verify`.
 - Build backend container from `apps/backend`.
 - Run backend tests before image publish: `npm run test:backend`.
 - Run disposable database integration tests before release when a test database is available: `TEST_DATABASE_URL=... npm run test:integration`.
 - Run mobile typecheck before release builds: `npm --workspace apps/mobile run typecheck`.
 - Validate production config before deployment: `npm run validate:production`.
 - Apply database migrations before app rollout: `npm run db:migrate`.
-- Smoke-test the deployed API after rollout: `npm run smoke:backend -- https://your-api.example.com`.
-- Smoke-test the emergency lifecycle in staging with a disposable user token: `API_BASE_URL=... SMOKE_ACCESS_TOKEN=... npm run smoke:emergency`.
+- Smoke-test the deployed API after rollout: `npm run smoke:backend -- https://sentinel-watchtower-backend.onrender.com`.
+- Smoke-test the emergency lifecycle in staging with a disposable user token: `API_BASE_URL=https://sentinel-watchtower-backend.onrender.com SMOKE_ACCESS_TOKEN=... npm run smoke:emergency`.
 - Deploy to AWS, GCP, Fly.io, Render, or another Node-capable host with managed Postgres and Redis.
 - Keep API, database, and Redis metrics visible before any public launch.
 
@@ -66,7 +69,7 @@ The test applies migrations, creates a temporary user, runs the alert lifecycle,
 Run this only in staging or with a disposable user account. The smoke script creates a real alert, waits briefly so you can restart the backend if you are testing Redis-backed queue durability, verifies the active session, then closes it.
 
 ```sh
-API_BASE_URL=https://staging-api.example.com SMOKE_ACCESS_TOKEN=... SMOKE_RESTART_WAIT_MS=30000 npm run smoke:emergency
+API_BASE_URL=https://sentinel-watchtower-backend.onrender.com SMOKE_ACCESS_TOKEN=... SMOKE_RESTART_WAIT_MS=30000 npm run smoke:emergency
 ```
 
 ## Local Container Smoke Test

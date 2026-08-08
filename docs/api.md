@@ -60,15 +60,17 @@ Base URL: `/api`
 ## Subscriptions
 - `GET /subscriptions`
 - `POST /subscriptions/sync`
-  - Refreshes the authenticated user's server-side subscription record from RevenueCat.
+  - Refreshes the authenticated user's server-side subscription record. Include `reference` to verify a Paystack payment.
 - `POST /subscriptions/checkout`
-  - Deprecated. Native store purchases now happen in-app through RevenueCat + App Store / Google Play.
+  - Initializes a Paystack checkout for a paid plan. Body: `{ "planId": "basic" | "silver" | "family" | "gold" | "pro" | "platinum" | "enterprise" }`.
 
 ## Telemetry
 - `POST /telemetry`
 
 ## Risk Zones
 - `GET /risk-zones`
+- `GET /risk-zones/geography`
+  - Returns Nigeria's hierarchy of geopolitical zones, states, Sentinel operational zones, and response grids.
 
 ## Admin
 - `GET /admin/reports`

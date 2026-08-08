@@ -5,6 +5,7 @@
     "scheme": "sentinel",
     "version": "0.1.0",
     "orientation": "portrait",
+    "userInterfaceStyle": "automatic",
     "icon": "./assets/icons/android-icon.png",
     "splash": {
       "backgroundColor": "#07101F"

@@ -13,14 +13,14 @@ exports.SubscriptionsService = void 0;
 const common_1 = require("@nestjs/common");
 const db_service_1 = require("../db/db.service");
 const subscription_catalog_1 = require("./subscription-catalog");
-function getRevenueCatProjectId() {
-    return String(process.env.REVENUECAT_PROJECT_ID || '').trim();
+function getPaystackSecretKey() {
+    return String(process.env.PAYSTACK_SECRET_KEY || '').trim();
 }
-function getRevenueCatSecretKey() {
-    return String(process.env.REVENUECAT_SECRET_API_KEY || '').trim();
+function getPaystackCallbackUrl() {
+    return String(process.env.PAYSTACK_CALLBACK_URL || '').trim();
 }
-function isRevenueCatConfigured() {
-    return Boolean(getRevenueCatProjectId() && getRevenueCatSecretKey());
+function isPaystackConfigured() {
+    return Boolean(getPaystackSecretKey());
 }
 function tryParseJson(value) {
     if (!value) {
@@ -43,22 +43,12 @@ function toIso(value) {
     const date = new Date(value);
     return Number.isNaN(date.getTime()) ? null : date.toISOString();
 }
-function fromEpochMs(value) {
-    if (typeof value !== 'number' || !Number.isFinite(value)) {
-        return null;
+function isPastIso(value) {
+    const iso = toIso(value);
+    if (!iso) {
+        return false;
     }
-    return new Date(value).toISOString();
-}
-function normalizeProvider(store) {
-    switch (String(store || '').trim().toLowerCase()) {
-        case 'app_store':
-        case 'mac_app_store':
-            return 'app_store';
-        case 'play_store':
-            return 'play_store';
-        default:
-            return store ? String(store) : null;
-    }
+    return new Date(iso).getTime() <= Date.now();
 }
 function normalizeStatus(value, activePlanId) {
     const raw = String(value || '').trim().toLowerCase();
@@ -78,16 +68,66 @@ let SubscriptionsService = class SubscriptionsService {
     }
     async sync(userId) {
         const catalog = (0, subscription_catalog_1.getSubscriptionCatalog)();
-        if (!isRevenueCatConfigured()) {
+        const snapshot = await this.getStoredSnapshot(userId, catalog);
+        return this.buildResponse(userId, catalog, snapshot, 'cached');
+    }
+    async syncPayment(userId, body) {
+        const reference = String(body?.reference || '').trim();
+        const catalog = (0, subscription_catalog_1.getSubscriptionCatalog)();
+        if (!reference) {
             const snapshot = await this.getStoredSnapshot(userId, catalog);
-            return this.buildResponse(userId, catalog, snapshot, 'revenuecat_not_configured');
+            return this.buildResponse(userId, catalog, snapshot, 'cached');
         }
-        const verifiedSnapshot = await this.fetchRevenueCatSnapshot(userId, catalog);
+        if (!isPaystackConfigured()) {
+            const snapshot = await this.getStoredSnapshot(userId, catalog);
+            return this.buildResponse(userId, catalog, snapshot, 'paystack_not_configured');
+        }
+        const verifiedSnapshot = await this.fetchPaystackSnapshot(userId, reference, catalog);
         await this.persistSnapshot(userId, verifiedSnapshot, catalog);
         return this.buildResponse(userId, catalog, verifiedSnapshot, 'verified');
     }
-    async checkout() {
-        throw new common_1.ConflictException('Subscriptions now use native App Store and Google Play purchases through RevenueCat. Use the mobile SDK flow instead of server checkout.');
+    async checkout(userId, userEmail, body) {
+        if (!isPaystackConfigured()) {
+            throw new common_1.ServiceUnavailableException('Paystack is not configured for this environment.');
+        }
+        const catalog = (0, subscription_catalog_1.getSubscriptionCatalog)();
+        const planId = (0, subscription_catalog_1.normalizePlanId)(body?.planId);
+        const plan = catalog.find((item) => item.id === planId);
+        if (!plan || plan.id === 'free') {
+            throw new common_1.BadRequestException('Choose a paid subscription plan.');
+        }
+        const email = await this.resolveBillingEmail(userId, userEmail || body?.email);
+        if (!email) {
+            throw new common_1.BadRequestException('Add an email address before starting Paystack checkout.');
+        }
+        const payload = {
+            email,
+            amount: Math.round(plan.amountNgn * 100),
+            currency: 'NGN',
+            callback_url: String(body?.callbackUrl || '').trim() || getPaystackCallbackUrl() || undefined,
+            plan: String(process.env[`PAYSTACK_${plan.id.toUpperCase()}_PLAN_CODE`] || '').trim() || undefined,
+            metadata: {
+                userId,
+                planId: plan.id,
+                planName: plan.name,
+            },
+        };
+        Object.keys(payload).forEach((key) => {
+            if (payload[key] === undefined || payload[key] === '') {
+                delete payload[key];
+            }
+        });
+        const response = await this.requestPaystack('/transaction/initialize', {
+            method: 'POST',
+            body: JSON.stringify(payload),
+        });
+        return {
+            provider: 'paystack',
+            planId: plan.id,
+            authorizationUrl: response?.data?.authorization_url || null,
+            accessCode: response?.data?.access_code || null,
+            reference: response?.data?.reference || null,
+        };
     }
     async getStoredSnapshot(userId, catalog) {
         const result = await this.db.query('select * from subscriptions where user_id = $1 order by started_at desc nulls last, current_period_end desc nulls last limit 1', [userId]);
@@ -97,66 +137,64 @@ let SubscriptionsService = class SubscriptionsService {
         }
         const activePlanId = (0, subscription_catalog_1.normalizePlanId)(row.plan_name);
         const matchingPlan = catalog.find((plan) => plan.id === activePlanId) || catalog[0];
+        const expiredPaidSnapshot = activePlanId !== 'free' && isPastIso(row.current_period_end);
         return {
-            activePlanId,
-            status: normalizeStatus(row.status, activePlanId),
-            currentPeriodEnd: toIso(row.current_period_end),
-            provider: normalizeProvider(row.provider),
+            activePlanId: expiredPaidSnapshot ? 'free' : activePlanId,
+            status: expiredPaidSnapshot ? 'expired' : normalizeStatus(row.status, activePlanId),
+            currentPeriodEnd: expiredPaidSnapshot ? null : toIso(row.current_period_end),
+            provider: row.provider ? String(row.provider) : null,
             providerRef: row.provider_ref || null,
             startedAt: toIso(row.started_at),
             source: 'database',
             lastSyncedAt: toIso(row.started_at),
-            amountNgn: typeof row.amount_ngn === 'number' ? row.amount_ngn : matchingPlan.amountNgn,
+            amountNgn: expiredPaidSnapshot ? 0 : typeof row.amount_ngn === 'number' ? row.amount_ngn : matchingPlan.amountNgn,
         };
     }
-    async fetchRevenueCatSnapshot(userId, catalog) {
-        const projectId = getRevenueCatProjectId();
-        const customerId = encodeURIComponent(userId);
-        const [entitlementsResponse, subscriptionsResponse] = await Promise.all([
-            this.requestRevenueCat(`/projects/${projectId}/customers/${customerId}/active_entitlements?limit=20`),
-            this.requestRevenueCat(`/projects/${projectId}/customers/${customerId}/subscriptions?limit=20`),
-        ]);
-        const entitlements = Array.isArray(entitlementsResponse?.items)
-            ? entitlementsResponse.items
-            : [];
-        const subscriptions = Array.isArray(subscriptionsResponse?.items)
-            ? subscriptionsResponse.items
-            : [];
-        const matchedPlan = this.resolvePlanFromEntitlements(catalog, entitlements);
-        const activePlanId = matchedPlan?.id || 'free';
-        const primaryEntitlement = matchedPlan
-            ? entitlements.find((item) => item?.entitlement_id === matchedPlan.entitlementKey)
-            : null;
-        const latestSubscription = subscriptions
-            .slice()
-            .sort((left, right) => (Number(right?.current_period_ends_at || right?.ends_at || 0) -
-            Number(left?.current_period_ends_at || left?.ends_at || 0)))[0];
+    async fetchPaystackSnapshot(userId, reference, catalog) {
+        const response = await this.requestPaystack(`/transaction/verify/${encodeURIComponent(reference)}`);
+        const transaction = response?.data || {};
+        if (transaction.status !== 'success') {
+            throw new common_1.ConflictException('Paystack payment has not completed successfully yet.');
+        }
+        const metadata = transaction.metadata || {};
+        if (metadata.userId && String(metadata.userId) !== String(userId)) {
+            throw new common_1.ForbiddenException('This payment reference belongs to another user.');
+        }
+        const activePlanId = (0, subscription_catalog_1.normalizePlanId)(metadata.planId);
+        const matchedPlan = catalog.find((plan) => plan.id === activePlanId && plan.id !== 'free') || this.resolvePlanFromAmount(catalog, transaction.amount);
+        const paidAt = toIso(transaction.paid_at || transaction.created_at) || new Date().toISOString();
+        const periodEnd = this.resolvePaystackPeriodEnd(transaction) || new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString();
         return {
-            activePlanId,
-            status: activePlanId === 'free' ? 'inactive' : 'active',
-            currentPeriodEnd: fromEpochMs(primaryEntitlement?.expires_at) ||
-                fromEpochMs(latestSubscription?.current_period_ends_at) ||
-                fromEpochMs(latestSubscription?.ends_at),
-            provider: normalizeProvider(latestSubscription?.store),
-            providerRef: latestSubscription?.id ||
-                latestSubscription?.store_subscription_identifier ||
-                `revenuecat:${userId}`,
-            startedAt: fromEpochMs(latestSubscription?.current_period_starts_at) ||
-                fromEpochMs(latestSubscription?.starts_at) ||
-                new Date().toISOString(),
-            source: 'revenuecat',
+            activePlanId: matchedPlan?.id || 'free',
+            status: matchedPlan ? 'active' : 'inactive',
+            currentPeriodEnd: matchedPlan ? periodEnd : null,
+            provider: 'paystack',
+            providerRef: transaction.reference || reference,
+            startedAt: paidAt,
+            source: 'paystack',
             lastSyncedAt: new Date().toISOString(),
             amountNgn: matchedPlan?.amountNgn || 0,
         };
     }
-    resolvePlanFromEntitlements(catalog, entitlements) {
-        const activeEntitlementIds = new Set(entitlements
-            .map((item) => String(item?.entitlement_id || '').trim())
-            .filter(Boolean));
+    resolvePlanFromAmount(catalog, amountKobo) {
+        const amountNgn = Number(amountKobo) / 100;
         return catalog
-            .filter((plan) => Boolean(plan.entitlementKey))
+            .filter((plan) => plan.id !== 'free')
             .sort((left, right) => right.amountNgn - left.amountNgn)
-            .find((plan) => activeEntitlementIds.has(String(plan.entitlementKey)));
+            .find((plan) => plan.amountNgn === amountNgn);
+    }
+    resolvePaystackPeriodEnd(transaction) {
+        const subscription = transaction.subscription || {};
+        return toIso(subscription.next_payment_date || subscription.next_payment_at || transaction.next_payment_date);
+    }
+    async resolveBillingEmail(userId, candidate) {
+        const normalized = String(candidate || '').trim().toLowerCase();
+        if (normalized && normalized.includes('@')) {
+            return normalized;
+        }
+        const result = await this.db.query('select email from users where id = $1 limit 1', [userId]);
+        const email = String(result.rows[0]?.email || '').trim().toLowerCase();
+        return email && email.includes('@') ? email : null;
     }
     buildFreeSnapshot() {
         return {
@@ -178,7 +216,7 @@ let SubscriptionsService = class SubscriptionsService {
         if (existingId) {
             await this.db.query('update subscriptions set provider = $2, status = $3, plan_name = $4, amount_ngn = $5, started_at = coalesce($6, started_at, now()), current_period_end = $7, provider_ref = $8 where id = $1', [
                 existingId,
-                snapshot.provider || 'revenuecat',
+                snapshot.provider || 'paystack',
                 snapshot.status,
                 plan.id,
                 snapshot.amountNgn,
@@ -190,7 +228,7 @@ let SubscriptionsService = class SubscriptionsService {
         }
         await this.db.query('insert into subscriptions (user_id, provider, status, plan_name, amount_ngn, started_at, current_period_end, provider_ref) values ($1, $2, $3, $4, $5, coalesce($6::timestamptz, now()), $7::timestamptz, $8)', [
             userId,
-            snapshot.provider || 'revenuecat',
+            snapshot.provider || 'paystack',
             snapshot.status,
             plan.id,
             snapshot.amountNgn,
@@ -208,35 +246,34 @@ let SubscriptionsService = class SubscriptionsService {
             provider: snapshot.provider,
             lastSyncedAt: snapshot.lastSyncedAt,
             syncStatus,
-            revenueCat: {
-                configured: isRevenueCatConfigured(),
+            paystack: {
+                configured: isPaystackConfigured(),
                 customerId: userId,
             },
             management: {
                 provider: snapshot.provider,
-                mode: 'native_store',
-                helpText: 'Manage your billing from the App Store or Google Play on this device.',
+                mode: 'paystack',
+                helpText: 'Manage billing from your Paystack receipt or contact Sentinel support.',
             },
         };
     }
-    async requestRevenueCat(path) {
-        const response = await fetch(`https://api.revenuecat.com/v2${path}`, {
-            method: 'GET',
+    async requestPaystack(path, init = {}) {
+        const response = await fetch(`https://api.paystack.co${path}`, {
+            method: init.method || 'GET',
             headers: {
-                Authorization: `Bearer ${getRevenueCatSecretKey()}`,
+                Authorization: `Bearer ${getPaystackSecretKey()}`,
                 'Content-Type': 'application/json',
+                ...(init.headers || {}),
             },
+            body: init.body,
         });
         const text = await response.text();
         const data = tryParseJson(text);
-        if (response.status === 404) {
-            return { items: [] };
-        }
         if (!response.ok) {
             const message = typeof data === 'object' && data && 'message' in data
                 ? data.message
-                : 'RevenueCat verification failed.';
-            throw new common_1.ServiceUnavailableException(typeof message === 'string' ? message : 'RevenueCat verification failed.');
+                : 'Paystack request failed.';
+            throw new common_1.ServiceUnavailableException(typeof message === 'string' ? message : 'Paystack request failed.');
         }
         return data;
     }

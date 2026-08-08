@@ -34,6 +34,9 @@ export const AppTabBar = () => {
             key={tab.key}
             onPress={() => setScreen(tab.key)}
             style={({ pressed }) => [styles.tab, pressed && styles.pressed]}
+            accessibilityRole="tab"
+            accessibilityLabel={`${tab.label} tab`}
+            accessibilityState={{ selected: active }}
           >
             <View style={[styles.iconWrap, active && styles.iconWrapActive]}>
               <AppIcon
@@ -60,7 +63,7 @@ const createStyles = (theme: ReturnType<typeof useAppTheme>) =>
       marginBottom: 0,
       paddingHorizontal: 12,
       paddingTop: 10,
-      paddingBottom: 12,
+      paddingBottom: 16,
       backgroundColor: theme.isDark ? 'rgba(9,18,34,0.96)' : 'rgba(255,255,255,0.98)',
       borderTopWidth: 1,
       borderTopColor: theme.colors.border,

@@ -1,6 +1,7 @@
 import React from 'react';
 import {
   Animated,
+  PanResponder,
   Pressable,
   StyleSheet,
   Text,
@@ -22,6 +23,8 @@ import { Screen, useAppStore } from '../store/useAppStore';
 import { useAppTheme } from '../theme';
 
 const DRAWER_WIDTH = 304;
+const CLOSE_SWIPE_DISTANCE = 72;
+const CLOSE_SWIPE_VELOCITY = -0.5;
 
 const drawerItems: Array<{
   label: string;
@@ -77,8 +80,9 @@ type Props = {
 export const SidebarDrawer = ({ gestureActive = false, gestureProgress }: Props) => {
   const theme = useAppTheme();
   const styles = createStyles(theme);
-  const { sidebarOpen, closeSidebar, pushScreen, user } = useAppStore(
+  const { currentScreen, sidebarOpen, closeSidebar, pushScreen, user } = useAppStore(
     (state) => ({
+      currentScreen: state.currentScreen,
       sidebarOpen: state.sidebarOpen,
       closeSidebar: state.closeSidebar,
       pushScreen: state.pushScreen,
@@ -88,6 +92,8 @@ export const SidebarDrawer = ({ gestureActive = false, gestureProgress }: Props)
   );
   const slide = React.useRef(new Animated.Value(-320)).current;
   const fade = React.useRef(new Animated.Value(0)).current;
+  const closeGestureX = React.useRef(new Animated.Value(0)).current;
+  const closeGestureActive = React.useRef(false);
   const [isMounted, setIsMounted] = React.useState(sidebarOpen || gestureActive);
 
   React.useEffect(() => {
@@ -102,12 +108,12 @@ export const SidebarDrawer = ({ gestureActive = false, gestureProgress }: Props)
         Animated.timing(slide, {
           toValue: 0,
           duration: 220,
-          useNativeDriver: true,
+          useNativeDriver: false,
         }),
         Animated.timing(fade, {
           toValue: 1,
           duration: 220,
-          useNativeDriver: true,
+          useNativeDriver: false,
         }),
       ]).start();
 
@@ -118,12 +124,12 @@ export const SidebarDrawer = ({ gestureActive = false, gestureProgress }: Props)
       Animated.timing(slide, {
         toValue: -320,
         duration: 180,
-        useNativeDriver: true,
+        useNativeDriver: false,
       }),
       Animated.timing(fade, {
         toValue: 0,
         duration: 180,
-        useNativeDriver: true,
+        useNativeDriver: false,
       }),
     ]).start(({ finished }) => {
       if (finished) {
@@ -131,10 +137,6 @@ export const SidebarDrawer = ({ gestureActive = false, gestureProgress }: Props)
       }
     });
   }, [fade, gestureActive, sidebarOpen, slide]);
-
-  if (!isMounted) {
-    return null;
-  }
 
   const gestureSlide =
     gestureProgress?.interpolate({
@@ -149,7 +151,66 @@ export const SidebarDrawer = ({ gestureActive = false, gestureProgress }: Props)
       extrapolate: 'clamp',
     }) ?? fade;
   const drawerTranslateX = gestureActive ? gestureSlide : slide;
+  const closeTranslateX = closeGestureX.interpolate({
+    inputRange: [-DRAWER_WIDTH, 0],
+    outputRange: [-DRAWER_WIDTH, 0],
+    extrapolate: 'clamp',
+  });
   const scrimOpacity = gestureActive ? gestureFade : fade;
+
+  const closePanResponder = React.useMemo(
+    () =>
+      PanResponder.create({
+        onMoveShouldSetPanResponder: (_event, gestureState) => {
+          if (!sidebarOpen) {
+            return false;
+          }
+
+          const horizontalIntent = Math.abs(gestureState.dx) > Math.abs(gestureState.dy) * 1.35;
+          return gestureState.dx < -14 && horizontalIntent;
+        },
+        onPanResponderGrant: () => {
+          closeGestureActive.current = true;
+          closeGestureX.stopAnimation();
+          closeGestureX.setValue(0);
+        },
+        onPanResponderMove: (_event, gestureState) => {
+          closeGestureX.setValue(Math.min(0, gestureState.dx));
+        },
+        onPanResponderRelease: (_event, gestureState) => {
+          const shouldClose =
+            gestureState.dx <= -CLOSE_SWIPE_DISTANCE ||
+            gestureState.vx <= CLOSE_SWIPE_VELOCITY;
+
+          Animated.timing(closeGestureX, {
+            toValue: shouldClose ? -DRAWER_WIDTH : 0,
+            duration: shouldClose ? 120 : 160,
+            useNativeDriver: false,
+          }).start(() => {
+            closeGestureActive.current = false;
+            closeGestureX.setValue(0);
+            if (shouldClose) {
+              closeSidebar();
+            }
+          });
+        },
+        onPanResponderTerminate: () => {
+          Animated.timing(closeGestureX, {
+            toValue: 0,
+            duration: 160,
+            useNativeDriver: false,
+          }).start(() => {
+            closeGestureActive.current = false;
+            closeGestureX.setValue(0);
+          });
+        },
+      }),
+    [closeGestureX, closeSidebar, sidebarOpen],
+  );
+
+  if (!isMounted) {
+    return null;
+  }
 
   const visibleItems = drawerItems.filter((item) => {
     if (!item.roles?.length) {
@@ -182,22 +243,36 @@ export const SidebarDrawer = ({ gestureActive = false, gestureProgress }: Props)
   return (
     <View pointerEvents="box-none" style={StyleSheet.absoluteFill}>
       <Animated.View style={[styles.scrim, { opacity: scrimOpacity }]}>
-        <Pressable style={StyleSheet.absoluteFill} onPress={closeSidebar} />
+        <Pressable
+          style={StyleSheet.absoluteFill}
+          onPress={closeSidebar}
+          accessibilityRole="button"
+          accessibilityLabel="Close menu"
+        />
       </Animated.View>
 
       <Animated.View
+        pointerEvents="box-none"
         style={[
           styles.drawerWrap,
           {
-            transform: [{ translateX: drawerTranslateX }],
+            transform: [
+              { translateX: drawerTranslateX },
+              { translateX: closeTranslateX },
+            ],
           },
         ]}
       >
-        <View style={[styles.drawer, theme.shadow.card]}>
+        <View style={[styles.drawer, theme.shadow.card]} {...closePanResponder.panHandlers}>
           <View style={styles.header}>
             <View style={styles.headerTop}>
               <Text style={styles.eyebrow}>MENU</Text>
-              <Pressable onPress={closeSidebar} style={styles.closeButton}>
+              <Pressable
+                onPress={closeSidebar}
+                style={styles.closeButton}
+                accessibilityRole="button"
+                accessibilityLabel="Close menu"
+              >
                 <ProfileGlyph name="chevron-left" size={18} color={theme.colors.text} />
               </Pressable>
             </View>
@@ -218,6 +293,7 @@ export const SidebarDrawer = ({ gestureActive = false, gestureProgress }: Props)
               <View style={styles.menuList}>
                 {group.items.map((item, index) => {
                   const Icon = item.icon;
+                  const active = currentScreen === item.screen;
 
                   return (
                     <Pressable
@@ -225,15 +301,25 @@ export const SidebarDrawer = ({ gestureActive = false, gestureProgress }: Props)
                       onPress={() => handleNavigate(item.screen)}
                       style={({ pressed }) => [
                         styles.menuItem,
+                        active && styles.menuItemActive,
                         index < group.items.length - 1 && styles.menuItemBorder,
                         pressed && styles.menuItemPressed,
                       ]}
+                      accessibilityRole="button"
+                      accessibilityLabel={item.label}
+                      accessibilityState={{ selected: active }}
                     >
                       <View style={styles.menuCopy}>
-                        <View style={styles.menuIcon}>
-                          <Icon color={theme.colors.muted} size={18} strokeWidth={2.2} />
+                        <View style={[styles.menuIcon, active && styles.menuIconActive]}>
+                          <Icon
+                            color={active ? theme.colors.blue : theme.colors.muted}
+                            size={18}
+                            strokeWidth={2.2}
+                          />
                         </View>
-                        <Text style={styles.menuLabel}>{item.label}</Text>
+                        <Text style={[styles.menuLabel, active && styles.menuLabelActive]}>
+                          {item.label}
+                        </Text>
                       </View>
                       <ChevronRight size={17} color={theme.colors.muted} strokeWidth={2.2} />
                     </Pressable>
@@ -367,6 +453,9 @@ const createStyles = (theme: ReturnType<typeof useAppTheme>) =>
     menuItemPressed: {
       backgroundColor: theme.colors.blueSoft,
     },
+    menuItemActive: {
+      backgroundColor: theme.colors.blueSoft,
+    },
     menuCopy: {
       flexDirection: 'row',
       alignItems: 'center',
@@ -382,6 +471,9 @@ const createStyles = (theme: ReturnType<typeof useAppTheme>) =>
       justifyContent: 'center',
       backgroundColor: theme.colors.backgroundElevated,
     },
+    menuIconActive: {
+      backgroundColor: theme.colors.surface,
+    },
     menuLabel: {
       color: theme.colors.text,
       fontSize: 15,
@@ -389,5 +481,8 @@ const createStyles = (theme: ReturnType<typeof useAppTheme>) =>
       flex: 1,
       lineHeight: 20,
       flexShrink: 1,
+    },
+    menuLabelActive: {
+      color: theme.colors.blue,
     },
   });

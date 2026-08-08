@@ -10,6 +10,7 @@
     "dev:mobile": "npm --workspace apps/mobile run start",
     "build:backend": "npm --workspace apps/backend run build",
     "build:mobile": "npm --workspace apps/mobile run build",
+    "ci:verify": "node scripts/ci-verify.js",
     "test:backend": "npm --workspace apps/backend run test",
     "test:integration": "node --test apps/backend/test/integration/*.test.js",
     "db:migrate": "node scripts/run-migrations.js",
@@ -31,7 +32,6 @@
     "react-native-maps": "1.20.1"
   },
   "dependencies": {
-    "expo-contacts": "~15.0.11",
-    "react-native-purchases": "^10.0.1"
+    "expo-contacts": "~15.0.11"
   }
 }

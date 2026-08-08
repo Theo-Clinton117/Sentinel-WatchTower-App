@@ -1,7 +1,10 @@
 import React from 'react';
 import { Alert, Linking, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { BellOff, ClipboardList } from 'lucide-react-native';
 import { useMutation, useQuery } from '@tanstack/react-query';
 import { shallow } from 'zustand/shallow';
+import { EmptyState } from '../components/EmptyState';
+import { FeedbackBanner } from '../components/FeedbackBanner';
 import { MotionView } from '../components/MotionView';
 import {
   ReviewerClassification,
@@ -382,21 +385,26 @@ export const NotificationsScreen = () => {
       subtitle="See what Sentinel tried to send, who it was for, and whether anything needs your attention."
     >
       {notificationsQuery.isLoading ? (
-        <MotionView delay={110} style={[styles.card, theme.shadow.card]}>
-          <Text style={styles.cardTitle}>Loading notifications</Text>
-          <Text style={styles.cardCopy}>Checking for recent alerts, safe confirmations, and messages to your trusted contacts.</Text>
+        <MotionView delay={110}>
+          <FeedbackBanner
+            loading
+            title="Loading notifications"
+            message="Checking for recent alerts, safe confirmations, and messages to your trusted contacts."
+          />
         </MotionView>
       ) : notificationsQuery.isError ? (
-        <MotionView delay={110} style={[styles.card, theme.shadow.card]}>
-          <Text style={styles.cardTitle}>Notifications unavailable</Text>
-          <Text style={styles.cardCopy}>
-            {notificationsQuery.error instanceof Error
-              ? notificationsQuery.error.message
-              : 'Sentinel could not load your updates right now.'}
-          </Text>
-          <Pressable onPress={() => notificationsQuery.refetch()} style={[styles.primaryButton, styles.inlineButton]}>
-            <Text style={styles.primaryButtonText}>Retry notifications</Text>
-          </Pressable>
+        <MotionView delay={110}>
+          <FeedbackBanner
+            tone="error"
+            title="Notifications unavailable"
+            message={
+              notificationsQuery.error instanceof Error
+                ? notificationsQuery.error.message
+                : 'Sentinel could not load your updates right now.'
+            }
+            actionLabel="Retry"
+            onAction={() => notificationsQuery.refetch()}
+          />
         </MotionView>
       ) : notificationsQuery.data?.length ? (
         <View style={styles.reviewList}>
@@ -489,10 +497,11 @@ export const NotificationsScreen = () => {
         </View>
       ) : (
         <MotionView delay={110} style={[styles.card, theme.shadow.card]}>
-          <Text style={styles.cardTitle}>No notifications yet</Text>
-          <Text style={styles.cardCopy}>
-            When alerts start, get cancelled, or messages go to your trusted contacts, the record will appear here.
-          </Text>
+          <EmptyState
+            icon={BellOff}
+            title="No notifications yet"
+            message="When alerts start, get cancelled, or messages go to your trusted contacts, the record will appear here."
+          />
         </MotionView>
       )}
     </ScreenFrame>
@@ -686,23 +695,26 @@ export const ReviewerDashboardScreen = () => {
           </MotionView>
 
           {queueQuery.isLoading ? (
-            <MotionView delay={300} style={[styles.card, theme.shadow.card]}>
-              <Text style={styles.cardTitle}>Loading reports</Text>
-              <Text style={styles.cardCopy}>
-                Checking for reports that need a human decision.
-              </Text>
+            <MotionView delay={300}>
+              <FeedbackBanner
+                loading
+                title="Loading reports"
+                message="Checking for reports that need a human decision."
+              />
             </MotionView>
           ) : queueQuery.isError ? (
-            <MotionView delay={300} style={[styles.card, theme.shadow.card]}>
-              <Text style={styles.cardTitle}>Reports unavailable</Text>
-              <Text style={styles.cardCopy}>
-                {queueQuery.error instanceof Error
-                  ? queueQuery.error.message
-                  : 'The report list could not be loaded right now.'}
-              </Text>
-              <Pressable onPress={() => queueQuery.refetch()} style={[styles.primaryButton, styles.inlineButton]}>
-                <Text style={styles.primaryButtonText}>Retry</Text>
-              </Pressable>
+            <MotionView delay={300}>
+              <FeedbackBanner
+                tone="error"
+                title="Reports unavailable"
+                message={
+                  queueQuery.error instanceof Error
+                    ? queueQuery.error.message
+                    : 'The report list could not be loaded right now.'
+                }
+                actionLabel="Retry"
+                onAction={() => queueQuery.refetch()}
+              />
             </MotionView>
           ) : queueQuery.data?.reports.length ? (
             <View style={styles.reviewList}>
@@ -720,10 +732,11 @@ export const ReviewerDashboardScreen = () => {
             </View>
           ) : (
             <MotionView delay={300} style={[styles.card, theme.shadow.card]}>
-              <Text style={styles.cardTitle}>Nothing to review here</Text>
-              <Text style={styles.cardCopy}>
-                No reports match this view right now. Try another filter or check again later.
-              </Text>
+              <EmptyState
+                icon={ClipboardList}
+                title="Nothing to review here"
+                message="No reports match this view right now. Try another filter or check again later."
+              />
             </MotionView>
           )}
         </>

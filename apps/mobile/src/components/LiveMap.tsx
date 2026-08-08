@@ -1,6 +1,6 @@
 import React, { useEffect, useMemo, useRef } from 'react';
 import { Platform, StyleSheet, Text, View } from 'react-native';
-import MapView, { Circle, Marker, Polyline, UrlTile } from 'react-native-maps';
+import MapView, { Circle, Marker, Polyline, PROVIDER_GOOGLE } from 'react-native-maps';
 import type { EmergencyLocation } from '../store/useAppStore';
 import { useAppTheme } from '../theme';
 
@@ -13,9 +13,9 @@ type Props = {
   variant?: 'default' | 'minimal';
   markerLabel?: string;
   markerColor?: string;
+  mapLayer?: 'street' | 'satellite';
 };
 
-const OSM_TILE_URL = 'https://tile.openstreetmap.org/{z}/{x}/{y}.png';
 const MAX_RENDERED_TRAIL_POINTS = 120;
 
 function toRadians(value: number) {
@@ -48,6 +48,7 @@ const LiveMapBase = ({
   variant = 'default',
   markerLabel,
   markerColor,
+  mapLayer = 'street',
 }: Props) => {
   const theme = useAppTheme();
   const styles = useMemo(() => createStyles(theme), [theme]);
@@ -147,7 +148,14 @@ const LiveMapBase = ({
         ref={mapRef}
         style={StyleSheet.absoluteFillObject}
         initialRegion={mapRegion}
-        mapType={Platform.OS === 'android' ? 'none' : 'standard'}
+        provider={PROVIDER_GOOGLE}
+        mapType={
+          mapLayer === 'satellite'
+            ? Platform.OS === 'android'
+              ? 'satellite'
+              : 'hybrid'
+            : 'standard'
+        }
         moveOnMarkerPress={false}
         rotateEnabled={true}
         pitchEnabled={true}
@@ -159,13 +167,6 @@ const LiveMapBase = ({
         showsMyLocationButton={true}
         showsCompass={true}
       >
-        <UrlTile
-          urlTemplate={OSM_TILE_URL}
-          maximumZ={19}
-          flipY={false}
-          shouldReplaceMapContent={Platform.OS === 'ios'}
-          zIndex={-1}
-        />
         {coordinates.length > 1 ? (
           <Polyline
             coordinates={coordinates}
@@ -221,9 +222,7 @@ const LiveMapBase = ({
           )}
         </Marker>
       </MapView>
-      {isMinimal ? (
-        <Text style={styles.attributionMinimal}>Map data (c) OpenStreetMap contributors</Text>
-      ) : (
+      {isMinimal ? null : (
         <>
           <View style={styles.topBadge}>
             <View style={styles.liveDot} />
@@ -236,7 +235,6 @@ const LiveMapBase = ({
                 ? `${locations.length} checkpoints captured`
                 : 'Waiting for the first checkpoint'}
             </Text>
-            <Text style={styles.attribution}>Map data (c) OpenStreetMap contributors</Text>
           </View>
         </>
       )}
@@ -350,22 +348,5 @@ const createStyles = (theme: ReturnType<typeof useAppTheme>) =>
       color: theme.colors.muted,
       fontSize: 12,
       lineHeight: 17,
-    },
-    attribution: {
-      color: theme.colors.muted,
-      fontSize: 10,
-      marginTop: 8,
-      opacity: 0.9,
-    },
-    attributionMinimal: {
-      position: 'absolute',
-      right: 12,
-      bottom: 12,
-      color: '#7D7A92',
-      fontSize: 9,
-      backgroundColor: 'rgba(255,255,255,0.84)',
-      paddingHorizontal: 8,
-      paddingVertical: 4,
-      borderRadius: 8,
     },
   });

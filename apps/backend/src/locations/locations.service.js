@@ -31,19 +31,30 @@ function normalizeLocationInput(item) {
     const coords = item?.coords || {};
     const lat = item?.lat ?? item?.latitude ?? coords.latitude;
     const lng = item?.lng ?? item?.longitude ?? coords.longitude;
-    if (typeof lat !== 'number' || typeof lng !== 'number') {
+    const parsedLat = Number(lat);
+    const parsedLng = Number(lng);
+    if (!Number.isFinite(parsedLat) || !Number.isFinite(parsedLng)) {
+        return null;
+    }
+    if (parsedLat < -90 || parsedLat > 90 || parsedLng < -180 || parsedLng > 180) {
         return null;
     }
     const rawRecordedAt = item?.recordedAt ?? item?.timestamp ?? null;
     const recordedAt = typeof rawRecordedAt === 'number'
         ? new Date(rawRecordedAt).toISOString()
         : rawRecordedAt || new Date().toISOString();
+    if (!Number.isFinite(Date.parse(recordedAt))) {
+        return null;
+    }
+    const accuracy = item?.accuracyM ?? item?.accuracy ?? coords.accuracy ?? null;
+    const parsedAccuracy = accuracy == null ? null : Number(accuracy);
+    const source = String(item?.source ?? 'mobile').trim().slice(0, 40) || 'mobile';
     return {
-        lat,
-        lng,
-        accuracyM: item?.accuracyM ?? item?.accuracy ?? coords.accuracy ?? null,
-        source: item?.source ?? 'mobile',
-        recordedAt,
+        lat: parsedLat,
+        lng: parsedLng,
+        accuracyM: Number.isFinite(parsedAccuracy) && parsedAccuracy >= 0 ? parsedAccuracy : null,
+        source,
+        recordedAt: new Date(recordedAt).toISOString(),
     };
 }
 let LocationsService = class LocationsService {
@@ -58,6 +69,9 @@ let LocationsService = class LocationsService {
         }
         if (!Array.isArray(body?.locations) || body.locations.length === 0) {
             throw new common_1.BadRequestException('No locations provided');
+        }
+        if (body.locations.length > 100) {
+            throw new common_1.BadRequestException('A maximum of 100 locations can be submitted at once');
         }
         const normalized = body.locations.map(normalizeLocationInput).filter(Boolean);
         if (normalized.length === 0) {

@@ -155,7 +155,7 @@ export const AuthEntryScreen = () => {
             <View style={styles.badgeRow}>
               <View style={styles.badge}>
                 <Text style={styles.badgeText}>
-                  {contactMethod === 'email' ? 'Supabase email verification' : 'Twilio phone verification'}
+                  {contactMethod === 'email' ? 'Supabase email verification' : 'Amazon SNS phone verification'}
                 </Text>
               </View>
             </View>

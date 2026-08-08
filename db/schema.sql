@@ -23,6 +23,16 @@ create table if not exists user_devices (
   created_at timestamptz default now()
 );
 
+create table if not exists phone_otp_challenges (
+  id uuid primary key default gen_random_uuid(),
+  phone_e164 text not null,
+  code_hash text not null,
+  attempts int not null default 0,
+  expires_at timestamptz not null,
+  consumed_at timestamptz,
+  created_at timestamptz not null default now()
+);
+
 create table if not exists roles (
   id uuid primary key default gen_random_uuid(),
   name text not null unique,
@@ -199,6 +209,49 @@ create table if not exists report_classifications (
   updated_at timestamptz default now()
 );
 
+create table if not exists geopolitical_zones (
+  id uuid primary key default gen_random_uuid(),
+  code text not null unique,
+  name text not null unique,
+  sort_order int not null default 0,
+  created_at timestamptz default now()
+);
+
+create table if not exists states (
+  id uuid primary key default gen_random_uuid(),
+  geopolitical_zone_id uuid not null references geopolitical_zones(id) on delete restrict,
+  code text not null unique,
+  name text not null unique,
+  type text not null default 'state',
+  sort_order int not null default 0,
+  created_at timestamptz default now()
+);
+
+create table if not exists operational_zones (
+  id uuid primary key default gen_random_uuid(),
+  state_id uuid not null references states(id) on delete cascade,
+  code text not null unique,
+  name text not null,
+  lgas text[] not null default '{}',
+  sort_order int not null default 0,
+  created_at timestamptz default now(),
+  unique (state_id, name)
+);
+
+create table if not exists response_grids (
+  id uuid primary key default gen_random_uuid(),
+  operational_zone_id uuid not null references operational_zones(id) on delete cascade,
+  code text not null unique,
+  name text not null,
+  grid_type text not null default 'neighborhood',
+  center_lat double precision,
+  center_lng double precision,
+  boundary_geojson jsonb,
+  sort_order int not null default 0,
+  created_at timestamptz default now(),
+  unique (operational_zone_id, name)
+);
+
 create table if not exists risk_zones (
   id uuid primary key default gen_random_uuid(),
   name text not null,
@@ -206,6 +259,8 @@ create table if not exists risk_zones (
   center_lng double precision not null,
   radius_m int default 0,
   risk_level text default 'medium',
+  operational_zone_id uuid references operational_zones(id) on delete set null,
+  response_grid_id uuid references response_grids(id) on delete set null,
   created_at timestamptz default now()
 );
 
@@ -297,6 +352,8 @@ create table if not exists waitlist_signups (
 );
 
 create index if not exists idx_location_logs_session on location_logs(session_id, recorded_at desc);
+create index if not exists idx_phone_otp_challenges_lookup on phone_otp_challenges(phone_e164, created_at desc) where consumed_at is null;
+create index if not exists idx_phone_otp_challenges_expiry on phone_otp_challenges(expires_at);
 create index if not exists idx_alerts_user on alerts(user_id, created_at desc);
 create index if not exists idx_watch_sessions_user on watch_sessions(user_id, status);
 create unique index if not exists idx_reviewer_role_requests_pending_user on reviewer_role_requests(user_id) where status = 'pending';
@@ -310,6 +367,11 @@ create index if not exists idx_trusted_contacts_user_priority_created on trusted
 create index if not exists idx_notifications_user_created on notifications(user_id, created_at desc);
 create index if not exists idx_subscriptions_user_period on subscriptions(user_id, started_at desc nulls last, current_period_end desc nulls last);
 create index if not exists idx_latency_metrics_user_recorded on latency_metrics(user_id, recorded_at desc);
+create index if not exists idx_states_geopolitical_zone on states(geopolitical_zone_id, sort_order, name);
+create index if not exists idx_operational_zones_state on operational_zones(state_id, sort_order, name);
+create index if not exists idx_response_grids_operational_zone on response_grids(operational_zone_id, sort_order, name);
+create index if not exists idx_risk_zones_operational_zone on risk_zones(operational_zone_id);
+create index if not exists idx_risk_zones_response_grid on risk_zones(response_grid_id);
 
 alter table reports add column if not exists category text;
 alter table reports add column if not exists severity text default 'medium';

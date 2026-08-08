@@ -17,6 +17,7 @@ const common_1 = require("@nestjs/common");
 const jwt_auth_guard_1 = require("../common/guards/jwt-auth.guard");
 const roles_guard_1 = require("../common/guards/roles.guard");
 const roles_decorator_1 = require("../common/guards/roles.decorator");
+const rate_limit_decorator_1 = require("../common/guards/rate-limit.decorator");
 const admin_service_1 = require("./admin.service");
 let AdminController = class AdminController {
     constructor(adminService) {
@@ -54,6 +55,7 @@ __decorate([
 __decorate([
     (0, common_1.Post)('alerts/:id/flag'),
     (0, roles_decorator_1.Roles)('admin'),
+    (0, rate_limit_decorator_1.RateLimit)({ points: 120, duration: 3600 }),
     __param(0, (0, common_1.Req)()),
     __param(1, (0, common_1.Param)('id')),
     __param(2, (0, common_1.Body)()),
@@ -64,6 +66,7 @@ __decorate([
 __decorate([
     (0, common_1.Post)('reports/:id/classify'),
     (0, roles_decorator_1.Roles)('admin', 'reviewer'),
+    (0, rate_limit_decorator_1.RateLimit)({ points: 180, duration: 3600 }),
     __param(0, (0, common_1.Req)()),
     __param(1, (0, common_1.Param)('id')),
     __param(2, (0, common_1.Body)()),

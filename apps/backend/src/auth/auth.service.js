@@ -17,6 +17,8 @@ const credibility_logic_1 = require("../credibility/credibility.logic");
 const roles_logic_1 = require("../roles/roles.logic");
 const supabase_service_1 = require("../supabase/supabase.service");
 const runtime_1 = require("../config/runtime");
+const crypto = require("crypto");
+const aws_sns_1 = require("../common/aws-sns");
 function normalizeEmail(email) {
     return String(email || '').trim().toLowerCase();
 }
@@ -34,6 +36,26 @@ function resolveOtpCode() {
         return process.env.OTP_BYPASS_CODE || '';
     }
     return process.env.DEV_OTP_CODE || '123456';
+}
+function generatePhoneOtpCode() {
+    if (process.env.NODE_ENV !== 'production') {
+        return String(process.env.DEV_OTP_CODE || '123456').trim();
+    }
+    return String(crypto.randomInt(100000, 1000000));
+}
+function getOtpHashSecret() {
+    return String(process.env.OTP_CODE_SECRET || process.env.JWT_ACCESS_SECRET || 'change-me').trim();
+}
+function hashPhoneOtp(phone, code) {
+    return crypto
+        .createHmac('sha256', getOtpHashSecret())
+        .update(`${phone}:${code}`, 'utf8')
+        .digest('hex');
+}
+function safeEqualHex(left, right) {
+    const a = Buffer.from(String(left || ''), 'hex');
+    const b = Buffer.from(String(right || ''), 'hex');
+    return a.length === b.length && crypto.timingSafeEqual(a, b);
 }
 function mapUserRow(user, extras) {
     return {
@@ -83,7 +105,9 @@ let AuthService = class AuthService {
         }
         const otpCode = resolveOtpCode();
         if (phone) {
-            await this.sendPhoneVerification(phone);
+            const phoneCode = generatePhoneOtpCode();
+            await this.createPhoneChallenge(phone, phoneCode);
+            await this.sendPhoneVerification(phone, phoneCode);
         }
         else {
             if (this.supabaseService.isEnabled()) {
@@ -110,7 +134,7 @@ let AuthService = class AuthService {
             response.phone = phone;
         }
         if (process.env.NODE_ENV !== 'production') {
-            response.devCode = otpCode;
+            response.devCode = phone ? process.env.DEV_OTP_CODE || '123456' : otpCode;
         }
         return response;
     }
@@ -234,41 +258,45 @@ let AuthService = class AuthService {
     isEmailDeliveryEnabled() {
         return Boolean(process.env.RESEND_API_KEY && process.env.OTP_EMAIL_FROM);
     }
-    async sendPhoneVerification(phone) {
-        if (!process.env.TWILIO_ACCOUNT_SID || !process.env.TWILIO_AUTH_TOKEN || !process.env.TWILIO_VERIFY_SERVICE_SID) {
-            throw new common_1.InternalServerErrorException('Twilio Verify is not configured.');
+    async createPhoneChallenge(phone, code) {
+        const ttlMinutes = Math.max(1, Number.parseInt(String(process.env.PHONE_OTP_TTL_MINUTES || '10'), 10) || 10);
+        await this.db.query(`
+      insert into phone_otp_challenges (phone_e164, code_hash, expires_at)
+      values ($1, $2, now() + ($3::int * interval '1 minute'))
+    `, [phone, hashPhoneOtp(phone, code), ttlMinutes]);
+    }
+    async sendPhoneVerification(phone, code) {
+        if (!(0, aws_sns_1.isSnsSmsConfigured)()) {
+            throw new common_1.InternalServerErrorException('Amazon SNS SMS is not configured.');
         }
-        const auth = Buffer.from(`${process.env.TWILIO_ACCOUNT_SID}:${process.env.TWILIO_AUTH_TOKEN}`).toString('base64');
-        const response = await fetch(`https://verify.twilio.com/v2/Services/${process.env.TWILIO_VERIFY_SERVICE_SID}/Verifications`, {
-            method: 'POST',
-            headers: {
-                Authorization: `Basic ${auth}`,
-                'Content-Type': 'application/x-www-form-urlencoded',
-            },
-            body: new URLSearchParams({ To: phone, Channel: 'sms' }).toString(),
-        });
-        if (!response.ok) {
-            const errorBody = await response.text();
-            throw new common_1.ServiceUnavailableException(`Could not send phone verification code. ${errorBody || response.statusText}`);
+        try {
+            await (0, aws_sns_1.publishSms)(phone, `Your Sentinel verification code is ${code}. It expires in ${process.env.PHONE_OTP_TTL_MINUTES || '10'} minutes.`);
+        }
+        catch (error) {
+            throw new common_1.ServiceUnavailableException(error instanceof Error ? error.message : 'Could not send phone verification code.');
         }
     }
     async verifyPhoneCode(phone, code) {
-        if (!process.env.TWILIO_ACCOUNT_SID || !process.env.TWILIO_AUTH_TOKEN || !process.env.TWILIO_VERIFY_SERVICE_SID) {
-            throw new common_1.InternalServerErrorException('Twilio Verify is not configured.');
-        }
-        const auth = Buffer.from(`${process.env.TWILIO_ACCOUNT_SID}:${process.env.TWILIO_AUTH_TOKEN}`).toString('base64');
-        const response = await fetch(`https://verify.twilio.com/v2/Services/${process.env.TWILIO_VERIFY_SERVICE_SID}/VerificationCheck`, {
-            method: 'POST',
-            headers: {
-                Authorization: `Basic ${auth}`,
-                'Content-Type': 'application/x-www-form-urlencoded',
-            },
-            body: new URLSearchParams({ To: phone, Code: code }).toString(),
+        await this.db.transaction(async (client) => {
+            const result = await client.query(`
+        select id, code_hash, attempts
+        from phone_otp_challenges
+        where phone_e164 = $1
+          and consumed_at is null
+          and expires_at > now()
+          and attempts < 5
+        order by created_at desc
+        limit 1
+      `, [phone]);
+            const challenge = result.rows[0];
+            if (!challenge || !safeEqualHex(challenge.code_hash, hashPhoneOtp(phone, code))) {
+                if (challenge) {
+                    await client.query('update phone_otp_challenges set attempts = attempts + 1 where id = $1', [challenge.id]);
+                }
+                throw new common_1.UnauthorizedException('Invalid verification code');
+            }
+            await client.query('update phone_otp_challenges set consumed_at = now() where id = $1', [challenge.id]);
         });
-        const result = await response.json();
-        if (!response.ok || result.status !== 'approved') {
-            throw new common_1.UnauthorizedException('Invalid verification code');
-        }
     }
     async sendOtpEmail({ email, name, code, mode }) {
         const response = await fetch('https://api.resend.com/emails', {

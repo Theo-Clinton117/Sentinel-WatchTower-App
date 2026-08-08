@@ -1,5 +1,7 @@
 import React from 'react';
 import { ScrollView, StyleSheet, Text, View } from 'react-native';
+import { Clock3, Logs } from 'lucide-react-native';
+import { EmptyState } from '../components/EmptyState';
 import { MotionView } from '../components/MotionView';
 import { useAppStore } from '../store/useAppStore';
 import { useAppTheme } from '../theme';
@@ -32,9 +34,11 @@ export const RiskLogScreen = () => {
           </View>
         ) : null}
         {watchSessionHistory.length === 0 && !activeWatchSession ? (
-          <Text style={styles.cardText}>
-            No watch sessions yet. Start one from Contacts when you want someone to keep an eye on a trip, commute, or late walk.
-          </Text>
+          <EmptyState
+            icon={Clock3}
+            title="No watch sessions yet"
+            message="Start one from Contacts when you want someone to keep an eye on a trip, commute, or late walk."
+          />
         ) : null}
         {watchSessionHistory.map((session) => (
           <View key={session.id} style={styles.timelineRow}>
@@ -50,9 +54,11 @@ export const RiskLogScreen = () => {
       <MotionView delay={180} style={[styles.card, theme.shadow.card]}>
         <Text style={styles.sectionTitle}>Emergency history</Text>
         {sessionHistory.length === 0 ? (
-          <Text style={styles.cardText}>
-            No emergency alerts have ended yet. When you use SOS or a safety check escalates, the finished session will appear here.
-          </Text>
+          <EmptyState
+            icon={Logs}
+            title="No emergency history"
+            message="When you use SOS or a safety check escalates, the finished session will appear here."
+          />
         ) : (
           sessionHistory.map((session) => (
             <View key={session.sessionId} style={styles.timelineRow}>

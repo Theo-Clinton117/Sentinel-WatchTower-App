@@ -1,7 +1,9 @@
 import React, { useEffect, useMemo, useState } from 'react';
-import { ActivityIndicator, Pressable, StyleSheet, Text, View } from 'react-native';
+import { ActivityIndicator, Linking, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { AuthArtPanel } from '../../components/AuthArtPanel';
+import { FeedbackBanner } from '../../components/FeedbackBanner';
 import { MotionView } from '../../components/MotionView';
+import { OnboardingProgress } from '../../components/OnboardingProgress';
 import { useAppStore } from '../../store/useAppStore';
 import {
   AppPermissionSnapshot,
@@ -83,8 +85,11 @@ export const OnboardingPermissionsScreen = () => {
   );
 
   return (
-    <View style={styles.container}>
+    <ScrollView style={styles.container} contentContainerStyle={styles.content}>
       <MotionView delay={20}>
+        <OnboardingProgress currentStep={2} />
+      </MotionView>
+      <MotionView delay={40}>
         <AuthArtPanel
           eyebrow="Device Access"
           title="Let Sentinel work when it matters."
@@ -93,7 +98,7 @@ export const OnboardingPermissionsScreen = () => {
           chipB="ALERTS"
         />
       </MotionView>
-      <MotionView delay={40}>
+      <MotionView delay={70}>
         <Text style={styles.title}>Permissions</Text>
         <Text style={styles.subtitle}>
           These permissions make alerts useful. You can finish setup now and change them later in your phone settings.
@@ -119,12 +124,22 @@ export const OnboardingPermissionsScreen = () => {
       </MotionView>
 
       {loading ? (
-        <View style={styles.loaderWrap}>
-          <ActivityIndicator color={theme.colors.blueGlow} />
+        <View style={styles.bannerSpace}>
+          <FeedbackBanner loading title="Checking permissions" message="Reading current device access." />
         </View>
       ) : null}
 
-      {error ? <Text style={styles.error}>{error}</Text> : null}
+      {error ? (
+        <View style={styles.bannerSpace}>
+          <FeedbackBanner
+            tone="error"
+            title="Permission check failed"
+            message={error}
+            actionLabel="Settings"
+            onAction={() => Linking.openSettings().catch(() => undefined)}
+          />
+        </View>
+      ) : null}
 
       <Pressable
         style={[styles.button, requesting && styles.buttonDisabled]}
@@ -148,15 +163,19 @@ export const OnboardingPermissionsScreen = () => {
           {allCriticalGranted ? 'Finish Setup' : 'Finish for Now'}
         </Text>
       </Pressable>
-    </View>
+    </ScrollView>
   );
 };
 
 const createStyles = (theme: ReturnType<typeof useAppTheme>) => StyleSheet.create({
   container: {
     flex: 1,
-    padding: 20,
     backgroundColor: 'transparent',
+  },
+  content: {
+    padding: 20,
+    paddingBottom: 120,
+    gap: 16,
   },
   title: {
     color: theme.colors.text,
@@ -225,6 +244,9 @@ const createStyles = (theme: ReturnType<typeof useAppTheme>) => StyleSheet.creat
     color: theme.colors.red,
     marginBottom: 12,
     lineHeight: 18,
+  },
+  bannerSpace: {
+    marginBottom: 0,
   },
   button: {
     backgroundColor: theme.colors.blue,

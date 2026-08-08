@@ -9,8 +9,12 @@ import {
   TextInput,
   View,
 } from 'react-native';
+import { Users } from 'lucide-react-native';
 import { AuthArtPanel } from '../../components/AuthArtPanel';
+import { EmptyState } from '../../components/EmptyState';
+import { FeedbackBanner } from '../../components/FeedbackBanner';
 import { MotionView } from '../../components/MotionView';
+import { OnboardingProgress } from '../../components/OnboardingProgress';
 import { useAppStore } from '../../store/useAppStore';
 import { ApiError } from '../../services/api';
 import { createContact, listContacts, TrustedContact } from '../../services/contacts';
@@ -106,6 +110,9 @@ export const OnboardingContactsScreen = () => {
   return (
     <ScrollView style={styles.container} contentContainerStyle={styles.content}>
       <MotionView delay={20}>
+        <OnboardingProgress currentStep={1} />
+      </MotionView>
+      <MotionView delay={40}>
         <AuthArtPanel
           eyebrow="Trusted Circle"
           title="Choose who hears from you first."
@@ -114,7 +121,7 @@ export const OnboardingContactsScreen = () => {
           chipB="TEXT BACKUP"
         />
       </MotionView>
-      <MotionView delay={40}>
+      <MotionView delay={70}>
         <Text style={styles.title}>Add Trusted Contacts</Text>
         <Text style={styles.subtitle}>
           Start with one person who knows you well and is likely to respond quickly.
@@ -174,7 +181,11 @@ export const OnboardingContactsScreen = () => {
           />
         </View>
 
-        {error ? <Text style={styles.error}>{error}</Text> : null}
+        {error ? (
+          <View style={styles.bannerSpace}>
+            <FeedbackBanner tone="error" title="Contact not saved" message={error} />
+          </View>
+        ) : null}
 
         <Pressable
           style={[styles.button, (!formValid || saving) && styles.buttonDisabled]}
@@ -192,7 +203,11 @@ export const OnboardingContactsScreen = () => {
         </View>
 
         {!loading && contacts.length === 0 ? (
-          <Text style={styles.emptyText}>No trusted contacts added yet. Add at least one to make alerts more useful.</Text>
+          <EmptyState
+            icon={Users}
+            title="No trusted contacts added yet"
+            message="Add at least one person to make alerts more useful."
+          />
         ) : null}
 
         {contacts.map((contact, index) => (
@@ -228,6 +243,7 @@ const createStyles = (theme: ReturnType<typeof useAppTheme>) => StyleSheet.creat
   },
   content: {
     padding: 20,
+    paddingBottom: 120,
     gap: 16,
   },
   title: {
@@ -301,6 +317,9 @@ const createStyles = (theme: ReturnType<typeof useAppTheme>) => StyleSheet.creat
     color: theme.colors.red,
     marginBottom: 12,
     lineHeight: 18,
+  },
+  bannerSpace: {
+    marginBottom: 12,
   },
   button: {
     backgroundColor: theme.colors.blue,

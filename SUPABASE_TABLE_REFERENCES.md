@@ -422,7 +422,7 @@ CREATE UNIQUE INDEX idx_report_confirmations_unique ON report_confirmations(repo
 **Files Referencing:**
 - [subscriptions/subscriptions.service.js](subscriptions/subscriptions.service.js) - Manage subscriptions
   - Get stored subscription snapshot
-  - Sync with RevenueCat
+  - Sync with Paystack payment references
   - Persist subscription data
 
 **Operations:**
@@ -430,7 +430,7 @@ CREATE UNIQUE INDEX idx_report_confirmations_unique ON report_confirmations(repo
 - INSERT (create subscription record)
 - UPDATE (update subscription status and period)
 
-**Providers:** `app_store`, `play_store`, `revenuecat`
+**Providers:** `paystack`
 
 **Status Values:** `active`, `trialing`, `grace_period`, `cancelled`, `expired`, `inactive`
 

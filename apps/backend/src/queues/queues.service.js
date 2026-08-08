@@ -15,6 +15,7 @@ const bullmq_1 = require("bullmq");
 const db_service_1 = require("../db/db.service");
 const ws_service_1 = require("../ws/ws.service");
 const alert_stages_1 = require("../alerts/alert-stages");
+const aws_sns_1 = require("../common/aws-sns");
 const ESCALATION_SWEEP_INTERVAL_MS = 15000;
 function hasValue(value) {
     return value !== null && value !== undefined && String(value).trim().length > 0;
@@ -320,9 +321,24 @@ let QueuesService = class QueuesService {
         on linked_user.id = tc.contact_user_id
       where tc.user_id = $1
       order by tc.priority asc, tc.created_at asc
-    `, [payload.userId]);
+        `, [payload.userId]);
         const contacts = contactsResult.rows;
         if (contacts.length === 0) {
+            await recordAlertAudit(this.db, {
+                alertId: alert.alert_id,
+                sessionId: alert.session_id || null,
+                userId: payload.userId,
+                eventType: 'notification_fanout_completed',
+                source: 'notification_worker',
+                fromStage: alert.stage,
+                toStage: payload.stage || alert.stage,
+                metadata: {
+                    delivered: 0,
+                    contacts: 0,
+                    eventType: payload.eventType || null,
+                    reason: 'no_trusted_contacts',
+                },
+            });
             return { ok: true, reason: 'no_trusted_contacts', delivered: 0 };
         }
         let latestLocation = null;
@@ -450,7 +466,7 @@ let QueuesService = class QueuesService {
                             recipientPhone,
                             alertId: alert.alert_id,
                             stage: payload.stage || alert.stage,
-                            reason: 'twilio_not_configured',
+                            reason: 'sns_not_configured',
                         },
                     });
                 }
@@ -617,34 +633,13 @@ let QueuesService = class QueuesService {
         return result.rows[0]?.id || null;
     }
     isSmsConfigured() {
-        return Boolean(process.env.TWILIO_ACCOUNT_SID &&
-            process.env.TWILIO_AUTH_TOKEN &&
-            process.env.TWILIO_FROM_NUMBER);
+        return (0, aws_sns_1.isSnsSmsConfigured)();
     }
     isEmailConfigured() {
         return Boolean(process.env.RESEND_API_KEY && process.env.OTP_EMAIL_FROM);
     }
     async sendSms(to, body) {
-        const accountSid = String(process.env.TWILIO_ACCOUNT_SID || '').trim();
-        const authToken = String(process.env.TWILIO_AUTH_TOKEN || '').trim();
-        const from = String(process.env.TWILIO_FROM_NUMBER || '').trim();
-        const auth = Buffer.from(`${accountSid}:${authToken}`).toString('base64');
-        const response = await fetch(`https://api.twilio.com/2010-04-01/Accounts/${accountSid}/Messages.json`, {
-            method: 'POST',
-            headers: {
-                Authorization: `Basic ${auth}`,
-                'Content-Type': 'application/x-www-form-urlencoded',
-            },
-            body: new URLSearchParams({
-                To: to,
-                From: from,
-                Body: body,
-            }).toString(),
-        });
-        if (!response.ok) {
-            const errorBody = await response.text();
-            throw new Error(`Could not send SMS. ${errorBody || response.statusText}`);
-        }
+        await (0, aws_sns_1.publishSms)(to, body);
     }
     async sendEmail({ to, subject, text, html }) {
         const response = await fetch('https://api.resend.com/emails', {

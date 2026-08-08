@@ -26,37 +26,17 @@ const planCatalog = [
     },
     {
         id: 'basic',
-        name: 'Basic',
-        priceLabel: 'Store pricing',
+        name: 'Silver',
+        priceLabel: 'NGN 1,000',
         cadence: 'per month',
-        summary: 'Removes core free-tier limits while keeping the experience simple and affordable.',
+        summary: 'Affordable individual safety coverage with stronger limits than the free tier.',
         features: [
             'More trusted contacts',
             'Faster alert delivery',
             'Expanded alert history',
             'Priority onboarding support',
         ],
-        amountNgn: 1500,
-        entitlementKey: null,
-        packageIdentifiers: [],
-        productIdentifiers: {
-            ios: [],
-            android: [],
-        },
-    },
-    {
-        id: 'pro',
-        name: 'Pro',
-        priceLabel: 'Store pricing',
-        cadence: 'per month',
-        summary: 'Automation and persistent tracking for users who depend on Sentinel during higher-risk moments.',
-        features: [
-            'Automatic trigger workflows',
-            'Continuous live tracking',
-            'Escalated alert routing',
-            'Cloud incident capture',
-        ],
-        amountNgn: 5000,
+        amountNgn: 1000,
         entitlementKey: null,
         packageIdentifiers: [],
         productIdentifiers: {
@@ -66,17 +46,37 @@ const planCatalog = [
     },
     {
         id: 'family',
-        name: 'Family',
-        priceLabel: 'Store pricing',
+        name: 'Gold Family',
+        priceLabel: 'NGN 3,500',
         cadence: 'per month',
-        summary: 'Shared protection for households that need one subscription covering multiple people.',
+        summary: 'One main account can create a family circle and add up to four other accounts at a discounted monthly rate.',
         features: [
-            'Multi-member family coverage',
+            'One main account plus up to 4 circle members',
+            'Add new or existing Sentinel accounts',
             'Shared household visibility',
-            'Household-wide escalation coverage',
-            'Better caregiver coordination',
+            'Discounted family coverage versus individual plans',
         ],
-        amountNgn: 9000,
+        amountNgn: 3500,
+        entitlementKey: null,
+        packageIdentifiers: [],
+        productIdentifiers: {
+            ios: [],
+            android: [],
+        },
+    },
+    {
+        id: 'pro',
+        name: 'Platinum Enterprise',
+        priceLabel: 'NGN 10,000',
+        cadence: 'per month',
+        summary: 'Enterprise-grade coverage for teams and high-dependence users who need the strongest Sentinel automation.',
+        features: [
+            'Automatic trigger workflows',
+            'Continuous live tracking',
+            'Escalated alert routing',
+            'Cloud incident capture',
+        ],
+        amountNgn: 10000,
         entitlementKey: null,
         packageIdentifiers: [],
         productIdentifiers: {
@@ -91,9 +91,13 @@ const planAliases = {
     free_tier: 'free',
     starter: 'basic',
     basic: 'basic',
+    silver: 'basic',
+    gold: 'family',
     individual: 'pro',
     pro: 'pro',
     platinum: 'pro',
+    enterprise: 'pro',
+    entriprise: 'pro',
     family: 'family',
 };
 function readCsvEnv(name) {
@@ -114,15 +118,15 @@ function getSubscriptionCatalog() {
         ...plan,
         entitlementKey: plan.id === 'free'
             ? null
-            : String(process.env[`REVENUECAT_${plan.id.toUpperCase()}_ENTITLEMENT_ID`] || plan.id).trim(),
+            : String(process.env[`PAYSTACK_${plan.id.toUpperCase()}_PLAN_CODE`] || plan.id).trim(),
         packageIdentifiers: plan.id === 'free'
             ? []
-            : readCsvEnv(`REVENUECAT_${plan.id.toUpperCase()}_PACKAGE_IDS`),
+            : readCsvEnv(`PAYSTACK_${plan.id.toUpperCase()}_PLAN_ALIASES`),
         productIdentifiers: plan.id === 'free'
             ? { ios: [], android: [] }
             : {
-                ios: readCsvEnv(`REVENUECAT_${plan.id.toUpperCase()}_IOS_PRODUCT_IDS`),
-                android: readCsvEnv(`REVENUECAT_${plan.id.toUpperCase()}_ANDROID_PRODUCT_IDS`),
+                ios: [],
+                android: [],
             },
     }));
 }

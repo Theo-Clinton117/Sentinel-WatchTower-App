@@ -3,10 +3,31 @@
 
 ALTER TABLE risk_zones
 ADD COLUMN IF NOT EXISTS status text DEFAULT 'active',
+ADD COLUMN IF NOT EXISTS center_lat double precision,
+ADD COLUMN IF NOT EXISTS center_lng double precision,
 ADD COLUMN IF NOT EXISTS updated_by uuid REFERENCES users(id) ON DELETE SET NULL,
 ADD COLUMN IF NOT EXISTS updated_at timestamptz DEFAULT now(),
 ADD COLUMN IF NOT EXISTS resolved_by uuid REFERENCES users(id) ON DELETE SET NULL,
 ADD COLUMN IF NOT EXISTS resolved_at timestamptz;
+
+DO $$
+BEGIN
+  IF EXISTS (
+    SELECT 1 FROM information_schema.columns
+    WHERE table_name = 'risk_zones' AND column_name = 'lat'
+  ) THEN
+    UPDATE risk_zones
+    SET center_lat = COALESCE(center_lat, lat);
+  END IF;
+
+  IF EXISTS (
+    SELECT 1 FROM information_schema.columns
+    WHERE table_name = 'risk_zones' AND column_name = 'lng'
+  ) THEN
+    UPDATE risk_zones
+    SET center_lng = COALESCE(center_lng, lng);
+  END IF;
+END $$;
 
 -- Create index for status queries
 CREATE INDEX IF NOT EXISTS idx_risk_zones_status 

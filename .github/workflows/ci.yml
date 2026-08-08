@@ -1,18 +1,32 @@
 name: CI
 
 on:
-  push:
-    branches: [ "main" ]
   pull_request:
-    branches: [ "main" ]
+  push:
+    branches:
+      - main
+      - master
 
 jobs:
-  build:
+  verify:
+    name: Verify App
     runs-on: ubuntu-latest
+
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
         with:
-          node-version: "20"
-      - run: npm install
-      - run: npm run build:backend
+          node-version: 22
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Run verification suite
+        run: npm run ci:verify
+
+      - name: Build backend container
+        run: docker build -t sentinel-backend-ci ./apps/backend

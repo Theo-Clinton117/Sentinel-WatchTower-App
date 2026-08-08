@@ -23,7 +23,7 @@ import { useAppTheme } from './src/theme';
 import { isRootScreen } from './src/utils/screenUtils';
 import { verifyOtp } from './src/services/auth';
 import { clearSecureSession, loadSecureSession, saveSecureSession } from './src/services/secure-session';
-import { initializeRevenueCatForUser } from './src/services/subscriptions';
+import { initializePaystackForUser } from './src/services/subscriptions';
 import { HomeScreen } from './src/screens/Home';
 import { ActiveEmergencyScreen } from './src/screens/ActiveEmergency';
 import { ContactsScreen } from './src/screens/Contacts';
@@ -54,6 +54,9 @@ import { OnboardingPermissionsScreen } from './src/screens/Onboarding/Permission
 const queryClient = new QueryClient();
 const DRAWER_WIDTH = 304;
 const OPEN_DRAWER_SWIPE_THRESHOLD = 0.28;
+const DRAWER_SWIPE_EDGE_WIDTH = 36;
+const BACK_SWIPE_DISTANCE = 86;
+const BACK_SWIPE_VELOCITY = 0.55;
 const DEV_TEST_SESSION_ENABLED =
   __DEV__ && process.env.EXPO_PUBLIC_ENABLE_DEV_TEST_SESSION !== 'false';
 const DEV_TEST_EMAIL =
@@ -345,7 +348,10 @@ const BootSplash = () => {
 const AppChrome = ({ showBootSplash }: { showBootSplash: boolean }) => {
   const theme = useAppTheme();
   const drawerGestureProgress = React.useRef(new Animated.Value(0)).current;
+  const backGestureProgress = React.useRef(new Animated.Value(0)).current;
+  const panGestureMode = React.useRef<'drawer' | 'back' | null>(null);
   const [drawerGestureActive, setDrawerGestureActive] = React.useState(false);
+  const [backGestureActive, setBackGestureActive] = React.useState(false);
   const {
     authStatus,
     onboardingComplete,
@@ -431,32 +437,83 @@ const AppChrome = ({ showBootSplash }: { showBootSplash: boolean }) => {
     return () => subscription.remove();
   }, [canGoBack, closeSidebar, currentScreen, leaveCurrentScreen, sessionStatus, setScreen, showTabs, sidebarOpen]);
 
-  const drawerPanResponder = React.useMemo(
+  const navigationPanResponder = React.useMemo(
     () => {
-      const shouldStartDrawerPan = (gestureState: { dx: number; dy: number }) => {
-          if (!canSwipeOpenSidebar) {
-            return false;
-          }
+      const shouldStartNavigationPan = (
+        event: { nativeEvent: { pageX?: number; locationX?: number } },
+        gestureState: { dx: number; dy: number },
+      ) => {
+        const horizontalIntent = Math.abs(gestureState.dx) > Math.abs(gestureState.dy) * 1.35;
+        if (gestureState.dx <= 16 || !horizontalIntent) {
+          panGestureMode.current = null;
+          return false;
+        }
 
-          const horizontalIntent = Math.abs(gestureState.dx) > Math.abs(gestureState.dy) * 1.35;
-          return gestureState.dx > 16 && horizontalIntent;
+        if (canGoBack) {
+          panGestureMode.current = 'back';
+          return true;
+        }
+
+        const startX = event.nativeEvent.pageX ?? event.nativeEvent.locationX ?? 0;
+        if (canSwipeOpenSidebar && startX <= DRAWER_SWIPE_EDGE_WIDTH) {
+          panGestureMode.current = 'drawer';
+          return true;
+        }
+
+        panGestureMode.current = null;
+        return false;
       };
 
       return PanResponder.create({
-        onMoveShouldSetPanResponderCapture: (_event, gestureState) =>
-          shouldStartDrawerPan(gestureState),
-        onMoveShouldSetPanResponder: (_event, gestureState) =>
-          shouldStartDrawerPan(gestureState),
+        onMoveShouldSetPanResponderCapture: (event, gestureState) =>
+          shouldStartNavigationPan(event, gestureState),
+        onMoveShouldSetPanResponder: (event, gestureState) =>
+          shouldStartNavigationPan(event, gestureState),
         onPanResponderGrant: () => {
-          drawerGestureProgress.stopAnimation();
-          drawerGestureProgress.setValue(0);
-          setDrawerGestureActive(true);
+          if (panGestureMode.current === 'drawer') {
+            drawerGestureProgress.stopAnimation();
+            drawerGestureProgress.setValue(0);
+            setDrawerGestureActive(true);
+          } else if (panGestureMode.current === 'back') {
+            backGestureProgress.stopAnimation();
+            backGestureProgress.setValue(0);
+            setBackGestureActive(true);
+          }
         },
         onPanResponderMove: (_event, gestureState) => {
+          if (panGestureMode.current === 'back') {
+            const progress = Math.max(0, Math.min(gestureState.dx / BACK_SWIPE_DISTANCE, 1));
+            backGestureProgress.setValue(progress);
+            return;
+          }
+
+          if (panGestureMode.current !== 'drawer') {
+            return;
+          }
+
           const progress = Math.max(0, Math.min(gestureState.dx / DRAWER_WIDTH, 1));
           drawerGestureProgress.setValue(progress);
         },
         onPanResponderRelease: (_event, gestureState) => {
+          if (panGestureMode.current === 'back') {
+            const shouldGoBack =
+              gestureState.dx >= BACK_SWIPE_DISTANCE || gestureState.vx > BACK_SWIPE_VELOCITY;
+            panGestureMode.current = null;
+
+            Animated.timing(backGestureProgress, {
+              toValue: shouldGoBack ? 1 : 0,
+              duration: shouldGoBack ? 120 : 150,
+              useNativeDriver: false,
+            }).start(() => {
+              setBackGestureActive(false);
+              backGestureProgress.setValue(0);
+              if (shouldGoBack) {
+                leaveCurrentScreen();
+              }
+            });
+            return;
+          }
+
           const progress = Math.max(0, Math.min(gestureState.dx / DRAWER_WIDTH, 1));
           const shouldOpen =
             progress >= OPEN_DRAWER_SWIPE_THRESHOLD || gestureState.vx > 0.55;
@@ -471,9 +528,27 @@ const AppChrome = ({ showBootSplash }: { showBootSplash: boolean }) => {
             }
             setDrawerGestureActive(false);
             drawerGestureProgress.setValue(0);
+            panGestureMode.current = null;
           });
         },
         onPanResponderTerminate: () => {
+          if (panGestureMode.current === 'back') {
+            panGestureMode.current = null;
+            Animated.timing(backGestureProgress, {
+              toValue: 0,
+              duration: 150,
+              useNativeDriver: false,
+            }).start(() => {
+              setBackGestureActive(false);
+            });
+            return;
+          }
+
+          if (panGestureMode.current !== 'drawer') {
+            panGestureMode.current = null;
+            return;
+          }
+
           Animated.timing(drawerGestureProgress, {
             toValue: 0,
             duration: 160,
@@ -481,12 +556,23 @@ const AppChrome = ({ showBootSplash }: { showBootSplash: boolean }) => {
           }).start(() => {
             setDrawerGestureActive(false);
             drawerGestureProgress.setValue(0);
+            panGestureMode.current = null;
           });
         },
       });
     },
-    [canSwipeOpenSidebar, drawerGestureProgress, openSidebar],
+    [backGestureProgress, canGoBack, canSwipeOpenSidebar, drawerGestureProgress, leaveCurrentScreen, openSidebar],
   );
+  const backIndicatorOpacity = backGestureProgress.interpolate({
+    inputRange: [0, 0.35, 1],
+    outputRange: [0, 0.78, 1],
+    extrapolate: 'clamp',
+  });
+  const backIndicatorTranslateX = backGestureProgress.interpolate({
+    inputRange: [0, 1],
+    outputRange: [-18, 18],
+    extrapolate: 'clamp',
+  });
 
   if (showBootSplash) {
     return <BootSplash />;
@@ -513,9 +599,26 @@ const AppChrome = ({ showBootSplash }: { showBootSplash: boolean }) => {
         </View>
       ) : null}
 
-      <View style={styles.screen} {...drawerPanResponder.panHandlers}>
+      <View style={styles.screen} {...navigationPanResponder.panHandlers}>
         <ScreenRouter />
       </View>
+
+      {backGestureActive ? (
+        <Animated.View
+          pointerEvents="none"
+          style={[
+            styles.backSwipeIndicator,
+            {
+              opacity: backIndicatorOpacity,
+              transform: [{ translateX: backIndicatorTranslateX }],
+              backgroundColor: theme.colors.surface,
+              borderColor: theme.colors.borderStrong,
+            },
+          ]}
+        >
+          <ProfileGlyph name="chevron-left" size={22} color={theme.colors.text} />
+        </Animated.View>
+      ) : null}
 
       {showTabs ? <AppTabBar /> : null}
       <SidebarDrawer
@@ -781,8 +884,8 @@ export default function App() {
       return;
     }
 
-    void initializeRevenueCatForUser(user).catch(() => {
-      // Subscription setup is allowed to fail quietly until store keys are configured.
+    void initializePaystackForUser(user).catch(() => {
+      // Subscription setup is allowed to fail quietly until payment keys are configured.
     });
   }, [hasSecureAuthHydrated, user]);
 
@@ -818,6 +921,17 @@ const styles = StyleSheet.create({
     width: 42,
     height: 42,
     borderRadius: 999,
+    borderWidth: 1,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  backSwipeIndicator: {
+    position: 'absolute',
+    left: 12,
+    top: '48%',
+    width: 48,
+    height: 48,
+    borderRadius: 8,
     borderWidth: 1,
     alignItems: 'center',
     justifyContent: 'center',

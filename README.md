@@ -14,11 +14,11 @@ Monorepo for the Sentinel WatchTower mobile app (Expo) and backend (NestJS).
 - `apps/backend` NestJS API, WebSocket gateway, BullMQ workers
 - `apps/mobile` Expo app with Zustand + React Query
 - `db` PostgreSQL schema + migrations
-- `docs` API, WebSocket, deployment notes
+- `docs` API, WebSocket, deployment notes, and operational geography planning
 
 **Requirements Covered**
 - Guardian workflow with staged alerts, passive soft-alert verification, escalation timers, and background location tracking
 - Rate limiting and device binding
-- Google Maps, FCM, Twilio, Paystack/Flutterwave integration hooks
+- Google Maps, FCM, Amazon SNS, Paystack/Flutterwave integration hooks
 - Black/blue theme with red blare animation overlay
 # Sentinel-WatchTower-App
