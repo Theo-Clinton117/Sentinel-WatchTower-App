@@ -25,10 +25,25 @@ function shouldUseSsl(connectionString) {
     }
     return /supabase\.co|pooler\.supabase\.com/i.test(connectionString);
 }
+function isDirectSupabaseDbHost(connectionString) {
+    if (!connectionString) {
+        return false;
+    }
+    try {
+        const hostname = new URL(connectionString).hostname.toLowerCase();
+        return /(^|\.)db\.[^.]+\.supabase\.co$/.test(hostname);
+    }
+    catch {
+        return false;
+    }
+}
 let DbService = class DbService {
     constructor() {
         this.logger = new common_1.Logger(DbService.name);
         const connectionString = getConnectionString();
+        if (process.env.NODE_ENV === 'production' && isDirectSupabaseDbHost(connectionString)) {
+            throw new Error('Supabase direct database host is not supported in production here. Use the Session pooler connection string or a host with IPv6 direct DB support.');
+        }
         this.pool = new pg_1.Pool({
             connectionString: connectionString || undefined,
             ssl: shouldUseSsl(connectionString) ? { rejectUnauthorized: false } : undefined,

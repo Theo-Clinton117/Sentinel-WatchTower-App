@@ -13,7 +13,7 @@ exports.HealthService = void 0;
 const common_1 = require("@nestjs/common");
 const ioredis_1 = require("ioredis");
 const db_service_1 = require("../db/db.service");
-const aws_sns_1 = require("../common/aws-sns");
+const kudisms_1 = require("../common/kudisms");
 function configured(...values) {
     return values.every((value) => String(value || '').trim().length > 0);
 }
@@ -55,12 +55,12 @@ let HealthService = class HealthService {
             database: { ok: false },
             redis: { ok: false, configured: configured(process.env.REDIS_URL) },
             sms: {
-                ok: (0, aws_sns_1.isSnsSmsConfigured)(),
-                configured: (0, aws_sns_1.isSnsSmsConfigured)(),
+                ok: (0, kudisms_1.isKudiSmsConfigured)(),
+                configured: (0, kudisms_1.isKudiSmsConfigured)(),
             },
             phoneVerification: {
-                ok: (0, aws_sns_1.isSnsSmsConfigured)(),
-                configured: (0, aws_sns_1.isSnsSmsConfigured)(),
+                ok: (0, kudisms_1.isKudiSmsConfigured)(),
+                configured: (0, kudisms_1.isKudiSmsConfigured)(),
             },
             email: {
                 ok: configured(process.env.RESEND_API_KEY, process.env.OTP_EMAIL_FROM),

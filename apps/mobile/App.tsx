@@ -4,10 +4,12 @@ import {
   BackHandler,
   PanResponder,
   Pressable,
+  Platform,
   SafeAreaView,
   StatusBar,
   StyleSheet,
   Text,
+  useWindowDimensions,
   View,
 } from 'react-native';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
@@ -29,6 +31,7 @@ import { ActiveEmergencyScreen } from './src/screens/ActiveEmergency';
 import { ContactsScreen } from './src/screens/Contacts';
 import { RiskLogScreen } from './src/screens/AlertHistory';
 import { ProfileScreen } from './src/screens/Profile';
+import { OrganizationsScreen } from './src/screens/Organizations';
 import {
   FamilyProfileScreen,
   HomeAddressScreen,
@@ -52,7 +55,7 @@ import { OnboardingContactsScreen } from './src/screens/Onboarding/Contacts';
 import { OnboardingPermissionsScreen } from './src/screens/Onboarding/Permissions';
 
 const queryClient = new QueryClient();
-const DRAWER_WIDTH = 304;
+const MAX_DRAWER_WIDTH = 304;
 const OPEN_DRAWER_SWIPE_THRESHOLD = 0.28;
 const DRAWER_SWIPE_EDGE_WIDTH = 36;
 const BACK_SWIPE_DISTANCE = 86;
@@ -67,6 +70,7 @@ const DEV_TEST_OTP =
   process.env.EXPO_PUBLIC_DEV_TEST_OTP || '123456';
 const sidebarScreens = new Set([
   'settings',
+  'organizations',
   'notifications',
   'support',
   'about',
@@ -143,6 +147,8 @@ const ScreenRouter = () => {
       return <WorkAddressScreen />;
     case 'subscription':
       return <SubscriptionScreen />;
+    case 'organizations':
+      return <OrganizationsScreen />;
     case 'notifications':
       return <NotificationsScreen />;
     case 'support':
@@ -158,7 +164,13 @@ const ScreenRouter = () => {
   }
 };
 
-const BootSplash = () => {
+const BootSplash = ({
+  authStatus,
+  onContinue,
+}: {
+  authStatus: 'authenticated' | 'unauthenticated';
+  onContinue: () => void;
+}) => {
   const theme = useAppTheme();
   const pulse = React.useRef(new Animated.Value(0)).current;
   const sweep = React.useRef(new Animated.Value(0)).current;
@@ -341,17 +353,36 @@ const BootSplash = () => {
       >
         Loading your emergency network, role access, and local session state.
       </Animated.Text>
+
+      {authStatus === 'unauthenticated' ? (
+        <View style={styles.bootCtaZone}>
+          <Pressable onPress={onContinue} style={styles.bootCta}>
+            <Text style={styles.bootCtaText}>Get started</Text>
+          </Pressable>
+        </View>
+      ) : null}
     </LinearGradient>
   );
 };
 
-const AppChrome = ({ showBootSplash }: { showBootSplash: boolean }) => {
+const AppChrome = ({
+  showBootSplash,
+  onContinueBootSplash,
+}: {
+  showBootSplash: boolean;
+  onContinueBootSplash: () => void;
+}) => {
   const theme = useAppTheme();
+  const { width: windowWidth } = useWindowDimensions();
   const drawerGestureProgress = React.useRef(new Animated.Value(0)).current;
   const backGestureProgress = React.useRef(new Animated.Value(0)).current;
   const panGestureMode = React.useRef<'drawer' | 'back' | null>(null);
   const [drawerGestureActive, setDrawerGestureActive] = React.useState(false);
   const [backGestureActive, setBackGestureActive] = React.useState(false);
+  const drawerWidth = React.useMemo(
+    () => Math.min(MAX_DRAWER_WIDTH, Math.max(240, Math.round(windowWidth * 0.84))),
+    [windowWidth],
+  );
   const {
     authStatus,
     onboardingComplete,
@@ -491,7 +522,7 @@ const AppChrome = ({ showBootSplash }: { showBootSplash: boolean }) => {
             return;
           }
 
-          const progress = Math.max(0, Math.min(gestureState.dx / DRAWER_WIDTH, 1));
+          const progress = Math.max(0, Math.min(gestureState.dx / drawerWidth, 1));
           drawerGestureProgress.setValue(progress);
         },
         onPanResponderRelease: (_event, gestureState) => {
@@ -514,7 +545,7 @@ const AppChrome = ({ showBootSplash }: { showBootSplash: boolean }) => {
             return;
           }
 
-          const progress = Math.max(0, Math.min(gestureState.dx / DRAWER_WIDTH, 1));
+          const progress = Math.max(0, Math.min(gestureState.dx / drawerWidth, 1));
           const shouldOpen =
             progress >= OPEN_DRAWER_SWIPE_THRESHOLD || gestureState.vx > 0.55;
 
@@ -527,9 +558,9 @@ const AppChrome = ({ showBootSplash }: { showBootSplash: boolean }) => {
               openSidebar();
             }
             setDrawerGestureActive(false);
-            drawerGestureProgress.setValue(0);
-            panGestureMode.current = null;
-          });
+                drawerGestureProgress.setValue(0);
+                panGestureMode.current = null;
+              });
         },
         onPanResponderTerminate: () => {
           if (panGestureMode.current === 'back') {
@@ -561,7 +592,7 @@ const AppChrome = ({ showBootSplash }: { showBootSplash: boolean }) => {
         },
       });
     },
-    [backGestureProgress, canGoBack, canSwipeOpenSidebar, drawerGestureProgress, leaveCurrentScreen, openSidebar],
+    [backGestureProgress, canGoBack, canSwipeOpenSidebar, drawerGestureProgress, drawerWidth, leaveCurrentScreen, openSidebar],
   );
   const backIndicatorOpacity = backGestureProgress.interpolate({
     inputRange: [0, 0.35, 1],
@@ -575,7 +606,7 @@ const AppChrome = ({ showBootSplash }: { showBootSplash: boolean }) => {
   });
 
   if (showBootSplash) {
-    return <BootSplash />;
+    return <BootSplash authStatus={authStatus} onContinue={onContinueBootSplash} />;
   }
 
   return (
@@ -622,6 +653,7 @@ const AppChrome = ({ showBootSplash }: { showBootSplash: boolean }) => {
 
       {showTabs ? <AppTabBar /> : null}
       <SidebarDrawer
+        drawerWidth={drawerWidth}
         gestureActive={drawerGestureActive}
         gestureProgress={drawerGestureProgress}
       />
@@ -898,6 +930,7 @@ export default function App() {
             <View style={{ flex: 1 }}>
               <AppChrome
                 showBootSplash={!hasHydrated || !hasSecureAuthHydrated || !hasPlayedOpeningIntro}
+                onContinueBootSplash={() => setHasPlayedOpeningIntro(true)}
               />
             </View>
           </AppErrorBoundary>
@@ -1038,6 +1071,35 @@ const styles = StyleSheet.create({
     textAlign: 'center',
     lineHeight: 22,
     maxWidth: 280,
+  },
+  bootCtaZone: {
+    marginTop: 28,
+    alignItems: 'center',
+  },
+  bootCta: {
+    minHeight: 48,
+    paddingHorizontal: 28,
+    borderRadius: 999,
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: '#EAF2FB',
+    ...Platform.select({
+      android: { elevation: 6 },
+      ios: {
+        shadowColor: '#4A9EFF',
+        shadowOpacity: 0.24,
+        shadowRadius: 18,
+        shadowOffset: { width: 0, height: 8 },
+      },
+      default: {},
+    }),
+  },
+  bootCtaText: {
+    color: '#061527',
+    fontSize: 14,
+    fontWeight: '800',
+    letterSpacing: 1.4,
+    textTransform: 'uppercase',
   },
   errorBoundary: {
     flex: 1,

@@ -18,7 +18,7 @@ const roles_logic_1 = require("../roles/roles.logic");
 const supabase_service_1 = require("../supabase/supabase.service");
 const runtime_1 = require("../config/runtime");
 const crypto = require("crypto");
-const aws_sns_1 = require("../common/aws-sns");
+const kudisms_1 = require("../common/kudisms");
 function normalizeEmail(email) {
     return String(email || '').trim().toLowerCase();
 }
@@ -266,11 +266,11 @@ let AuthService = class AuthService {
     `, [phone, hashPhoneOtp(phone, code), ttlMinutes]);
     }
     async sendPhoneVerification(phone, code) {
-        if (!(0, aws_sns_1.isSnsSmsConfigured)()) {
-            throw new common_1.InternalServerErrorException('Amazon SNS SMS is not configured.');
+        if (!(0, kudisms_1.isKudiSmsConfigured)()) {
+            throw new common_1.InternalServerErrorException('KudiSMS is not configured.');
         }
         try {
-            await (0, aws_sns_1.publishSms)(phone, `Your Sentinel verification code is ${code}. It expires in ${process.env.PHONE_OTP_TTL_MINUTES || '10'} minutes.`);
+            await (0, kudisms_1.sendSms)(phone, `Your Sentinel verification code is ${code}. It expires in ${process.env.PHONE_OTP_TTL_MINUTES || '10'} minutes.`);
         }
         catch (error) {
             throw new common_1.ServiceUnavailableException(error instanceof Error ? error.message : 'Could not send phone verification code.');

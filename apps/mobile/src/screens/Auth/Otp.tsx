@@ -253,18 +253,18 @@ const createStyles = (theme: ReturnType<typeof useAppTheme>) =>
       flexGrow: 1,
       justifyContent: 'center',
       paddingHorizontal: 20,
-      paddingTop: 40,
-      paddingBottom: 32,
+      paddingTop: 28,
+      paddingBottom: 28,
     },
     heroBlock: {
-      marginBottom: 18,
+      marginBottom: 20,
     },
     cardWrap: {
-      borderRadius: 8,
+      borderRadius: 24,
       overflow: 'hidden',
     },
     card: {
-      borderRadius: 8,
+      borderRadius: 24,
       padding: 22,
       borderWidth: 1,
       borderColor: theme.colors.border,
@@ -276,7 +276,7 @@ const createStyles = (theme: ReturnType<typeof useAppTheme>) =>
       alignSelf: 'flex-start',
       paddingHorizontal: 12,
       paddingVertical: 7,
-      borderRadius: 8,
+      borderRadius: 999,
       backgroundColor: theme.colors.blueSoft,
       borderWidth: 1,
       borderColor: theme.colors.borderStrong,
@@ -318,7 +318,7 @@ const createStyles = (theme: ReturnType<typeof useAppTheme>) =>
     input: {
       borderWidth: 1,
       borderColor: theme.colors.border,
-      borderRadius: 8,
+      borderRadius: 16,
       paddingHorizontal: 14,
       paddingVertical: 14,
       color: theme.colors.text,
@@ -340,7 +340,7 @@ const createStyles = (theme: ReturnType<typeof useAppTheme>) =>
     button: {
       backgroundColor: theme.colors.blue,
       padding: 14,
-      borderRadius: 8,
+      borderRadius: 16,
       alignItems: 'center',
       minHeight: 52,
       justifyContent: 'center',
@@ -356,11 +356,11 @@ const createStyles = (theme: ReturnType<typeof useAppTheme>) =>
     },
     buttonText: {
       color: theme.colors.text,
-      fontWeight: '600',
+      fontWeight: '800',
       fontSize: 15,
     },
     secondaryText: {
       color: theme.colors.muted,
-      fontWeight: '600',
+      fontWeight: '700',
     },
   });

@@ -103,9 +103,8 @@ test("processAlertContactNotifications records in-app, SMS, email, and audit del
     await withEnv(
         {
             REDIS_URL: undefined,
-            AWS_ACCESS_KEY_ID: "access",
-            AWS_SECRET_ACCESS_KEY: "secret",
-            AWS_REGION: "us-east-1",
+            KUDISMS_TOKEN: "token",
+            KUDISMS_SENDER_ID: "Sentinel",
             RESEND_API_KEY: "resend",
             OTP_EMAIL_FROM: "security@example.com",
         },

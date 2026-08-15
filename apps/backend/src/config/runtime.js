@@ -1,7 +1,7 @@
 "use strict";
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.getCorsOrigins = exports.validateRuntimeConfig = exports.getJwtRefreshSecret = exports.getJwtAccessSecret = exports.getRequiredSecret = exports.isProduction = void 0;
-const aws_sns_1 = require("../common/aws-sns");
+const kudisms_1 = require("../common/kudisms");
 
 function isProduction() {
     return process.env.NODE_ENV === "production";
@@ -42,6 +42,19 @@ function getCorsOrigins() {
 }
 exports.getCorsOrigins = getCorsOrigins;
 
+function isDirectSupabaseDbHost(connectionString) {
+    if (!connectionString) {
+        return false;
+    }
+    try {
+        const hostname = new URL(connectionString).hostname.toLowerCase();
+        return /(^|\.)db\.[^.]+\.supabase\.co$/.test(hostname);
+    }
+    catch {
+        return false;
+    }
+}
+
 function validateRuntimeConfig() {
     getJwtAccessSecret();
     getJwtRefreshSecret();
@@ -52,9 +65,12 @@ function validateRuntimeConfig() {
             String(process.env.SUPABASE_SERVICE_ROLE_KEY || "").trim());
         const resendEmailOtpConfigured = Boolean(String(process.env.RESEND_API_KEY || "").trim() &&
             String(process.env.OTP_EMAIL_FROM || "").trim());
-        const snsSmsConfigured = (0, aws_sns_1.isSnsSmsConfigured)();
+        const smsConfigured = (0, kudisms_1.isKudiSmsConfigured)();
         if (!databaseUrl) {
             throw new Error("DATABASE_URL or SUPABASE_DB_URL must be set in production.");
+        }
+        if (isDirectSupabaseDbHost(databaseUrl)) {
+            throw new Error("Supabase direct database host is not supported in production here. Use the Session pooler connection string or a host with IPv6 direct DB support.");
         }
         if (!redisUrl) {
             throw new Error("REDIS_URL must be set in production.");
@@ -65,8 +81,8 @@ function validateRuntimeConfig() {
         if (!supabaseEmailOtpConfigured && !resendEmailOtpConfigured) {
             throw new Error("Production email OTP requires Supabase auth or Resend email configuration.");
         }
-        if (!snsSmsConfigured) {
-            throw new Error("Production phone OTP requires Amazon SNS SMS configuration.");
+        if (!smsConfigured) {
+            throw new Error("Production phone OTP requires KudiSMS configuration.");
         }
         getCorsOrigins();
     }

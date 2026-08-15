@@ -12,7 +12,7 @@ var __decorate = (this && this.__decorate) || function (decorators, target, key,
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.SupabaseService = void 0;
 const common_1 = require("@nestjs/common");
-const aws_sns_1 = require("../common/aws-sns");
+const kudisms_1 = require("../common/kudisms");
 function normalizeUrl(value) {
     return String(value || '').trim().replace(/\/+$/, '');
 }
@@ -93,7 +93,7 @@ let SupabaseService = class SupabaseService {
         const connectionSource = detectConnectionSource();
         const sqlConfigured = Boolean(databaseUrl);
         const usingSupabaseSql = /supabase\.co|pooler\.supabase\.com/i.test(databaseUrl);
-        const snsSmsConfigured = (0, aws_sns_1.isSnsSmsConfigured)();
+        const smsConfigured = (0, kudisms_1.isKudiSmsConfigured)();
         const warnings = [];
         if (!projectUrl || !publishableKey) {
             warnings.push('Set SUPABASE_URL and SUPABASE_PUBLISHABLE_KEY on the backend to enable server-side Supabase configuration.');
@@ -104,8 +104,8 @@ let SupabaseService = class SupabaseService {
         if (!serviceRoleKey) {
             warnings.push('SUPABASE_SERVICE_ROLE_KEY is not set, so privileged Supabase REST or storage operations are intentionally unavailable.');
         }
-        if (!snsSmsConfigured) {
-            warnings.push('Set AWS_ACCESS_KEY_ID, AWS_SECRET_ACCESS_KEY, and AWS_REGION so phone verification can use Amazon SNS.');
+        if (!smsConfigured) {
+            warnings.push('Set KUDISMS_TOKEN and KUDISMS_SENDER_ID so phone verification can use KudiSMS.');
         }
         return {
             configured: Boolean(projectUrl && publishableKey),
@@ -133,9 +133,9 @@ let SupabaseService = class SupabaseService {
                     configured: Boolean(projectUrl && serviceRoleKey),
                 },
                 phone: {
-                    provider: 'amazon-sns',
-                    configured: snsSmsConfigured,
-                    region: (0, aws_sns_1.getAwsRegion)() || null,
+                    provider: 'kudisms',
+                    configured: smsConfigured,
+                    senderId: (0, kudisms_1.getKudiSmsSenderId)() || null,
                 },
             },
             warnings,

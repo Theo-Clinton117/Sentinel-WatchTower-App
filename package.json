@@ -21,6 +21,7 @@
   "devDependencies": {
     "@types/node": "25.6.0",
     "@types/react": "~19.1.10",
+    "expo": "~54.0.34",
     "react": "19.1.0",
     "react-native": "0.81.5"
   },
@@ -29,7 +30,18 @@
     "@types/react": "~19.1.10",
     "react": "19.1.0",
     "react-native": "0.81.5",
-    "react-native-maps": "1.20.1"
+    "react-native-maps": "1.20.1",
+    "socket.io": {
+      "engine.io": "6.6.9",
+      "socket.io-adapter": "2.5.8",
+      "socket.io-parser": "4.2.7"
+    },
+    "engine.io": {
+      "ws": "8.21.3"
+    },
+    "socket.io-adapter": {
+      "ws": "8.21.3"
+    }
   },
   "dependencies": {
     "expo-contacts": "~15.0.11"

@@ -26,6 +26,7 @@ const telemetry_module_1 = require("./telemetry/telemetry.module");
 const admin_module_1 = require("./admin/admin.module");
 const risk_zones_module_1 = require("./risk-zones/risk-zones.module");
 const nearby_safety_mesh_module_1 = require("./nearby-safety-mesh/nearby-safety-mesh.module");
+const organizations_module_1 = require("./organizations/organizations.module");
 const supabase_module_1 = require("./supabase/supabase.module");
 const waitlist_module_1 = require("./waitlist/waitlist.module");
 const ws_module_1 = require("./ws/ws.module");
@@ -58,6 +59,7 @@ exports.AppModule = AppModule = __decorate([
             admin_module_1.AdminModule,
             risk_zones_module_1.RiskZonesModule,
             nearby_safety_mesh_module_1.NearbySafetyMeshModule,
+            organizations_module_1.OrganizationsModule,
             supabase_module_1.SupabaseModule,
             waitlist_module_1.WaitlistModule,
             ws_module_1.WsModule,

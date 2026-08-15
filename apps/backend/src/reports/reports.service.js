@@ -22,6 +22,9 @@ const pagination_1 = require("../common/pagination");
 const MAX_REPORT_TITLE_LENGTH = 120;
 const MAX_REPORT_DESCRIPTION_LENGTH = 2000;
 const MAX_REPORT_MEDIA_ITEMS = 6;
+function isProductionRuntime() {
+    return process.env.NODE_ENV === "production";
+}
 function toNumber(value, fallback = 0) {
     const parsed = Number(value);
     return Number.isFinite(parsed) ? parsed : fallback;
@@ -116,6 +119,9 @@ function normalizeMediaItems(value) {
         }
         if (!['http:', 'https:'].includes(parsedUrl.protocol)) {
             throw new common_1.BadRequestException('media url must use http or https');
+        }
+        if (isProductionRuntime() && parsedUrl.protocol !== 'https:') {
+            throw new common_1.BadRequestException('media url must use https in production');
         }
         return {
             url: parsedUrl.toString(),

@@ -1,6 +1,7 @@
 import React from 'react';
 import {
   BriefcaseBusiness,
+  Building2,
   ChevronLeft,
   ChevronRight,
   EyeOff,
@@ -21,6 +22,7 @@ export type ProfileGlyphName =
   | 'eye-off'
   | 'home'
   | 'briefcase'
+  | 'building-2'
   | 'chevron-left'
   | 'chevron-right'
   | 'star';
@@ -39,6 +41,7 @@ const iconMap: Record<ProfileGlyphName, LucideIcon> = {
   'eye-off': EyeOff,
   home: Home,
   briefcase: BriefcaseBusiness,
+  'building-2': Building2,
   'chevron-left': ChevronLeft,
   'chevron-right': ChevronRight,
   star: Star,

@@ -13,11 +13,12 @@ export type AppPermissionSnapshot = {
   notifications: PermissionStatusCard;
 };
 
-function normalizePermission(status: { granted: boolean; canAskAgain: boolean; status: string }) {
+function normalizePermission(status: unknown): PermissionStatusCard {
+  const value = status as Partial<PermissionStatusCard> | null | undefined;
   return {
-    granted: status.granted,
-    canAskAgain: status.canAskAgain,
-    status: status.status,
+    granted: Boolean(value?.granted),
+    canAskAgain: Boolean(value?.canAskAgain),
+    status: typeof value?.status === 'string' ? value.status : 'unknown',
   };
 }
 

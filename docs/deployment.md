@@ -16,7 +16,7 @@
 - `JWT_ACCESS_SECRET` and `JWT_REFRESH_SECRET`, each at least 32 characters
 - `CORS_ORIGINS` with explicit HTTPS origins
 - Email OTP through either Supabase auth (`SUPABASE_URL` + `SUPABASE_SERVICE_ROLE_KEY`) or Resend (`RESEND_API_KEY` + `OTP_EMAIL_FROM`)
-- Phone OTP and SMS delivery through Amazon SNS (`AWS_ACCESS_KEY_ID`, `AWS_SECRET_ACCESS_KEY`, `AWS_REGION`)
+- Phone OTP and SMS delivery through KudiSMS (`KUDISMS_TOKEN`, `KUDISMS_SENDER_ID`)
 - `OTP_BYPASS_CODE` must be empty
 
 ## Mobile Production Environment

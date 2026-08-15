@@ -23,7 +23,7 @@ export const HomeActionRail = ({ actions }: Props) => {
     <View style={[styles.wrap, theme.shadow.card]}>
       {actions.map((action, index) => (
         <Pressable key={action.key} onPress={action.onPress} style={styles.item}>
-          <LiquidGlassIconBubble active size={42}>
+          <LiquidGlassIconBubble active size={46}>
             <AppIcon name={action.icon} color={theme.colors.text} active />
           </LiquidGlassIconBubble>
           <Text style={styles.label}>{action.label}</Text>
@@ -40,32 +40,33 @@ const createStyles = (theme: ReturnType<typeof useAppTheme>) =>
       position: 'absolute',
       top: 18,
       right: 16,
-      width: 92,
-      borderRadius: 8,
-      paddingVertical: 10,
+      width: 104,
+      borderRadius: 20,
+      paddingVertical: 12,
       paddingHorizontal: 10,
-      backgroundColor: theme.colors.surface,
+      backgroundColor: theme.colors.surfaceStrong,
       borderWidth: 1,
       borderColor: theme.colors.border,
       alignItems: 'center',
-      gap: 8,
+      gap: 10,
     },
     item: {
       alignItems: 'center',
       width: '100%',
-      paddingVertical: 6,
+      paddingVertical: 8,
     },
     label: {
       color: theme.colors.text,
-      fontSize: 11,
-      fontWeight: '700',
+      fontSize: 10,
+      fontWeight: '800',
       textAlign: 'center',
-      lineHeight: 14,
+      lineHeight: 13,
+      marginTop: 4,
     },
     divider: {
-      width: 34,
+      width: 38,
       height: 1,
       backgroundColor: theme.colors.border,
-      marginTop: 10,
+      marginTop: 11,
     },
   });

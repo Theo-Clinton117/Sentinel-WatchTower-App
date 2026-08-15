@@ -7,23 +7,24 @@ import { useAppStore, type EmergencyLocation } from '../store/useAppStore';
 export const LOCATION_TASK_NAME = 'sentinel-location-task';
 
 type CoordinateLike = Pick<EmergencyLocation, 'lat' | 'lng'>;
+type PreciseCoordinateLike = Pick<EmergencyLocation, 'lat' | 'lng' | 'accuracyM'>;
 
 type LocationTaskData = {
   locations: Location.LocationObject[];
 };
 
 const FOREGROUND_TRACKING_OPTIONS: Location.LocationOptions = {
-  accuracy: Location.Accuracy.Balanced,
-  timeInterval: 15000,
-  distanceInterval: 20,
+  accuracy: Location.Accuracy.BestForNavigation,
+  timeInterval: 10000,
+  distanceInterval: 10,
 };
 
 const BACKGROUND_TRACKING_OPTIONS: Location.LocationTaskOptions = {
-  accuracy: Location.Accuracy.Balanced,
-  timeInterval: 30000,
-  distanceInterval: 50,
-  deferredUpdatesInterval: 60000,
-  deferredUpdatesDistance: 80,
+  accuracy: Location.Accuracy.High,
+  timeInterval: 20000,
+  distanceInterval: 25,
+  deferredUpdatesInterval: 45000,
+  deferredUpdatesDistance: 50,
   pausesUpdatesAutomatically: true,
 };
 
@@ -33,7 +34,11 @@ const MAX_TIME_BETWEEN_UPLOADS_MS = 45000;
 const BUFFER_FLUSH_MS = 20000;
 const MAX_BUFFER_SIZE = 3;
 const MAX_PERSISTED_LOCATION_BATCHES = 12;
+const STRICT_LOCATION_ACCURACY_METERS = 50;
 const PENDING_LOCATION_UPLOADS_KEY = 'sentinel-pending-location-uploads';
+const GOOGLE_GEOCODE_URL = 'https://maps.googleapis.com/maps/api/geocode/json';
+const GOOGLE_GEOCODE_RESULT_TYPES = 'street_address|premise|subpremise';
+const GOOGLE_GEOCODE_LOCATION_TYPES = 'ROOFTOP';
 
 type PendingLocationUpload = {
   sessionId: string;
@@ -112,29 +117,113 @@ export function formatLocationCoordinates(location: CoordinateLike) {
   return `${location.lat.toFixed(5)}, ${location.lng.toFixed(5)}`;
 }
 
-export async function getReadableLocationLabel(location: CoordinateLike) {
-  const [address] = await Location.reverseGeocodeAsync({
-    latitude: location.lat,
-    longitude: location.lng,
-  });
+function isPreciseEnoughLocation(location: PreciseCoordinateLike) {
+  return Number.isFinite(location.lat) && Number.isFinite(location.lng);
+}
 
-  if (!address) {
+function getGoogleMapsApiKey() {
+  return String(process.env.EXPO_PUBLIC_GOOGLE_MAPS_API_KEY || '').trim();
+}
+
+function buildGoogleReverseGeocodeUrl(location: CoordinateLike) {
+  const apiKey = getGoogleMapsApiKey();
+  if (!apiKey) {
     return null;
   }
 
+  const params = new URLSearchParams({
+    latlng: `${location.lat},${location.lng}`,
+    location_type: GOOGLE_GEOCODE_LOCATION_TYPES,
+    result_type: GOOGLE_GEOCODE_RESULT_TYPES,
+    key: apiKey,
+  });
+
+  return `${GOOGLE_GEOCODE_URL}?${params.toString()}`;
+}
+
+function buildGoogleAddressLabel(result: {
+  formatted_address?: string;
+  address_components?: Array<{
+    long_name?: string;
+    short_name?: string;
+    types?: string[];
+  }>;
+}) {
+  if (typeof result.formatted_address === 'string' && result.formatted_address.trim()) {
+    return result.formatted_address.trim();
+  }
+
+  const components = result.address_components || [];
+  const findComponent = (...types: string[]) => {
+    const component = components.find((entry) => entry.types?.some((type) => types.includes(type)));
+    return component?.short_name || component?.long_name || null;
+  };
+
   const primaryLine = formatAddressLine([
-    address.name,
-    address.street,
-    address.district,
+    findComponent('street_number'),
+    findComponent('route'),
+    findComponent('premise'),
+    findComponent('subpremise'),
   ]);
   const secondaryLine = formatAddressLine([
-    address.city,
-    address.region,
-    address.country,
+    findComponent('locality'),
+    findComponent('administrative_area_level_1'),
+    findComponent('country'),
   ]);
-  const resolved = formatAddressLine([primaryLine, secondaryLine]);
 
-  return resolved || null;
+  return formatAddressLine([primaryLine, secondaryLine]) || null;
+}
+
+export async function getReadableLocationLabel(location: PreciseCoordinateLike) {
+  if (!isPreciseEnoughLocation(location)) {
+    return null;
+  }
+
+  const url = buildGoogleReverseGeocodeUrl(location);
+  if (!url) {
+    return null;
+  }
+
+  const response = await fetch(url);
+  if (!response.ok) {
+    return null;
+  }
+
+  const payload = (await response.json()) as {
+    status?: string;
+    results?: Array<{
+      formatted_address?: string;
+      address_components?: Array<{
+        long_name?: string;
+        short_name?: string;
+        types?: string[];
+      }>;
+      geometry?: {
+        location_type?: string;
+      };
+      types?: string[];
+    }>;
+  };
+
+  if (payload.status !== 'OK' || !Array.isArray(payload.results)) {
+    return null;
+  }
+
+  const strictResult =
+    payload.results.find(
+      (result) =>
+        result.geometry?.location_type === 'ROOFTOP' &&
+        Array.isArray(result.types) &&
+        result.types.some((type) =>
+          ['street_address', 'premise', 'subpremise'].includes(type),
+        ),
+    ) || payload.results[0];
+
+  if (!strictResult || strictResult.geometry?.location_type !== 'ROOFTOP') {
+    return null;
+  }
+
+  return buildGoogleAddressLabel(strictResult) || null;
 }
 
 function getRecordedAtMs(location: EmergencyLocation) {
@@ -142,6 +231,10 @@ function getRecordedAtMs(location: EmergencyLocation) {
 }
 
 function shouldCaptureLocation(location: EmergencyLocation, forceAfterDelay = false) {
+  if (!isPreciseEnoughLocation(location)) {
+    return false;
+  }
+
   if (!lastUploadedLocation) {
     return true;
   }
@@ -331,10 +424,15 @@ export async function getCurrentLocation() {
   }
 
   const location = await Location.getCurrentPositionAsync({
-    accuracy: Location.Accuracy.Balanced,
+    accuracy: Location.Accuracy.BestForNavigation,
   });
 
-  return mapLocationObject(location);
+  const mapped = mapLocationObject(location);
+  if (!isPreciseEnoughLocation(mapped)) {
+    throw new Error('A valid GPS fix is required before Sentinel can resolve this location.');
+  }
+
+  return mapped;
 }
 
 export async function startForegroundTracking() {
@@ -349,6 +447,10 @@ export async function startForegroundTracking() {
     (location) => {
       const state = useAppStore.getState();
       const payload = mapLocationObject(location);
+
+      if (!isPreciseEnoughLocation(payload)) {
+        return;
+      }
 
       state.setLastKnownLocation(payload);
 

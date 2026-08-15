@@ -15,7 +15,7 @@ const bullmq_1 = require("bullmq");
 const db_service_1 = require("../db/db.service");
 const ws_service_1 = require("../ws/ws.service");
 const alert_stages_1 = require("../alerts/alert-stages");
-const aws_sns_1 = require("../common/aws-sns");
+const kudisms_1 = require("../common/kudisms");
 const ESCALATION_SWEEP_INTERVAL_MS = 15000;
 function hasValue(value) {
     return value !== null && value !== undefined && String(value).trim().length > 0;
@@ -466,7 +466,7 @@ let QueuesService = class QueuesService {
                             recipientPhone,
                             alertId: alert.alert_id,
                             stage: payload.stage || alert.stage,
-                            reason: 'sns_not_configured',
+                            reason: 'kudisms_not_configured',
                         },
                     });
                 }
@@ -633,13 +633,13 @@ let QueuesService = class QueuesService {
         return result.rows[0]?.id || null;
     }
     isSmsConfigured() {
-        return (0, aws_sns_1.isSnsSmsConfigured)();
+        return (0, kudisms_1.isKudiSmsConfigured)();
     }
     isEmailConfigured() {
         return Boolean(process.env.RESEND_API_KEY && process.env.OTP_EMAIL_FROM);
     }
     async sendSms(to, body) {
-        await (0, aws_sns_1.publishSms)(to, body);
+        await (0, kudisms_1.sendSms)(to, body);
     }
     async sendEmail({ to, subject, text, html }) {
         const response = await fetch('https://api.resend.com/emails', {

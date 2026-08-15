@@ -27,6 +27,30 @@ test("report create rejects invalid media URLs before touching the database", as
     }), /http or https/);
 });
 
+test("report create rejects plain http media URLs in production", async () => {
+    const service = new ReportsService({
+        async transaction() {
+            throw new Error("database should not be touched");
+        },
+    });
+
+    const previousNodeEnv = process.env.NODE_ENV;
+    process.env.NODE_ENV = "production";
+
+    try {
+        await assert.rejects(() => service.create("user-1", {
+            title: "Suspicious activity",
+            media: [{ url: "http://example.com/image.jpg" }],
+        }), /https in production/);
+    } finally {
+        if (previousNodeEnv === undefined) {
+            delete process.env.NODE_ENV;
+        } else {
+            process.env.NODE_ENV = previousNodeEnv;
+        }
+    }
+});
+
 test("report create limits media payload size before touching the database", async () => {
     const service = new ReportsService({
         async transaction() {

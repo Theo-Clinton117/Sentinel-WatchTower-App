@@ -14,6 +14,7 @@ import { Search, Users } from 'lucide-react-native';
 import { EmptyState } from '../components/EmptyState';
 import { FeedbackBanner } from '../components/FeedbackBanner';
 import { MotionView } from '../components/MotionView';
+import { SkeletonBlock } from '../components/Skeleton';
 import { ApiError } from '../services/api';
 import {
   createContact,
@@ -366,7 +367,7 @@ export const ContactsScreen = () => {
       <MotionView delay={40}>
         <Text style={styles.title}>Contacts</Text>
         <Text style={styles.subtitle}>
-          Choose the people Sentinel should contact first when you need help or want someone to watch your trip.
+          Choose the people Sentinel should contact first.
         </Text>
       </MotionView>
 
@@ -386,9 +387,15 @@ export const ContactsScreen = () => {
       <MotionView delay={150} style={[styles.sectionCard, theme.shadow.card]}>
         <View style={styles.sectionHeader}>
           <Text style={styles.sectionTitle}>Trusted circle</Text>
-          {loading ? <ActivityIndicator color={theme.colors.blueGlow} /> : null}
         </View>
-        {filteredContacts.length === 0 && !loading ? (
+        {loading ? (
+          <View style={styles.loadingStack}>
+            <SkeletonBlock width="38%" height={14} />
+            <SkeletonBlock height={82} />
+            <SkeletonBlock height={82} />
+            <SkeletonBlock height={82} />
+          </View>
+        ) : filteredContacts.length === 0 ? (
           <EmptyState
             icon={Users}
             title={contacts.length === 0 ? 'Build your trusted circle' : 'No contacts match'}
@@ -456,9 +463,7 @@ export const ContactsScreen = () => {
         <View style={styles.sectionHeader}>
           <View style={styles.sectionHeaderCopy}>
             <Text style={styles.sectionTitle}>Find more people</Text>
-            <Text style={styles.sectionMeta}>
-              Import from your phone or search by email when you want to add more trusted people.
-            </Text>
+            <Text style={styles.sectionMeta}>Import from your phone or search by email.</Text>
           </View>
           <Pressable
             style={styles.inlineButton}
@@ -474,7 +479,7 @@ export const ContactsScreen = () => {
               <View style={styles.sectionHeader}>
                 <View style={styles.sectionHeaderCopy}>
                   <Text style={styles.compactTitle}>Phone contacts</Text>
-                  <Text style={styles.compactMeta}>Find people from your phone book and add them faster.</Text>
+                  <Text style={styles.compactMeta}>Load phone contacts to add faster.</Text>
                 </View>
                 <Pressable style={styles.inlineButton} onPress={handleLoadDeviceContacts}>
                   {loadingDeviceContacts ? (
@@ -771,6 +776,10 @@ const createStyles = (theme: ReturnType<typeof useAppTheme>) =>
       color: theme.colors.muted,
       lineHeight: 20,
       marginBottom: 16,
+    },
+    loadingStack: {
+      gap: 10,
+      paddingTop: 8,
     },
     searchCard: {
       backgroundColor: theme.colors.surface,

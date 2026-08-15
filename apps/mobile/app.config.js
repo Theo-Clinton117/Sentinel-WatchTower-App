@@ -2,7 +2,6 @@ const baseConfig = require('./app.json');
 
 const APP_ENV = process.env.EXPO_PUBLIC_APP_ENV || process.env.APP_ENV || 'development';
 const IS_PRODUCTION = APP_ENV === 'production' || process.env.EAS_BUILD_PROFILE === 'production';
-const GOOGLE_MAPS_API_KEY = 'AIzaSyAlUfLCdFUMx4v4ZwkYdpeMrmVfZPI8b0Y';
 
 function readEnv(name, fallback = '') {
   return String(process.env[name] || fallback).trim();
@@ -45,7 +44,7 @@ module.exports = ({ config }) => {
       userInterfaceStyle: 'automatic',
       config: {
         ...appConfig.ios?.config,
-        googleMapsApiKey: readEnv('EXPO_PUBLIC_GOOGLE_MAPS_API_KEY', GOOGLE_MAPS_API_KEY),
+        googleMapsApiKey: readEnv('EXPO_PUBLIC_GOOGLE_MAPS_API_KEY'),
       },
       infoPlist: {
         NSLocationWhenInUseUsageDescription:
@@ -69,7 +68,7 @@ module.exports = ({ config }) => {
         ...appConfig.android.config,
         googleMaps: {
           ...appConfig.android.config?.googleMaps,
-          apiKey: readEnv('EXPO_PUBLIC_GOOGLE_MAPS_API_KEY', GOOGLE_MAPS_API_KEY),
+          apiKey: readEnv('EXPO_PUBLIC_GOOGLE_MAPS_API_KEY'),
         },
       },
       adaptiveIcon: {
@@ -100,7 +99,7 @@ module.exports = ({ config }) => {
     extra: {
       appEnv: APP_ENV,
       apiBaseUrl: readEnv('EXPO_PUBLIC_API_BASE_URL'),
-      googleMapsApiKey: readEnv('EXPO_PUBLIC_GOOGLE_MAPS_API_KEY', GOOGLE_MAPS_API_KEY),
+      googleMapsApiKey: readEnv('EXPO_PUBLIC_GOOGLE_MAPS_API_KEY'),
       wsUrl: readEnv('EXPO_PUBLIC_WS_URL'),
     },
   };

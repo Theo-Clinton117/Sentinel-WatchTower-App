@@ -7,6 +7,7 @@ import {
   Pressable,
   StyleSheet,
   Text,
+  useWindowDimensions,
   View,
 } from 'react-native';
 import { shallow } from 'zustand/shallow';
@@ -34,13 +35,14 @@ import { listRiskZones } from '../services/risk-zones';
 import { getActiveSession } from '../services/sessions';
 import { useAppTheme } from '../theme';
 
-const ORANGE = '#F19A3E';
 const PASSIVE_GUARDIAN_CHECK_INTERVAL_MS = 60_000;
 const PASSIVE_GUARDIAN_CHECK_DISTANCE_M = 120;
 
 export const HomeScreen = () => {
   const theme = useAppTheme();
   const styles = useMemo(() => createStyles(theme), [theme]);
+  const { height: windowHeight } = useWindowDimensions();
+  const isCompactHeight = windowHeight < 760;
   const {
     activeSession,
     activeWatchSession,
@@ -477,6 +479,10 @@ export const HomeScreen = () => {
     outputRange: [-43, 0],
     extrapolate: 'clamp',
   });
+  const menuInitial = (user?.name || user?.email || user?.phone || 'S')
+    .trim()
+    .charAt(0)
+    .toUpperCase();
 
   return (
     <View style={styles.container}>
@@ -484,7 +490,7 @@ export const HomeScreen = () => {
         key={`${mapRefreshKey}:${mapLayer}`}
         variant="minimal"
         markerLabel={markerLabel}
-        markerColor={ORANGE}
+        markerColor={theme.colors.blue}
         lat={mapLat}
         lng={mapLng}
         locations={emergencyLocations}
@@ -492,58 +498,48 @@ export const HomeScreen = () => {
         mapLayer={mapLayer}
       />
 
-      <Pressable
-        onPress={openSidebar}
-        style={({ pressed }) => [styles.settingsButton, pressed && styles.settingsButtonPressed]}
-        accessibilityRole="button"
-        accessibilityLabel="Open side menu"
-      >
-        <AppIcon name="settings" color="#FFFFFF" />
-      </Pressable>
-
-      <MotionView delay={35} style={[styles.mapControlWrap, theme.shadow.card]}>
+      <MotionView delay={20} style={[styles.headerShell, theme.shadow.card]}>
         <Pressable
-          onPress={handleRecenterMap}
-          style={({ pressed }) => [styles.mapControlButton, pressed && styles.mapControlPressed]}
+          onPress={openSidebar}
+          style={({ pressed }) => [styles.menuButton, pressed && styles.menuButtonPressed]}
           accessibilityRole="button"
-          accessibilityLabel="Recenter map"
-          accessibilityHint="Moves the map back to your latest known location."
+          accessibilityLabel="Open side menu"
         >
-          <AppIcon name="location" color={theme.colors.text} active />
+          <Text style={styles.menuInitial}>{menuInitial}</Text>
         </Pressable>
-        <View style={styles.mapControlDivider} />
-        <Pressable
-          onPress={handleToggleMapLayer}
-          style={({ pressed }) => [styles.mapControlButton, pressed && styles.mapControlPressed]}
-          accessibilityRole="button"
-          accessibilityLabel="Toggle map layer"
-          accessibilityHint={`Switches to ${mapLayer === 'street' ? 'satellite' : 'street'} map view.`}
-        >
-          <AppIcon name="layers" color={theme.colors.text} active />
-        </Pressable>
-      </MotionView>
 
-      <MotionView delay={20} style={[styles.locationStrip, theme.shadow.card]}>
-        <View style={[styles.statusPill, locationStatusTone]}>
-          <Text style={styles.statusPillText}>{locationStatusLabel}</Text>
+        <View style={styles.headerCopy}>
+          <Text style={styles.headerEyebrow}>Sentinel</Text>
+          <Text style={styles.headerTitle}>{watchStatusText}</Text>
+          <Text style={styles.headerMeta}>
+            {locationPermissionDenied ? 'Location disabled' : locationBannerText}
+          </Text>
         </View>
-        <Text style={styles.locationStripText}>
-          {locationBannerText}
-        </Text>
-        {locationPermissionDenied ? (
+
+        <View style={styles.headerActions}>
           <Pressable
-            onPress={handleEnableLocation}
-            style={({ pressed }) => [styles.locationAction, pressed && styles.locationActionPressed]}
+            onPress={handleRecenterMap}
+            style={({ pressed }) => [styles.headerAction, pressed && styles.headerActionPressed]}
             accessibilityRole="button"
-            accessibilityLabel="Enable location access"
+            accessibilityLabel="Recenter map"
+            accessibilityHint="Moves the map back to your latest known location."
           >
-            <Text style={styles.locationActionText}>Enable</Text>
+            <AppIcon name="location" color={theme.colors.blue} active />
           </Pressable>
-        ) : null}
+          <Pressable
+            onPress={handleToggleMapLayer}
+            style={({ pressed }) => [styles.headerAction, pressed && styles.headerActionPressed]}
+            accessibilityRole="button"
+            accessibilityLabel="Toggle map layer"
+            accessibilityHint={`Switches to ${mapLayer === 'street' ? 'satellite' : 'street'} map view.`}
+          >
+            <AppIcon name="layers" color={theme.colors.text} active />
+          </Pressable>
+        </View>
       </MotionView>
 
       {syncing ? (
-        <MotionView delay={40} style={[styles.syncWrap, theme.shadow.card]}>
+        <MotionView delay={30} style={styles.syncChip}>
           <ActivityIndicator color={theme.colors.blue} size="small" />
           <Text style={styles.syncText}>Refreshing session</Text>
         </MotionView>
@@ -559,8 +555,8 @@ export const HomeScreen = () => {
         delay={80}
         style={
           nearbySafetyMeshEnabled
-            ? [styles.controlPanel, theme.shadow.card]
-            : [styles.controlPanel, styles.controlPanelCompact, theme.shadow.card]
+            ? [styles.composeDock, theme.shadow.card]
+            : [styles.composeDock, styles.composeDockCompact, theme.shadow.card]
         }
       >
         {nearbySafetyMeshEnabled ? (
@@ -599,7 +595,6 @@ export const HomeScreen = () => {
                   <AppIcon name={action.icon} color={theme.colors.blue} active />
                 </View>
                 <Text style={styles.quickLabel}>{action.label}</Text>
-                <Text style={styles.quickMeta}>{action.meta}</Text>
               </Pressable>
             ))}
           </View>
@@ -673,19 +668,117 @@ const createStyles = (theme: ReturnType<typeof useAppTheme>) =>
       overflow: 'hidden',
       backgroundColor: theme.colors.background,
     },
-    syncWrap: {
+    headerShell: {
       position: 'absolute',
-      top: 84,
-      alignSelf: 'center',
-      minHeight: 38,
-      paddingHorizontal: 14,
-      borderRadius: 8,
-      backgroundColor: theme.colors.surface,
+      top: 14,
+      left: 14,
+      right: 14,
+      paddingHorizontal: 12,
+      paddingVertical: 10,
+      borderRadius: 30,
+      backgroundColor: theme.isDark ? 'rgba(10,20,35,0.90)' : 'rgba(255,255,255,0.92)',
       borderWidth: 1,
-      borderColor: theme.colors.border,
+      borderColor: theme.isDark ? 'rgba(255,255,255,0.05)' : 'rgba(12,21,38,0.06)',
+      flexDirection: 'row',
+      alignItems: 'center',
+      gap: 12,
+      zIndex: 20,
+    },
+    menuButton: {
+      width: 46,
+      height: 46,
+      borderRadius: 18,
+      alignItems: 'center',
+      justifyContent: 'center',
+      backgroundColor: theme.colors.blueSoft,
+      overflow: 'hidden',
+    },
+    menuButtonPressed: {
+      opacity: 0.86,
+      transform: [{ scale: 0.98 }],
+    },
+    menuInitial: {
+      color: theme.colors.blue,
+      fontSize: 15,
+      fontWeight: '900',
+      letterSpacing: 0,
+    },
+    headerCopy: {
+      flex: 1,
+      minWidth: 0,
+    },
+    headerEyebrow: {
+      color: theme.colors.blue,
+      fontSize: 10,
+      fontWeight: '900',
+      letterSpacing: 1.1,
+      textTransform: 'uppercase',
+      marginBottom: 3,
+    },
+    headerTitle: {
+      color: theme.colors.text,
+      fontSize: 16,
+      fontWeight: '800',
+      lineHeight: 20,
+    },
+    headerMeta: {
+      color: theme.colors.muted,
+      fontSize: 12,
+      lineHeight: 16,
+      marginTop: 2,
+    },
+    headerActions: {
       flexDirection: 'row',
       alignItems: 'center',
       gap: 8,
+    },
+    headerAction: {
+      width: 36,
+      height: 36,
+      borderRadius: 13,
+      alignItems: 'center',
+      justifyContent: 'center',
+      backgroundColor: theme.isDark ? 'rgba(9,18,33,0.92)' : 'rgba(255,255,255,0.96)',
+      borderWidth: 1,
+      borderColor: theme.isDark ? 'rgba(255,255,255,0.08)' : 'rgba(12,21,38,0.08)',
+    },
+    headerActionPressed: {
+      opacity: 0.86,
+      transform: [{ scale: 0.98 }],
+    },
+    syncChip: {
+      position: 'absolute',
+      top: 76,
+      alignSelf: 'center',
+      minHeight: 36,
+      paddingHorizontal: 14,
+      borderRadius: 999,
+      backgroundColor: theme.isDark ? 'rgba(12,21,38,0.90)' : 'rgba(255,255,255,0.92)',
+      borderWidth: 1,
+      borderColor: theme.isDark ? 'rgba(255,255,255,0.05)' : 'rgba(12,21,38,0.06)',
+      flexDirection: 'row',
+      alignItems: 'center',
+      gap: 8,
+      zIndex: 18,
+    },
+    syncWrap: {
+      position: 'absolute',
+      top: 86,
+      alignSelf: 'center',
+      minHeight: 38,
+      paddingHorizontal: 14,
+      borderRadius: 20,
+      backgroundColor: theme.isDark ? 'rgba(12,21,38,0.92)' : 'rgba(255,255,255,0.92)',
+      borderWidth: 1,
+      borderColor: theme.isDark ? 'rgba(255,255,255,0.05)' : 'rgba(12,21,38,0.06)',
+      flexDirection: 'row',
+      alignItems: 'center',
+      gap: 8,
+    },
+    syncWrapCompact: {
+      top: 72,
+      minHeight: 34,
+      paddingHorizontal: 12,
     },
     syncText: {
       color: theme.colors.text,
@@ -708,18 +801,28 @@ const createStyles = (theme: ReturnType<typeof useAppTheme>) =>
       textShadowOffset: { width: 0, height: 0 },
       textShadowRadius: 10,
     },
-    controlPanel: {
+    composeDock: {
       position: 'absolute',
-      left: 16,
-      right: 16,
-      bottom: 18,
+      left: 14,
+      right: 14,
+      bottom: 14,
       padding: 14,
-      borderRadius: 8,
-      backgroundColor: theme.colors.surface,
+      borderRadius: 34,
+      backgroundColor: theme.isDark ? 'rgba(10,20,35,0.92)' : 'rgba(255,255,255,0.95)',
       borderWidth: 1,
-      borderColor: theme.colors.border,
-      gap: 14,
+      borderColor: theme.isDark ? 'rgba(255,255,255,0.05)' : 'rgba(12,21,38,0.06)',
+      gap: 12,
       alignItems: 'stretch',
+    },
+    composeDockCompact: {
+      left: 0,
+      right: 0,
+      bottom: 16,
+      paddingHorizontal: 14,
+      paddingVertical: 0,
+      backgroundColor: 'transparent',
+      borderWidth: 0,
+      alignItems: 'center',
     },
     controlPanelCompact: {
       left: 0,
@@ -742,10 +845,11 @@ const createStyles = (theme: ReturnType<typeof useAppTheme>) =>
     },
     panelEyebrow: {
       color: theme.colors.blue,
-      fontSize: 11,
+      fontSize: 10,
       fontWeight: '800',
       textTransform: 'uppercase',
       marginBottom: 5,
+      letterSpacing: 1,
     },
     panelTitle: {
       color: theme.colors.text,
@@ -756,23 +860,24 @@ const createStyles = (theme: ReturnType<typeof useAppTheme>) =>
     panelMeta: {
       color: theme.colors.muted,
       fontSize: 12,
-      lineHeight: 17,
-      marginTop: 4,
+      lineHeight: 18,
+      marginTop: 5,
     },
     guardianBadge: {
-      paddingHorizontal: 10,
-      paddingVertical: 7,
-      borderRadius: 8,
-      backgroundColor: theme.colors.backgroundElevated,
-      borderWidth: 1,
-      borderColor: theme.colors.border,
+      minHeight: 36,
+      paddingHorizontal: 12,
+      paddingVertical: 8,
+      borderRadius: 999,
+      backgroundColor: theme.colors.blueSoft,
+      alignItems: 'center',
+      justifyContent: 'center',
     },
     guardianBadgePressed: {
       opacity: 0.84,
       transform: [{ scale: 0.98 }],
     },
     guardianBadgeText: {
-      color: theme.colors.text,
+      color: theme.colors.blue,
       fontSize: 11,
       fontWeight: '800',
     },
@@ -783,11 +888,12 @@ const createStyles = (theme: ReturnType<typeof useAppTheme>) =>
     quickAction: {
       flex: 1,
       minHeight: 74,
-      borderRadius: 8,
+      borderRadius: 22,
       backgroundColor: theme.colors.backgroundElevated,
       borderWidth: 1,
-      borderColor: theme.colors.border,
-      padding: 10,
+      borderColor: theme.isDark ? 'rgba(255,255,255,0.04)' : 'rgba(12,21,38,0.05)',
+      paddingHorizontal: 12,
+      paddingVertical: 10,
       justifyContent: 'center',
     },
     quickActionPressed: {
@@ -795,34 +901,35 @@ const createStyles = (theme: ReturnType<typeof useAppTheme>) =>
       transform: [{ scale: 0.98 }],
     },
     quickIcon: {
-      width: 32,
-      height: 32,
-      borderRadius: 8,
+      width: 36,
+      height: 36,
+      borderRadius: 14,
       alignItems: 'center',
       justifyContent: 'center',
       backgroundColor: theme.colors.blueSoft,
-      marginBottom: 7,
+      marginBottom: 6,
     },
     quickLabel: {
       color: theme.colors.text,
       fontSize: 13,
       fontWeight: '800',
-      lineHeight: 17,
+      lineHeight: 18,
     },
     quickMeta: {
       color: theme.colors.muted,
       fontSize: 11,
       fontWeight: '700',
       lineHeight: 15,
-      marginTop: 1,
+      marginTop: 2,
     },
     sosRow: {
-      minHeight: 72,
-      padding: 10,
-      borderRadius: 8,
-      backgroundColor: theme.isDark ? 'rgba(255, 107, 130, 0.1)' : '#FFF1F4',
+      minHeight: 84,
+      paddingHorizontal: 12,
+      paddingVertical: 11,
+      borderRadius: 24,
+      backgroundColor: theme.isDark ? 'rgba(255, 107, 130, 0.09)' : 'rgba(255,245,247,0.95)',
       borderWidth: 1,
-      borderColor: theme.isDark ? 'rgba(255, 107, 130, 0.28)' : '#FFC8D3',
+      borderColor: theme.isDark ? 'rgba(255, 107, 130, 0.18)' : 'rgba(242,79,106,0.10)',
       flexDirection: 'row',
       alignItems: 'center',
       justifyContent: 'space-between',
@@ -835,7 +942,7 @@ const createStyles = (theme: ReturnType<typeof useAppTheme>) =>
       borderWidth: 0,
       justifyContent: 'center',
       flexDirection: 'column',
-      gap: 10,
+      gap: 8,
     },
     sosCopy: {
       flex: 1,
@@ -843,14 +950,14 @@ const createStyles = (theme: ReturnType<typeof useAppTheme>) =>
     },
     sosTitle: {
       color: theme.colors.text,
-      fontSize: 15,
+      fontSize: 14,
       fontWeight: '800',
       marginBottom: 4,
     },
     sosButton: {
-      width: 86,
-      height: 58,
-      borderRadius: 8,
+      width: 98,
+      height: 62,
+      borderRadius: 999,
       backgroundColor: theme.colors.red,
       alignItems: 'center',
       justifyContent: 'center',
@@ -862,8 +969,8 @@ const createStyles = (theme: ReturnType<typeof useAppTheme>) =>
       elevation: 14,
     },
     sosButtonCompact: {
-      width: 116,
-      height: 66,
+      width: 126,
+      height: 68,
     },
     sosButtonPressed: {
       opacity: 0.9,
@@ -874,9 +981,9 @@ const createStyles = (theme: ReturnType<typeof useAppTheme>) =>
     },
     sosButtonText: {
       color: '#FFFFFF',
-      fontSize: 22,
+      fontSize: 23,
       fontWeight: '800',
-      letterSpacing: 0.4,
+      letterSpacing: 0.2,
       zIndex: 1,
     },
     sosProgress: {
@@ -897,9 +1004,9 @@ const createStyles = (theme: ReturnType<typeof useAppTheme>) =>
       position: 'absolute',
       top: 18,
       left: 16,
-      width: 56,
-      height: 56,
-      borderRadius: 8,
+      width: 58,
+      height: 58,
+      borderRadius: 20,
       backgroundColor: theme.colors.blue,
       alignItems: 'center',
       justifyContent: 'center',
@@ -914,17 +1021,26 @@ const createStyles = (theme: ReturnType<typeof useAppTheme>) =>
       opacity: 0.9,
       transform: [{ scale: 0.98 }],
     },
+    settingsButtonCompact: {
+      top: 12,
+      width: 54,
+      height: 54,
+      borderRadius: 16,
+    },
     mapControlWrap: {
       position: 'absolute',
       top: 86,
       right: 18,
       width: 50,
-      borderRadius: 8,
-      backgroundColor: theme.colors.surface,
+      borderRadius: 20,
+      backgroundColor: theme.isDark ? 'rgba(12,21,38,0.92)' : 'rgba(255,255,255,0.94)',
       borderWidth: 1,
-      borderColor: theme.colors.border,
+      borderColor: theme.isDark ? 'rgba(255,255,255,0.05)' : 'rgba(12,21,38,0.06)',
       overflow: 'hidden',
       zIndex: 10,
+    },
+    mapControlWrapCompact: {
+      top: 74,
     },
     mapControlButton: {
       width: 48,
@@ -941,16 +1057,16 @@ const createStyles = (theme: ReturnType<typeof useAppTheme>) =>
       backgroundColor: theme.colors.border,
     },
     meshRestoreButton: {
-      minHeight: 38,
-      paddingHorizontal: 12,
-      borderRadius: 8,
+      minHeight: 40,
+      paddingHorizontal: 14,
+      borderRadius: 999,
       flexDirection: 'row',
       alignItems: 'center',
       justifyContent: 'center',
       gap: 7,
-      backgroundColor: theme.colors.surface,
+      backgroundColor: theme.colors.backgroundElevated,
       borderWidth: 1,
-      borderColor: theme.colors.border,
+      borderColor: theme.isDark ? 'rgba(255,255,255,0.05)' : 'rgba(12,21,38,0.06)',
     },
     meshRestorePressed: {
       backgroundColor: theme.colors.blueSoft,
@@ -960,26 +1076,11 @@ const createStyles = (theme: ReturnType<typeof useAppTheme>) =>
       fontSize: 12,
       fontWeight: '800',
     },
-    locationStrip: {
-      position: 'absolute',
-      top: 18,
-      left: 84,
-      right: 18,
-      minHeight: 56,
-      paddingHorizontal: 18,
-      paddingVertical: 10,
-      borderRadius: 8,
-      backgroundColor: theme.colors.surface,
-      borderWidth: 1,
-      borderColor: theme.colors.border,
-      justifyContent: 'center',
-      zIndex: 9,
-    },
     statusPill: {
       alignSelf: 'flex-start',
       paddingHorizontal: 8,
       paddingVertical: 4,
-      borderRadius: 8,
+      borderRadius: 999,
       marginBottom: 6,
     },
     statusPillReady: {
@@ -997,6 +1098,30 @@ const createStyles = (theme: ReturnType<typeof useAppTheme>) =>
       fontWeight: '800',
       lineHeight: 13,
     },
+    locationStrip: {
+      position: 'absolute',
+      top: 18,
+      left: 84,
+      right: 18,
+      minHeight: 60,
+      paddingHorizontal: 18,
+      paddingVertical: 11,
+      borderRadius: 22,
+      backgroundColor: theme.isDark ? 'rgba(12,21,38,0.92)' : 'rgba(255,255,255,0.94)',
+      borderWidth: 1,
+      borderColor: theme.isDark ? 'rgba(255,255,255,0.05)' : 'rgba(12,21,38,0.06)',
+      justifyContent: 'center',
+      zIndex: 9,
+    },
+    locationStripCompact: {
+      top: 12,
+      left: 76,
+      right: 16,
+      minHeight: 54,
+      paddingHorizontal: 14,
+      paddingVertical: 8,
+      borderRadius: 16,
+    },
     locationStripText: {
       color: theme.colors.text,
       fontSize: 13,
@@ -1008,7 +1133,7 @@ const createStyles = (theme: ReturnType<typeof useAppTheme>) =>
       alignSelf: 'flex-start',
       minHeight: 32,
       paddingHorizontal: 11,
-      borderRadius: 8,
+      borderRadius: 14,
       alignItems: 'center',
       justifyContent: 'center',
       backgroundColor: theme.colors.blue,

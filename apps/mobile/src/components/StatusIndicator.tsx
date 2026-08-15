@@ -23,10 +23,10 @@ const createStyles = (theme: ReturnType<typeof useAppTheme>) =>
     container: {
       flexDirection: 'row',
       alignItems: 'center',
-      backgroundColor: theme.colors.surface,
-      paddingVertical: 8,
-      paddingHorizontal: 12,
-      borderRadius: 16,
+      backgroundColor: theme.colors.surfaceStrong,
+      paddingVertical: 9,
+      paddingHorizontal: 13,
+      borderRadius: 999,
       borderWidth: 1,
       borderColor: theme.colors.borderStrong,
     },
@@ -39,8 +39,8 @@ const createStyles = (theme: ReturnType<typeof useAppTheme>) =>
       backgroundColor: theme.colors.blueSoft,
     },
     dot: {
-      width: 8,
-      height: 8,
+      width: 9,
+      height: 9,
       borderRadius: 4,
       backgroundColor: theme.colors.blueGlow,
       marginRight: 8,
@@ -53,8 +53,8 @@ const createStyles = (theme: ReturnType<typeof useAppTheme>) =>
     },
     text: {
       color: theme.colors.text,
-      fontSize: 12,
-      letterSpacing: 1.2,
-      fontWeight: '700',
+      fontSize: 11,
+      letterSpacing: 1,
+      fontWeight: '800',
     },
   });

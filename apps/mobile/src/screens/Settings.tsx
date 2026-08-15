@@ -49,7 +49,7 @@ export const SettingsScreen = () => {
     >
       <MotionView delay={40}>
         <Text style={styles.title}>Settings</Text>
-        <Text style={styles.subtitle}>Adjust how Sentinel looks, review privacy choices, and sign out of this phone.</Text>
+        <Text style={styles.subtitle}>Adjust appearance, privacy, and device access.</Text>
       </MotionView>
       <MotionView delay={120} style={[styles.profileCard, theme.shadow.card]}>
         <Text style={styles.profileLabel}>Signed in as</Text>
@@ -79,16 +79,16 @@ export const SettingsScreen = () => {
       <MotionView delay={240}>
         <Text style={styles.groupLabel}>Account controls</Text>
         <Pressable style={styles.item} onPress={() => pushScreen('profile-privacy')}>
-          <Text style={styles.itemText}>Privacy Controls</Text>
-          <Text style={styles.itemMeta}>Choose what this phone saves and how nearby safety context is used.</Text>
+          <Text style={styles.itemText}>Privacy</Text>
+          <Text style={styles.itemMeta}>What this phone saves and shares.</Text>
         </Pressable>
         <Pressable style={styles.item} onPress={() => pushScreen('profile-login-security')}>
-          <Text style={styles.itemText}>Device Management</Text>
-          <Text style={styles.itemMeta}>Check sign-in details and clear access from this phone.</Text>
+          <Text style={styles.itemText}>Device access</Text>
+          <Text style={styles.itemMeta}>Sign-in details and local access.</Text>
         </Pressable>
         <Pressable style={styles.item} onPress={handleDeleteLocalData}>
-          <Text style={styles.itemText}>Delete My Data</Text>
-          <Text style={styles.itemMeta}>Clears saved app data from this phone and signs you out.</Text>
+          <Text style={styles.itemText}>Clear local data</Text>
+          <Text style={styles.itemMeta}>Removes saved data from this phone.</Text>
         </Pressable>
       </MotionView>
       <MotionView delay={300}>
@@ -124,10 +124,10 @@ const createStyles = (theme: ReturnType<typeof useAppTheme>) =>
     },
     profileCard: {
       padding: 18,
-      borderRadius: 8,
+      borderRadius: 24,
       borderWidth: 1,
-      borderColor: theme.colors.border,
-      backgroundColor: theme.colors.surface,
+      borderColor: theme.isDark ? 'rgba(255,255,255,0.05)' : 'rgba(12,21,38,0.06)',
+      backgroundColor: theme.colors.backgroundElevated,
       marginBottom: 14,
     },
     profileLabel: {
@@ -148,10 +148,10 @@ const createStyles = (theme: ReturnType<typeof useAppTheme>) =>
     },
     themeCard: {
       padding: 18,
-      borderRadius: 8,
+      borderRadius: 24,
       borderWidth: 1,
-      borderColor: theme.colors.border,
-      backgroundColor: theme.colors.surface,
+      borderColor: theme.isDark ? 'rgba(255,255,255,0.05)' : 'rgba(12,21,38,0.06)',
+      backgroundColor: theme.colors.backgroundElevated,
       marginBottom: 14,
     },
     sectionTitle: {
@@ -167,7 +167,7 @@ const createStyles = (theme: ReturnType<typeof useAppTheme>) =>
     modeChip: {
       flex: 1,
       minHeight: 46,
-      borderRadius: 8,
+      borderRadius: 16,
       borderWidth: 1,
       borderColor: theme.colors.border,
       backgroundColor: theme.colors.backgroundElevated,
@@ -176,7 +176,7 @@ const createStyles = (theme: ReturnType<typeof useAppTheme>) =>
     },
     modeChipActive: {
       backgroundColor: theme.colors.blueSoft,
-      borderColor: theme.colors.blueGlow,
+      borderColor: theme.colors.blue,
     },
     modeText: {
       color: theme.colors.muted,
@@ -187,10 +187,10 @@ const createStyles = (theme: ReturnType<typeof useAppTheme>) =>
     },
     item: {
       padding: 16,
-      borderRadius: 8,
+      borderRadius: 22,
       borderWidth: 1,
-      borderColor: theme.colors.border,
-      backgroundColor: theme.colors.surface,
+      borderColor: theme.isDark ? 'rgba(255,255,255,0.05)' : 'rgba(12,21,38,0.06)',
+      backgroundColor: theme.colors.backgroundElevated,
       marginBottom: 12,
       ...theme.shadow.card,
     },
@@ -215,7 +215,7 @@ const createStyles = (theme: ReturnType<typeof useAppTheme>) =>
     logout: {
       marginTop: 8,
       padding: 15,
-      borderRadius: 8,
+      borderRadius: 22,
       backgroundColor: theme.gradients.emergency[0],
       borderWidth: 1,
       borderColor: theme.colors.red,

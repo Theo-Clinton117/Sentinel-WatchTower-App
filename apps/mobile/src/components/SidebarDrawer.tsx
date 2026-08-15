@@ -9,6 +9,7 @@ import {
 } from 'react-native';
 import {
   Bell,
+  Building2,
   ChevronRight,
   CreditCard,
   HelpCircle,
@@ -22,7 +23,6 @@ import { ProfileGlyph } from './ProfileGlyph';
 import { Screen, useAppStore } from '../store/useAppStore';
 import { useAppTheme } from '../theme';
 
-const DRAWER_WIDTH = 304;
 const CLOSE_SWIPE_DISTANCE = 72;
 const CLOSE_SWIPE_VELOCITY = -0.5;
 
@@ -38,6 +38,12 @@ const drawerItems: Array<{
     screen: 'settings',
     section: 'Account',
     icon: Settings2,
+  },
+  {
+    label: 'Organizations',
+    screen: 'organizations',
+    section: 'Account',
+    icon: Building2,
   },
   {
     label: 'Notifications',
@@ -73,11 +79,16 @@ const drawerItems: Array<{
 ];
 
 type Props = {
+  drawerWidth: number;
   gestureActive?: boolean;
   gestureProgress?: Animated.Value;
 };
 
-export const SidebarDrawer = ({ gestureActive = false, gestureProgress }: Props) => {
+export const SidebarDrawer = ({
+  drawerWidth,
+  gestureActive = false,
+  gestureProgress,
+}: Props) => {
   const theme = useAppTheme();
   const styles = createStyles(theme);
   const { currentScreen, sidebarOpen, closeSidebar, pushScreen, user } = useAppStore(
@@ -90,7 +101,7 @@ export const SidebarDrawer = ({ gestureActive = false, gestureProgress }: Props)
     }),
     shallow,
   );
-  const slide = React.useRef(new Animated.Value(-320)).current;
+  const slide = React.useRef(new Animated.Value(-drawerWidth)).current;
   const fade = React.useRef(new Animated.Value(0)).current;
   const closeGestureX = React.useRef(new Animated.Value(0)).current;
   const closeGestureActive = React.useRef(false);
@@ -122,7 +133,7 @@ export const SidebarDrawer = ({ gestureActive = false, gestureProgress }: Props)
 
     Animated.parallel([
       Animated.timing(slide, {
-        toValue: -320,
+        toValue: -drawerWidth,
         duration: 180,
         useNativeDriver: false,
       }),
@@ -136,12 +147,12 @@ export const SidebarDrawer = ({ gestureActive = false, gestureProgress }: Props)
         setIsMounted(false);
       }
     });
-  }, [fade, gestureActive, sidebarOpen, slide]);
+  }, [drawerWidth, fade, gestureActive, sidebarOpen, slide]);
 
   const gestureSlide =
     gestureProgress?.interpolate({
       inputRange: [0, 1],
-      outputRange: [-DRAWER_WIDTH, 0],
+      outputRange: [-drawerWidth, 0],
       extrapolate: 'clamp',
     }) ?? slide;
   const gestureFade =
@@ -152,8 +163,8 @@ export const SidebarDrawer = ({ gestureActive = false, gestureProgress }: Props)
     }) ?? fade;
   const drawerTranslateX = gestureActive ? gestureSlide : slide;
   const closeTranslateX = closeGestureX.interpolate({
-    inputRange: [-DRAWER_WIDTH, 0],
-    outputRange: [-DRAWER_WIDTH, 0],
+    inputRange: [-drawerWidth, 0],
+    outputRange: [-drawerWidth, 0],
     extrapolate: 'clamp',
   });
   const scrimOpacity = gestureActive ? gestureFade : fade;
@@ -183,7 +194,7 @@ export const SidebarDrawer = ({ gestureActive = false, gestureProgress }: Props)
             gestureState.vx <= CLOSE_SWIPE_VELOCITY;
 
           Animated.timing(closeGestureX, {
-            toValue: shouldClose ? -DRAWER_WIDTH : 0,
+            toValue: shouldClose ? -drawerWidth : 0,
             duration: shouldClose ? 120 : 160,
             useNativeDriver: false,
           }).start(() => {
@@ -205,7 +216,7 @@ export const SidebarDrawer = ({ gestureActive = false, gestureProgress }: Props)
           });
         },
       }),
-    [closeGestureX, closeSidebar, sidebarOpen],
+    [closeGestureX, closeSidebar, drawerWidth, sidebarOpen],
   );
 
   if (!isMounted) {
@@ -264,70 +275,72 @@ export const SidebarDrawer = ({ gestureActive = false, gestureProgress }: Props)
         ]}
       >
         <View style={[styles.drawer, theme.shadow.card]} {...closePanResponder.panHandlers}>
-          <View style={styles.header}>
-            <View style={styles.headerTop}>
-              <Text style={styles.eyebrow}>MENU</Text>
-              <Pressable
-                onPress={closeSidebar}
-                style={styles.closeButton}
-                accessibilityRole="button"
-                accessibilityLabel="Close menu"
-              >
-                <ProfileGlyph name="chevron-left" size={18} color={theme.colors.text} />
-              </Pressable>
-            </View>
-            <Text style={styles.title}>Watchtower</Text>
-            <View style={styles.accountPill}>
-              <View style={styles.avatar}>
-                <Text style={styles.avatarText}>{initial}</Text>
+          <View style={{ width: drawerWidth, flex: 1 }}>
+            <View style={styles.header}>
+              <View style={styles.headerTop}>
+                <Text style={styles.eyebrow}>MENU</Text>
+                <Pressable
+                  onPress={closeSidebar}
+                  style={styles.closeButton}
+                  accessibilityRole="button"
+                  accessibilityLabel="Close menu"
+                >
+                  <ProfileGlyph name="chevron-left" size={18} color={theme.colors.text} />
+                </Pressable>
               </View>
-              <Text style={styles.userText}>
-                {displayName}
-              </Text>
+              <Text style={styles.title}>Watchtower</Text>
+              <View style={styles.accountPill}>
+                <View style={styles.avatar}>
+                  <Text style={styles.avatarText}>{initial}</Text>
+                </View>
+                <Text style={styles.userText}>
+                  {displayName}
+                </Text>
+              </View>
             </View>
-          </View>
 
-          {sectionedItems.map((group) => (
-            <View key={group.section} style={styles.section}>
-              <Text style={styles.sectionLabel}>{group.section}</Text>
-              <View style={styles.menuList}>
-                {group.items.map((item, index) => {
-                  const Icon = item.icon;
-                  const active = currentScreen === item.screen;
+            {sectionedItems.map((group) => (
+              <View key={group.section} style={styles.section}>
+                <Text style={styles.sectionLabel}>{group.section}</Text>
+                <View style={styles.menuList}>
+                  {group.items.map((item, index) => {
+                    const Icon = item.icon;
+                    const active = currentScreen === item.screen;
 
-                  return (
-                    <Pressable
-                      key={item.label}
-                      onPress={() => handleNavigate(item.screen)}
-                      style={({ pressed }) => [
-                        styles.menuItem,
-                        active && styles.menuItemActive,
-                        index < group.items.length - 1 && styles.menuItemBorder,
-                        pressed && styles.menuItemPressed,
-                      ]}
-                      accessibilityRole="button"
-                      accessibilityLabel={item.label}
-                      accessibilityState={{ selected: active }}
-                    >
-                      <View style={styles.menuCopy}>
-                        <View style={[styles.menuIcon, active && styles.menuIconActive]}>
-                          <Icon
-                            color={active ? theme.colors.blue : theme.colors.muted}
-                            size={18}
-                            strokeWidth={2.2}
-                          />
+                    return (
+                      <Pressable
+                        key={item.label}
+                        onPress={() => handleNavigate(item.screen)}
+                        style={({ pressed }) => [
+                          styles.menuItem,
+                          active && styles.menuItemActive,
+                          index < group.items.length - 1 && styles.menuItemBorder,
+                          pressed && styles.menuItemPressed,
+                        ]}
+                        accessibilityRole="button"
+                        accessibilityLabel={item.label}
+                        accessibilityState={{ selected: active }}
+                      >
+                        <View style={styles.menuCopy}>
+                          <View style={[styles.menuIcon, active && styles.menuIconActive]}>
+                            <Icon
+                              color={active ? theme.colors.blue : theme.colors.muted}
+                              size={18}
+                              strokeWidth={2.2}
+                            />
+                          </View>
+                          <Text style={[styles.menuLabel, active && styles.menuLabelActive]}>
+                            {item.label}
+                          </Text>
                         </View>
-                        <Text style={[styles.menuLabel, active && styles.menuLabelActive]}>
-                          {item.label}
-                        </Text>
-                      </View>
-                      <ChevronRight size={17} color={theme.colors.muted} strokeWidth={2.2} />
-                    </Pressable>
-                  );
-                })}
+                        <ChevronRight size={17} color={theme.colors.muted} strokeWidth={2.2} />
+                      </Pressable>
+                    );
+                  })}
+                </View>
               </View>
-            </View>
-          ))}
+            ))}
+          </View>
         </View>
       </Animated.View>
     </View>
@@ -346,14 +359,15 @@ const createStyles = (theme: ReturnType<typeof useAppTheme>) =>
       justifyContent: 'flex-start',
     },
     drawer: {
-      width: DRAWER_WIDTH,
       height: '100%',
-      paddingTop: 22,
+      paddingTop: 24,
       paddingHorizontal: 16,
       paddingBottom: 24,
-      backgroundColor: theme.colors.surfaceStrong,
+      backgroundColor: theme.isDark ? 'rgba(11,20,35,0.96)' : 'rgba(255,255,255,0.96)',
       borderRightWidth: 1,
-      borderRightColor: theme.colors.border,
+      borderRightColor: theme.isDark ? 'rgba(255,255,255,0.05)' : 'rgba(12,21,38,0.06)',
+      borderTopRightRadius: 32,
+      borderBottomRightRadius: 32,
     },
     header: {
       paddingBottom: 18,
@@ -367,9 +381,9 @@ const createStyles = (theme: ReturnType<typeof useAppTheme>) =>
     closeButton: {
       width: 36,
       height: 36,
-      borderRadius: 8,
+      borderRadius: 14,
       borderWidth: 1,
-      borderColor: theme.colors.border,
+      borderColor: theme.isDark ? 'rgba(255,255,255,0.06)' : 'rgba(12,21,38,0.08)',
       backgroundColor: theme.colors.backgroundElevated,
       alignItems: 'center',
       justifyContent: 'center',
@@ -389,9 +403,9 @@ const createStyles = (theme: ReturnType<typeof useAppTheme>) =>
     },
     accountPill: {
       minHeight: 46,
-      borderRadius: 8,
+      borderRadius: 20,
       borderWidth: 1,
-      borderColor: theme.colors.border,
+      borderColor: theme.isDark ? 'rgba(255,255,255,0.06)' : 'rgba(12,21,38,0.08)',
       backgroundColor: theme.colors.backgroundElevated,
       flexDirection: 'row',
       alignItems: 'center',
@@ -401,7 +415,7 @@ const createStyles = (theme: ReturnType<typeof useAppTheme>) =>
     avatar: {
       width: 30,
       height: 30,
-      borderRadius: 8,
+      borderRadius: 12,
       backgroundColor: theme.colors.blueSoft,
       alignItems: 'center',
       justifyContent: 'center',
@@ -430,20 +444,20 @@ const createStyles = (theme: ReturnType<typeof useAppTheme>) =>
       marginBottom: 8,
     },
     menuList: {
-      borderRadius: 8,
+      borderRadius: 20,
       borderWidth: 1,
-      borderColor: theme.colors.border,
+      borderColor: theme.isDark ? 'rgba(255,255,255,0.06)' : 'rgba(12,21,38,0.08)',
       overflow: 'hidden',
       backgroundColor: theme.colors.backgroundElevated,
     },
     menuItem: {
-      minHeight: 54,
+      minHeight: 58,
       paddingHorizontal: 12,
-      paddingVertical: 10,
+      paddingVertical: 11,
       flexDirection: 'row',
       alignItems: 'center',
       justifyContent: 'space-between',
-      backgroundColor: theme.colors.surfaceStrong,
+      backgroundColor: theme.isDark ? 'rgba(255,255,255,0.02)' : 'rgba(255,255,255,0.8)',
       gap: 10,
     },
     menuItemBorder: {
@@ -451,10 +465,10 @@ const createStyles = (theme: ReturnType<typeof useAppTheme>) =>
       borderBottomColor: theme.colors.border,
     },
     menuItemPressed: {
-      backgroundColor: theme.colors.blueSoft,
+      backgroundColor: theme.isDark ? 'rgba(42,115,255,0.18)' : 'rgba(42,115,255,0.08)',
     },
     menuItemActive: {
-      backgroundColor: theme.colors.blueSoft,
+      backgroundColor: theme.isDark ? 'rgba(42,115,255,0.18)' : 'rgba(42,115,255,0.1)',
     },
     menuCopy: {
       flexDirection: 'row',
@@ -466,7 +480,7 @@ const createStyles = (theme: ReturnType<typeof useAppTheme>) =>
     menuIcon: {
       width: 32,
       height: 32,
-      borderRadius: 8,
+      borderRadius: 14,
       alignItems: 'center',
       justifyContent: 'center',
       backgroundColor: theme.colors.backgroundElevated,

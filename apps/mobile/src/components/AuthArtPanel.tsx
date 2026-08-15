@@ -31,13 +31,22 @@ export const AuthArtPanel = ({ eyebrow, title, caption, chipA, chipB }: Props) =
         <Text style={styles.title}>{title}</Text>
         <Text style={styles.caption}>{caption}</Text>
 
-        <View style={styles.orbitWrap}>
-          <View style={styles.orbitLarge} />
-          <View style={styles.orbitMedium} />
-          <View style={styles.orbitSmall} />
-          <View style={styles.centerCard}>
-            <Text style={styles.centerMini}>Sentinel</Text>
-            <Text style={styles.centerTitle}>Protected network</Text>
+        <View style={styles.networkGrid}>
+          <View style={[styles.networkTile, styles.networkTileAccent]}>
+            <Text style={styles.tileValue}>{chipA}</Text>
+            <Text style={styles.tileLabel}>Status lane</Text>
+          </View>
+          <View style={styles.networkTile}>
+            <Text style={styles.tileValue}>{chipB}</Text>
+            <Text style={styles.tileLabel}>Coverage lane</Text>
+          </View>
+          <View style={styles.networkTile}>
+            <Text style={styles.tileValue}>24/7</Text>
+            <Text style={styles.tileLabel}>Monitoring</Text>
+          </View>
+          <View style={styles.networkTile}>
+            <Text style={styles.tileValue}>Live</Text>
+            <Text style={styles.tileLabel}>Routing</Text>
           </View>
         </View>
       </LinearGradient>
@@ -48,14 +57,14 @@ export const AuthArtPanel = ({ eyebrow, title, caption, chipA, chipB }: Props) =
 const createStyles = (theme: ReturnType<typeof useAppTheme>) =>
   StyleSheet.create({
     wrap: {
-      borderRadius: 8,
+      borderRadius: 24,
       overflow: 'hidden',
       marginBottom: 18,
       ...theme.shadow.card,
     },
     panel: {
-      padding: 20,
-      borderRadius: 8,
+      padding: 22,
+      borderRadius: 24,
       borderWidth: 1,
       borderColor: theme.colors.border,
     },
@@ -68,7 +77,7 @@ const createStyles = (theme: ReturnType<typeof useAppTheme>) =>
     chip: {
       paddingHorizontal: 10,
       paddingVertical: 7,
-      borderRadius: 8,
+      borderRadius: 12,
       backgroundColor: theme.colors.surface,
       borderWidth: 1,
       borderColor: theme.colors.borderStrong,
@@ -99,56 +108,38 @@ const createStyles = (theme: ReturnType<typeof useAppTheme>) =>
       lineHeight: 20,
       marginBottom: 18,
     },
-    orbitWrap: {
-      minHeight: 120,
-      justifyContent: 'center',
-      alignItems: 'center',
+    networkGrid: {
+      marginTop: 4,
+      flexDirection: 'row',
+      flexWrap: 'wrap',
+      gap: 10,
     },
-    orbitLarge: {
-      position: 'absolute',
-      width: 140,
-      height: 140,
-      borderRadius: 70,
-      borderWidth: 1,
-      borderColor: theme.colors.borderStrong,
-      opacity: 0.6,
-    },
-    orbitMedium: {
-      position: 'absolute',
-      width: 96,
-      height: 96,
-      borderRadius: 48,
-      backgroundColor: theme.colors.blueSoft,
-      opacity: theme.isDark ? 0.85 : 1,
-    },
-    orbitSmall: {
-      position: 'absolute',
-      top: 10,
-      right: 44,
-      width: 18,
-      height: 18,
-      borderRadius: 9,
-      backgroundColor: theme.colors.blueGlow,
-    },
-    centerCard: {
-      paddingHorizontal: 18,
-      paddingVertical: 14,
-      borderRadius: 8,
+    networkTile: {
+      width: '48%',
+      minHeight: 78,
+      borderRadius: 16,
+      paddingHorizontal: 12,
+      paddingVertical: 12,
       backgroundColor: theme.colors.surface,
       borderWidth: 1,
       borderColor: theme.colors.border,
-      alignItems: 'center',
+      justifyContent: 'space-between',
     },
-    centerMini: {
-      color: theme.colors.blue,
-      fontSize: 11,
-      fontWeight: '800',
-      marginBottom: 4,
-      textTransform: 'uppercase',
-      letterSpacing: 1,
+    networkTileAccent: {
+      backgroundColor: theme.colors.blueSoft,
+      borderColor: theme.colors.blueGlow,
     },
-    centerTitle: {
+    tileValue: {
       color: theme.colors.text,
+      fontSize: 18,
+      fontWeight: '800',
+      lineHeight: 22,
+    },
+    tileLabel: {
+      color: theme.colors.muted,
+      fontSize: 11,
       fontWeight: '700',
+      textTransform: 'uppercase',
+      letterSpacing: 0.8,
     },
   });

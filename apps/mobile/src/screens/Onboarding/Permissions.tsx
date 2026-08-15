@@ -4,6 +4,7 @@ import { AuthArtPanel } from '../../components/AuthArtPanel';
 import { FeedbackBanner } from '../../components/FeedbackBanner';
 import { MotionView } from '../../components/MotionView';
 import { OnboardingProgress } from '../../components/OnboardingProgress';
+import { SkeletonBlock } from '../../components/Skeleton';
 import { useAppStore } from '../../store/useAppStore';
 import {
   AppPermissionSnapshot,
@@ -93,7 +94,7 @@ export const OnboardingPermissionsScreen = () => {
         <AuthArtPanel
           eyebrow="Device Access"
           title="Let Sentinel work when it matters."
-          caption="Location and notifications help the app show where you are and tell people when you need help."
+          caption="Location and notifications keep alerts useful."
           chipA="LOCATION"
           chipB="ALERTS"
         />
@@ -101,7 +102,7 @@ export const OnboardingPermissionsScreen = () => {
       <MotionView delay={70}>
         <Text style={styles.title}>Permissions</Text>
         <Text style={styles.subtitle}>
-          These permissions make alerts useful. You can finish setup now and change them later in your phone settings.
+          Enable what you need now. You can change it later in phone settings.
         </Text>
       </MotionView>
 
@@ -125,7 +126,10 @@ export const OnboardingPermissionsScreen = () => {
 
       {loading ? (
         <View style={styles.bannerSpace}>
-          <FeedbackBanner loading title="Checking permissions" message="Reading current device access." />
+          <View style={[styles.loadingCard, theme.shadow.card]}>
+            <SkeletonBlock width="42%" height={14} />
+            <SkeletonBlock width="72%" height={12} />
+          </View>
         </View>
       ) : null}
 
@@ -247,6 +251,14 @@ const createStyles = (theme: ReturnType<typeof useAppTheme>) => StyleSheet.creat
   },
   bannerSpace: {
     marginBottom: 0,
+  },
+  loadingCard: {
+    gap: 10,
+    padding: 14,
+    borderRadius: 20,
+    backgroundColor: theme.isDark ? 'rgba(12,21,38,0.9)' : 'rgba(255,255,255,0.94)',
+    borderWidth: 1,
+    borderColor: theme.isDark ? 'rgba(255,255,255,0.05)' : 'rgba(12,21,38,0.06)',
   },
   button: {
     backgroundColor: theme.colors.blue,

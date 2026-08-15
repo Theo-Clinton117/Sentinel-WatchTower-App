@@ -256,8 +256,12 @@ const SavedPlaceContent = ({
         updatedAt: new Date().toISOString(),
       });
       setMessage(`${title} filled from your current live location.`);
-    } catch {
-      setError('Could not pull your current location into this saved place right now.');
+    } catch (error) {
+      setError(
+        error instanceof Error
+          ? error.message
+          : 'Could not pull your current location into this saved place right now.',
+      );
     } finally {
       setResolvingLocation(false);
     }

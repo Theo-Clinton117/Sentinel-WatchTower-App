@@ -45,6 +45,22 @@ Base URL: `/api`
 - `POST /sessions/:sessionId/locations` (batch)
 - `GET /sessions/:sessionId/locations`
 
+## Organizations
+- `POST /organizations/register`
+  - Creates a verified-user-owned organization workspace without creating a second Sentinel account.
+- `GET /organizations`
+  - Lists the authenticated user's active and pending organization memberships.
+- `GET /organizations/:id`
+- `GET /organizations/:id/members`
+- `POST /organizations/:id/invitations`
+- `POST /organizations/invitations/:token/accept`
+- `POST /organizations/:id/locations`
+- `PATCH /organizations/:id/locations/:locationId`
+- `POST /organizations/:id/broadcasts`
+  - Creates an organization-wide broadcast and fans it out to active members.
+- `POST /organizations/routing/preview`
+  - Returns a routing preview for an incident using severity, geography, jurisdiction, and organization relevance.
+
 ## Reports
 - `GET /reports`
 - `POST /reports`

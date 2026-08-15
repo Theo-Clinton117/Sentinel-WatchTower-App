@@ -124,9 +124,8 @@ test("production runtime validation requires database config and disables OTP by
             OTP_BYPASS_CODE: undefined,
             SUPABASE_URL: "https://example.supabase.co",
             SUPABASE_SERVICE_ROLE_KEY: "service-role",
-            AWS_ACCESS_KEY_ID: "access",
-            AWS_SECRET_ACCESS_KEY: "secret",
-            AWS_REGION: "us-east-1",
+            KUDISMS_TOKEN: "token",
+            KUDISMS_SENDER_ID: "Sentinel",
         },
         () => {
             assert.throws(() => validateRuntimeConfig(), /DATABASE_URL|SUPABASE_DB_URL/);
@@ -145,9 +144,8 @@ test("production runtime validation requires database config and disables OTP by
             OTP_BYPASS_CODE: "123456",
             SUPABASE_URL: "https://example.supabase.co",
             SUPABASE_SERVICE_ROLE_KEY: "service-role",
-            AWS_ACCESS_KEY_ID: "access",
-            AWS_SECRET_ACCESS_KEY: "secret",
-            AWS_REGION: "us-east-1",
+            KUDISMS_TOKEN: "token",
+            KUDISMS_SENDER_ID: "Sentinel",
         },
         () => {
             assert.throws(() => validateRuntimeConfig(), /OTP_BYPASS_CODE/);
@@ -174,9 +172,8 @@ test("production runtime validation requires real email and phone OTP providers"
             SUPABASE_SERVICE_ROLE_KEY: undefined,
             RESEND_API_KEY: undefined,
             OTP_EMAIL_FROM: undefined,
-            AWS_ACCESS_KEY_ID: "access",
-            AWS_SECRET_ACCESS_KEY: "secret",
-            AWS_REGION: "us-east-1",
+            KUDISMS_TOKEN: "token",
+            KUDISMS_SENDER_ID: "Sentinel",
         },
         () => {
             assert.throws(() => validateRuntimeConfig(), /email OTP/);
@@ -190,12 +187,11 @@ test("production runtime validation requires real email and phone OTP providers"
             SUPABASE_SERVICE_ROLE_KEY: "service-role",
             RESEND_API_KEY: undefined,
             OTP_EMAIL_FROM: undefined,
-            AWS_ACCESS_KEY_ID: undefined,
-            AWS_SECRET_ACCESS_KEY: undefined,
-            AWS_REGION: undefined,
+            KUDISMS_TOKEN: undefined,
+            KUDISMS_SENDER_ID: undefined,
         },
         () => {
-            assert.throws(() => validateRuntimeConfig(), /Amazon SNS/);
+            assert.throws(() => validateRuntimeConfig(), /KudiSMS/);
         },
     );
 });
@@ -215,9 +211,8 @@ test("production runtime validation passes with required launch config", () => {
             SUPABASE_SERVICE_ROLE_KEY: "service-role",
             RESEND_API_KEY: undefined,
             OTP_EMAIL_FROM: undefined,
-            AWS_ACCESS_KEY_ID: "access",
-            AWS_SECRET_ACCESS_KEY: "secret",
-            AWS_REGION: "us-east-1",
+            KUDISMS_TOKEN: "token",
+            KUDISMS_SENDER_ID: "Sentinel",
         },
         () => {
             assert.equal(validateRuntimeConfig(), true);
@@ -240,12 +235,35 @@ test("production runtime validation requires Redis for queue durability", () => 
             SUPABASE_SERVICE_ROLE_KEY: "service-role",
             RESEND_API_KEY: undefined,
             OTP_EMAIL_FROM: undefined,
-            AWS_ACCESS_KEY_ID: "access",
-            AWS_SECRET_ACCESS_KEY: "secret",
-            AWS_REGION: "us-east-1",
+            KUDISMS_TOKEN: "token",
+            KUDISMS_SENDER_ID: "Sentinel",
         },
         () => {
             assert.throws(() => validateRuntimeConfig(), /REDIS_URL/);
+        },
+    );
+});
+
+test("production runtime validation rejects direct Supabase database hosts", () => {
+    withEnv(
+        {
+            NODE_ENV: "production",
+            JWT_ACCESS_SECRET: "a".repeat(32),
+            JWT_REFRESH_SECRET: "b".repeat(32),
+            CORS_ORIGINS: "https://app.example.com",
+            DATABASE_URL: "postgres://postgres:postgres@db.bjmliqvtjjntkgxpwwkp.supabase.co:5432/postgres",
+            SUPABASE_DB_URL: undefined,
+            REDIS_URL: "redis://localhost:6379",
+            OTP_BYPASS_CODE: undefined,
+            SUPABASE_URL: "https://example.supabase.co",
+            SUPABASE_SERVICE_ROLE_KEY: "service-role",
+            RESEND_API_KEY: undefined,
+            OTP_EMAIL_FROM: undefined,
+            KUDISMS_TOKEN: "token",
+            KUDISMS_SENDER_ID: "Sentinel",
+        },
+        () => {
+            assert.throws(() => validateRuntimeConfig(), /Session pooler connection string/);
         },
     );
 });

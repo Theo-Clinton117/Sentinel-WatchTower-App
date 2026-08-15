@@ -22,6 +22,13 @@ type ThemePalette = {
   overlay: string;
 };
 
+type SemanticTone = {
+  solid: string;
+  soft: string;
+  border: string;
+  text: string;
+};
+
 type GradientColors = readonly [string, string, ...string[]];
 
 function gradient(...colors: GradientColors): GradientColors {
@@ -30,38 +37,38 @@ function gradient(...colors: GradientColors): GradientColors {
 
 const palettes: Record<ThemeMode, ThemePalette> = {
   light: {
-    background: '#F7F9FC',
+    background: '#F3F6FB',
     backgroundElevated: '#FFFFFF',
     surface: '#FFFFFF',
-    surfaceStrong: '#FFFFFF',
-    text: '#10203E',
-    muted: '#617291',
-    border: '#D6E1F7',
-    borderStrong: '#B7CBF2',
-    blue: '#1E63FF',
-    blueGlow: '#69A2FF',
-    blueSoft: '#E2EDFF',
-    red: '#FF5E78',
+    surfaceStrong: '#F7FAFE',
+    text: '#0B1424',
+    muted: '#5A6880',
+    border: '#D7E1EF',
+    borderStrong: '#B8C7DA',
+    blue: '#1D67FF',
+    blueGlow: '#78AFFF',
+    blueSoft: '#E7F0FF',
+    red: '#F24F6A',
     success: '#2BAE73',
-    tabBar: 'rgba(245,248,255,0.92)',
-    overlay: 'rgba(12, 29, 66, 0.06)',
+    tabBar: 'rgba(248,250,253,0.92)',
+    overlay: 'rgba(10, 20, 36, 0.07)',
   },
   dark: {
     background: '#070B12',
-    backgroundElevated: '#091222',
-    surface: '#0B1427',
-    surfaceStrong: '#0D1830',
+    backgroundElevated: '#0A1322',
+    surface: '#0D1729',
+    surfaceStrong: '#111F35',
     text: '#EEF4FF',
-    muted: '#92A3C4',
-    border: '#203250',
-    borderStrong: '#35517D',
-    blue: '#2A6FFF',
-    blueGlow: '#86B9FF',
-    blueSoft: '#0E2345',
-    red: '#FF6B82',
+    muted: '#90A2C2',
+    border: '#22344F',
+    borderStrong: '#38557F',
+    blue: '#2A73FF',
+    blueGlow: '#8BB8FF',
+    blueSoft: '#102647',
+    red: '#FF6984',
     success: '#43C98B',
-    tabBar: 'rgba(6,11,22,0.94)',
-    overlay: 'rgba(125, 168, 255, 0.09)',
+    tabBar: 'rgba(7,11,18,0.92)',
+    overlay: 'rgba(125, 168, 255, 0.11)',
   },
 };
 
@@ -77,56 +84,83 @@ function resolveMode(preference: ThemePreference, scheme: ColorSchemeName): Them
 
 export function buildTheme(mode: ThemeMode) {
   const colors = palettes[mode];
+  const semantic = {
+    info: {
+      solid: colors.blue,
+      soft: mode === 'dark' ? 'rgba(42,115,255,0.18)' : '#E7F0FF',
+      border: mode === 'dark' ? 'rgba(42,115,255,0.28)' : 'rgba(29,103,255,0.18)',
+      text: colors.blue,
+    },
+    success: {
+      solid: colors.success,
+      soft: mode === 'dark' ? 'rgba(67,201,139,0.16)' : '#E6F7EF',
+      border: mode === 'dark' ? 'rgba(67,201,139,0.26)' : 'rgba(43,174,115,0.18)',
+      text: colors.success,
+    },
+    warning: {
+      solid: '#D9821F',
+      soft: mode === 'dark' ? 'rgba(217,130,31,0.16)' : '#FFF4E5',
+      border: mode === 'dark' ? 'rgba(217,130,31,0.26)' : 'rgba(217,130,31,0.18)',
+      text: '#D9821F',
+    },
+    danger: {
+      solid: colors.red,
+      soft: mode === 'dark' ? 'rgba(255,105,132,0.16)' : '#FFE9ED',
+      border: mode === 'dark' ? 'rgba(255,105,132,0.26)' : 'rgba(242,79,106,0.18)',
+      text: colors.red,
+    },
+  } satisfies Record<'info' | 'success' | 'warning' | 'danger', SemanticTone>;
 
   return {
     mode,
     isDark: mode === 'dark',
     colors,
+    semantic,
     gradients: {
       appBackground:
         mode === 'dark'
-          ? gradient('#070B12', '#08111F', '#070B12')
-          : gradient('#F7F9FC', '#F7F9FC', '#EEF4FF'),
+          ? gradient('#060A11', '#08101D', '#060A11')
+          : gradient('#F3F6FB', '#EEF4FF', '#F7FAFE'),
       hero:
         mode === 'dark'
-          ? gradient('rgba(38,94,255,0.25)', 'rgba(18,38,74,0.65)')
-          : gradient('rgba(105,162,255,0.22)', 'rgba(255,255,255,0.95)'),
+          ? gradient('rgba(38,94,255,0.32)', 'rgba(18,38,74,0.72)')
+          : gradient('rgba(114,175,255,0.24)', 'rgba(255,255,255,0.96)'),
       card:
         mode === 'dark'
-          ? gradient('rgba(18,35,69,0.95)', 'rgba(10,19,37,0.85)')
-          : gradient('rgba(255,255,255,0.98)', 'rgba(238,245,255,0.88)'),
+          ? gradient('rgba(16,30,58,0.96)', 'rgba(9,18,34,0.88)')
+          : gradient('rgba(255,255,255,0.98)', 'rgba(239,245,255,0.9)'),
       primary:
         mode === 'dark'
-          ? gradient('#3175FF', '#1649C8')
-          : gradient('#3F84FF', '#1E63FF'),
+          ? gradient('#347CFF', '#1649C8')
+          : gradient('#458AFF', '#1D67FF'),
       emergency:
         mode === 'dark'
           ? gradient('#2A0D1A', '#120714')
           : gradient('#FFF2F5', '#FFD7E1'),
     },
     radii: {
-      xl: 28,
-      lg: 22,
-      md: 18,
-      sm: 14,
+      xl: 36,
+      lg: 28,
+      md: 22,
+      sm: 16,
       pill: 999,
     },
     shadow: {
       card:
-        mode === 'dark'
+          mode === 'dark'
           ? {
               shadowColor: '#000000',
-              shadowOpacity: 0,
-              shadowRadius: 0,
-              shadowOffset: { width: 0, height: 0 },
-              elevation: 0,
+              shadowOpacity: 0.18,
+              shadowRadius: 12,
+              shadowOffset: { width: 0, height: 6 },
+              elevation: 4,
             }
           : {
               shadowColor: '#000000',
-              shadowOpacity: 0,
-              shadowRadius: 0,
-              shadowOffset: { width: 0, height: 0 },
-              elevation: 0,
+              shadowOpacity: 0.06,
+              shadowRadius: 12,
+              shadowOffset: { width: 0, height: 6 },
+              elevation: 3,
             },
       glow: {
         shadowColor: colors.blueGlow,

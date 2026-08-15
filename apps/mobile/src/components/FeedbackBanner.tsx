@@ -27,10 +27,12 @@ export const FeedbackBanner = ({
   return (
     <View
       style={styles.wrap}
-      accessibilityRole={tone === 'error' ? 'alert' : undefined}
+      accessibilityRole={tone === 'error' ? 'alert' : loading ? 'progressbar' : undefined}
       accessibilityLiveRegion={tone === 'error' ? 'polite' : 'none'}
     >
-      {loading ? <ActivityIndicator color={styles.accent.color} size="small" /> : <View style={styles.dot} />}
+      <View style={styles.iconRail}>
+        {loading ? <ActivityIndicator color={styles.accent.color} size="small" /> : <View style={styles.dot} />}
+      </View>
       <View style={styles.copy}>
         {title ? <Text style={styles.title}>{title}</Text> : null}
         <Text style={styles.message}>{message}</Text>
@@ -49,13 +51,8 @@ export const FeedbackBanner = ({
 };
 
 const createStyles = (theme: ReturnType<typeof useAppTheme>, tone: BannerTone) => {
-  const palette = {
-    info: theme.colors.blue,
-    error: theme.colors.red,
-    success: theme.colors.success,
-    warning: '#D9821F',
-  };
-  const accent = palette[tone];
+  const semanticTone = tone === 'error' ? 'danger' : tone;
+  const accent = theme.semantic[semanticTone].solid;
 
   return StyleSheet.create({
     wrap: {
@@ -63,9 +60,21 @@ const createStyles = (theme: ReturnType<typeof useAppTheme>, tone: BannerTone) =
       alignItems: 'center',
       gap: 10,
       paddingHorizontal: 12,
-      paddingVertical: 11,
-      borderRadius: 8,
-      backgroundColor: theme.colors.surface,
+      paddingVertical: 12,
+      borderRadius: 20,
+      backgroundColor: theme.isDark ? 'rgba(12,21,38,0.9)' : 'rgba(255,255,255,0.94)',
+      borderWidth: 1,
+      borderColor: theme.semantic[semanticTone].border,
+      borderLeftWidth: 4,
+      borderLeftColor: accent,
+    },
+    iconRail: {
+      width: 28,
+      height: 28,
+      borderRadius: 12,
+      alignItems: 'center',
+      justifyContent: 'center',
+      backgroundColor: theme.colors.backgroundElevated,
       borderWidth: 1,
       borderColor: theme.colors.border,
     },
@@ -95,12 +104,10 @@ const createStyles = (theme: ReturnType<typeof useAppTheme>, tone: BannerTone) =
     action: {
       minHeight: 36,
       paddingHorizontal: 12,
-      borderRadius: 8,
+      borderRadius: 14,
       alignItems: 'center',
       justifyContent: 'center',
       backgroundColor: theme.colors.blueSoft,
-      borderWidth: 1,
-      borderColor: theme.colors.borderStrong,
     },
     actionPressed: {
       opacity: 0.82,
