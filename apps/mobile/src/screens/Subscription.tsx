@@ -381,7 +381,7 @@ export const SubscriptionScreen = () => {
         </Pressable>
 
         <Pressable
-          onPress={() => refreshMutation.mutate()}
+          onPress={() => refreshMutation.mutate(undefined)}
           disabled={isWorking}
           style={[
             styles.secondaryButton,
