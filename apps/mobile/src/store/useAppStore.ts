@@ -527,7 +527,7 @@ export const useAppStore = create<AppState>()(
           otpRequestedAt: null,
           otpDevCode: null,
           authStatus: 'unauthenticated',
-          onboardingComplete: false,
+          onboardingComplete: state.onboardingComplete,
           themePreference: state.themePreference,
           nearbySafetyMeshEnabled: false,
           sessionStatus: 'idle',

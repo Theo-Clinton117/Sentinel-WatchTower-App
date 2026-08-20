@@ -6,7 +6,7 @@ exports.normalizePlanId = normalizePlanId;
 const planCatalog = [
     {
         id: 'free',
-        name: 'Free Tier',
+        name: 'Free',
         priceLabel: 'Free',
         cadence: 'forever',
         summary: 'Essential manual alerts, a small trusted-circle, and lightweight location sharing for fast adoption.',
@@ -26,7 +26,7 @@ const planCatalog = [
     },
     {
         id: 'basic',
-        name: 'Silver',
+        name: 'Individual',
         priceLabel: 'NGN 1,000',
         cadence: 'per month',
         summary: 'Affordable individual safety coverage with stronger limits than the free tier.',
@@ -46,7 +46,7 @@ const planCatalog = [
     },
     {
         id: 'family',
-        name: 'Gold Family',
+        name: 'Family',
         priceLabel: 'NGN 3,500',
         cadence: 'per month',
         summary: 'One main account can create a family circle and add up to four other accounts at a discounted monthly rate.',
@@ -66,7 +66,7 @@ const planCatalog = [
     },
     {
         id: 'pro',
-        name: 'Platinum Enterprise',
+        name: 'Organization',
         priceLabel: 'NGN 10,000',
         cadence: 'per month',
         summary: 'Enterprise-grade coverage for teams and high-dependence users who need the strongest Sentinel automation.',
@@ -91,14 +91,15 @@ const planAliases = {
     free_tier: 'free',
     starter: 'basic',
     basic: 'basic',
+    individual: 'basic',
     silver: 'basic',
+    family: 'family',
     gold: 'family',
-    individual: 'pro',
-    pro: 'pro',
-    platinum: 'pro',
+    organization: 'pro',
     enterprise: 'pro',
     entriprise: 'pro',
-    family: 'family',
+    pro: 'pro',
+    platinum: 'pro',
 };
 function readCsvEnv(name) {
     return String(process.env[name] || '')

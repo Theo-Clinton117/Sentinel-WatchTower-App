@@ -93,19 +93,20 @@ test("resolvePlanFromAmount chooses matching paid plan", () => {
 
 test("subscription catalog exposes current paid tier pricing and aliases", () => {
     const catalog = getSubscriptionCatalog();
-    const silver = catalog.find((plan) => plan.id === "basic");
-    const gold = catalog.find((plan) => plan.id === "family");
-    const platinum = catalog.find((plan) => plan.id === "pro");
+    const individual = catalog.find((plan) => plan.id === "basic");
+    const family = catalog.find((plan) => plan.id === "family");
+    const organization = catalog.find((plan) => plan.id === "pro");
 
-    assert.equal(silver.name, "Silver");
-    assert.equal(silver.amountNgn, 1000);
-    assert.equal(gold.name, "Gold Family");
-    assert.equal(gold.amountNgn, 3500);
-    assert.equal(platinum.name, "Platinum Enterprise");
-    assert.equal(platinum.amountNgn, 10000);
-    assert.equal(normalizePlanId("silver"), "basic");
-    assert.equal(normalizePlanId("gold"), "family");
-    assert.equal(normalizePlanId("platinum"), "pro");
+    assert.equal(catalog[0].name, "Free");
+    assert.equal(individual.name, "Individual");
+    assert.equal(individual.amountNgn, 1000);
+    assert.equal(family.name, "Family");
+    assert.equal(family.amountNgn, 3500);
+    assert.equal(organization.name, "Organization");
+    assert.equal(organization.amountNgn, 10000);
+    assert.equal(normalizePlanId("individual"), "basic");
+    assert.equal(normalizePlanId("family"), "family");
+    assert.equal(normalizePlanId("organization"), "pro");
     assert.equal(normalizePlanId("enterprise"), "pro");
     assert.equal(normalizePlanId("entriprise"), "pro");
 });
