@@ -266,11 +266,11 @@ let AuthService = class AuthService {
     `, [phone, hashPhoneOtp(phone, code), ttlMinutes]);
     }
     async sendPhoneVerification(phone, code) {
-        if (!(0, kudisms_1.isKudiSmsConfigured)()) {
-            throw new common_1.InternalServerErrorException('KudiSMS is not configured.');
+        if (!(0, kudisms_1.isKudiSmsOtpConfigured)()) {
+            throw new common_1.InternalServerErrorException('KudiSMS OTP is not configured.');
         }
         try {
-            await (0, kudisms_1.sendSms)(phone, `Your Sentinel verification code is ${code}. It expires in ${process.env.PHONE_OTP_TTL_MINUTES || '10'} minutes.`);
+            await (0, kudisms_1.sendOtp)(phone, code);
         }
         catch (error) {
             throw new common_1.ServiceUnavailableException(error instanceof Error ? error.message : 'Could not send phone verification code.');

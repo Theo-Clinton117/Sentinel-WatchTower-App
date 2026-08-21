@@ -65,7 +65,7 @@ function validateRuntimeConfig() {
             String(process.env.SUPABASE_SERVICE_ROLE_KEY || "").trim());
         const resendEmailOtpConfigured = Boolean(String(process.env.RESEND_API_KEY || "").trim() &&
             String(process.env.OTP_EMAIL_FROM || "").trim());
-        const smsConfigured = (0, kudisms_1.isKudiSmsConfigured)();
+        const smsConfigured = (0, kudisms_1.isKudiSmsOtpConfigured)();
         if (!databaseUrl) {
             throw new Error("DATABASE_URL or SUPABASE_DB_URL must be set in production.");
         }

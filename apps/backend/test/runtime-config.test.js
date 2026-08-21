@@ -174,6 +174,8 @@ test("production runtime validation requires real email and phone OTP providers"
             OTP_EMAIL_FROM: undefined,
             KUDISMS_TOKEN: "token",
             KUDISMS_SENDER_ID: "Sentinel",
+            KUDISMS_APP_NAME_CODE: "sentinel-app",
+            KUDISMS_TEMPLATE_CODE: "sentinel-otp",
         },
         () => {
             assert.throws(() => validateRuntimeConfig(), /email OTP/);
@@ -213,6 +215,8 @@ test("production runtime validation passes with required launch config", () => {
             OTP_EMAIL_FROM: undefined,
             KUDISMS_TOKEN: "token",
             KUDISMS_SENDER_ID: "Sentinel",
+            KUDISMS_APP_NAME_CODE: "sentinel-app",
+            KUDISMS_TEMPLATE_CODE: "sentinel-otp",
         },
         () => {
             assert.equal(validateRuntimeConfig(), true);
