@@ -2,6 +2,7 @@
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.classifyReportAndRefresh = exports.refreshReportSignals = exports.evaluateReportOnCreate = exports.refreshCredibilityProfile = exports.getCredibilityProfile = exports.ensureCredibilityProfile = exports.mapCredibilityProfileRow = void 0;
 const common_1 = require("@nestjs/common");
+const field_encryption_1 = require("../common/field-encryption");
 const DEFAULT_SCORE = 50;
 const SCORE_LIMITS = { min: 0, max: 100 };
 const REPORT_CLASSIFICATIONS = new Set([
@@ -469,7 +470,11 @@ async function loadReportSignals(queryable, reportId) {
     where r.id = $1
     limit 1
   `, [reportId]);
-    return result.rows[0] || null;
+    const row = result.rows[0] || null;
+    if (row) {
+        row.notes = (0, field_encryption_1.decryptField)(row.notes);
+    }
+    return row;
 }
 async function upsertReportClassification(queryable, payload) {
     const result = await queryable.query(`
@@ -507,11 +512,15 @@ async function upsertReportClassification(queryable, payload) {
         payload.qualityScore,
         payload.credibilitySnapshot,
         payload.corroborationCount,
-        payload.notes ?? null,
+        (0, field_encryption_1.encryptField)(payload.notes ?? null),
         payload.reviewedBy ?? null,
         payload.reviewedAt ?? null,
     ]);
-    return result.rows[0];
+    const row = result.rows[0];
+    if (row) {
+        row.notes = (0, field_encryption_1.decryptField)(row.notes);
+    }
+    return row;
 }
 async function updateReportDistribution(queryable, reportId, distribution) {
     await queryable.query(`

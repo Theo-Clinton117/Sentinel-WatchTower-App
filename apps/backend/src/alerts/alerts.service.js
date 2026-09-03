@@ -14,6 +14,7 @@ const common_1 = require("@nestjs/common");
 const db_service_1 = require("../db/db.service");
 const queues_service_1 = require("../queues/queues.service");
 const ws_service_1 = require("../ws/ws.service");
+const privacy_1 = require("../common/privacy");
 const alert_stages_1 = require("./alert-stages");
 function clampRiskScore(value) {
     const parsed = Number(value);
@@ -71,7 +72,7 @@ async function recordAlertAudit(queryable, { alertId, sessionId, userId, eventTy
         source || 'system',
         fromStage || null,
         toStage || null,
-        JSON.stringify(metadata || {}),
+        JSON.stringify((0, privacy_1.sanitizeAuditMetadata)(metadata)),
     ]);
 }
 async function bestEffort(work, onError) {

@@ -57,7 +57,7 @@ let RateLimitGuard = class RateLimitGuard {
         const limiter = this.redis
             ? new rate_limiter_flexible_1.RateLimiterRedis({
                 storeClient: this.redis,
-                keyPrefix: 'rl',
+                keyPrefix: process.env.NODE_ENV === 'production' ? 'rl' : 'rl-dev',
                 points: config.points,
                 duration: config.duration,
             })

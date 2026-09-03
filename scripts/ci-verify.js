@@ -49,6 +49,8 @@ const productionValidationEnv = {
   SUPABASE_SERVICE_ROLE_KEY: "service-role-key",
   KUDISMS_TOKEN: "kudisms-token",
   KUDISMS_SENDER_ID: "Sentinel",
+  KUDISMS_APP_NAME_CODE: "Sentinel-Watchtower",
+  KUDISMS_TEMPLATE_CODE: "Your @@Sentinel_Watchtower@@ OTP is @@code@@. It expires in 10mins",
   EXPO_PUBLIC_APP_ENV: "production",
   EXPO_PUBLIC_API_BASE_URL: "https://api.example.com",
   EXPO_PUBLIC_WS_URL: "https://api.example.com",
@@ -60,6 +62,13 @@ const productionValidationEnv = {
 
 run(npmCommand, ["run", "test:backend"]);
 run(npmCommand, ["--workspace", "apps/mobile", "run", "typecheck"]);
-run(npmCommand, ["run", "test:integration"]);
+if (process.env.TEST_DATABASE_URL) {
+  run(npmCommand, ["run", "test:integration"]);
+} else if (process.env.CI === "true") {
+  console.error("\nCI requires TEST_DATABASE_URL to run the disposable-database integration test.");
+  process.exit(1);
+} else {
+  console.warn("\nSkipping disposable-database integration test because TEST_DATABASE_URL is not set.");
+}
 run(npmCommand, ["run", "validate:production"], { env: productionValidationEnv });
 run(npmCommand, ["run", "build:backend"]);

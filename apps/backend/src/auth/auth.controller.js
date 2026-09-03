@@ -31,6 +31,9 @@ let AuthController = class AuthController {
     refresh(body) {
         return this.authService.refresh(body.refreshToken);
     }
+    logout(body) {
+        return this.authService.logout(body.refreshToken);
+    }
 };
 exports.AuthController = AuthController;
 __decorate([
@@ -57,6 +60,14 @@ __decorate([
     __metadata("design:paramtypes", [Object]),
     __metadata("design:returntype", void 0)
 ], AuthController.prototype, "refresh", null);
+__decorate([
+    (0, common_1.Post)('logout'),
+    (0, rate_limit_decorator_1.RateLimit)({ points: 30, duration: 60 }),
+    __param(0, (0, common_1.Body)()),
+    __metadata("design:type", Function),
+    __metadata("design:paramtypes", [Object]),
+    __metadata("design:returntype", void 0)
+], AuthController.prototype, "logout", null);
 exports.AuthController = AuthController = __decorate([
     (0, common_1.Controller)('auth'),
     __metadata("design:paramtypes", [auth_service_1.AuthService])

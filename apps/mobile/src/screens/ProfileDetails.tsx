@@ -2,8 +2,10 @@ import React from 'react';
 import { ActivityIndicator, Pressable, ScrollView, StyleSheet, Switch, Text, TextInput, View } from 'react-native';
 import { shallow } from 'zustand/shallow';
 import { MotionView } from '../components/MotionView';
+import { DismissibleNoticeCard } from '../components/DismissibleNoticeCard';
 import { ProfileGlyph } from '../components/ProfileGlyph';
 import { ApiError } from '../services/api';
+import { logout } from '../services/auth';
 import { getCurrentLocation, getReadableLocationLabel } from '../services/location';
 import { requestReviewerRole } from '../services/roles';
 import { getCurrentUser } from '../services/users';
@@ -337,7 +339,12 @@ const SavedPlaceContent = ({
         ) : null}
 
         {message ? <Text style={styles.helperText}>{message}</Text> : null}
-        {error ? <Text style={styles.errorText}>{error}</Text> : null}
+        <DismissibleNoticeCard
+          visible={Boolean(error)}
+          title="Action needed"
+          message={error}
+          onDismiss={() => setError('')}
+        />
       </DetailCard>
 
       <DetailCard title="Quick details" delay={170}>
@@ -533,9 +540,10 @@ export const SafetyScreen = () => {
 
 export const LoginSecurityScreen = () => {
   const theme = useAppTheme();
-  const { clearAuthSession, deviceId, user, sessionStatus } = useAppStore(
+  const { clearAuthSession, refreshToken, deviceId, user, sessionStatus } = useAppStore(
     (state) => ({
       clearAuthSession: state.clearAuthSession,
+      refreshToken: state.refreshToken,
       deviceId: state.deviceId,
       user: state.user,
       sessionStatus: state.sessionStatus,
@@ -543,6 +551,15 @@ export const LoginSecurityScreen = () => {
     shallow,
   );
   const styles = createStyles(theme);
+  const handleSignOut = async () => {
+    try {
+      await logout(refreshToken || '');
+    } catch {
+      // Local sign-out remains available if the network is down.
+    } finally {
+      clearAuthSession();
+    }
+  };
 
   return (
     <ScreenFrame
@@ -563,7 +580,7 @@ export const LoginSecurityScreen = () => {
       </DetailCard>
 
       <MotionView delay={240}>
-        <Pressable style={styles.logoutButton} onPress={clearAuthSession}>
+        <Pressable style={styles.logoutButton} onPress={() => void handleSignOut()}>
           <Text style={styles.logoutButtonText}>Sign out</Text>
         </Pressable>
       </MotionView>

@@ -1,5 +1,6 @@
 import { io, Socket } from 'socket.io-client';
 import type { EmergencyLocation } from '../store/useAppStore';
+import { useAppStore } from '../store/useAppStore';
 import { resolveBackendUrl } from './runtime-host';
 
 const wsUrl = resolveBackendUrl(process.env.EXPO_PUBLIC_WS_URL, 'EXPO_PUBLIC_WS_URL');
@@ -16,7 +17,9 @@ type SessionSocketHandlers = {
 
 export const connectSessionSocket = (sessionId: string, handlers: SessionSocketHandlers = {}) => {
   socket?.disconnect();
+  const token = useAppStore.getState().accessToken;
   socket = io(`${wsUrl}/sessions`, {
+    auth: token ? { token } : undefined,
     transports: ['websocket'],
     reconnectionAttempts: 5,
     reconnectionDelay: 2000,

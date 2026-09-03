@@ -12,7 +12,7 @@ import {
 } from 'react-native';
 import { Search, Users } from 'lucide-react-native';
 import { EmptyState } from '../components/EmptyState';
-import { FeedbackBanner } from '../components/FeedbackBanner';
+import { DismissibleNoticeCard } from '../components/DismissibleNoticeCard';
 import { MotionView } from '../components/MotionView';
 import { SkeletonBlock } from '../components/Skeleton';
 import { ApiError } from '../services/api';
@@ -747,11 +747,12 @@ export const ContactsScreen = () => {
         </MotionView>
       )}
 
-      {error ? (
-        <MotionView delay={400}>
-          <FeedbackBanner tone="error" title="Action needed" message={error} />
-        </MotionView>
-      ) : null}
+      <DismissibleNoticeCard
+        visible={Boolean(error)}
+        title="Action needed"
+        message={error}
+        onDismiss={() => setError('')}
+      />
     </ScrollView>
   );
 };

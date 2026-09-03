@@ -17,6 +17,7 @@ const common_1 = require("@nestjs/common");
 const jwt_auth_guard_1 = require("../common/guards/jwt-auth.guard");
 const rate_limit_decorator_1 = require("../common/guards/rate-limit.decorator");
 const subscriptions_service_1 = require("./subscriptions.service");
+const subscriptionRateLimitDuration = process.env.NODE_ENV === 'production' ? 3600 : 60;
 let SubscriptionsController = class SubscriptionsController {
     constructor(subscriptionsService) {
         this.subscriptionsService = subscriptionsService;
@@ -28,7 +29,7 @@ let SubscriptionsController = class SubscriptionsController {
         return this.subscriptionsService.syncPayment(req.user.sub, body);
     }
     checkout(req, body) {
-        return this.subscriptionsService.checkout(req.user.sub, req.user.email, body);
+        return this.subscriptionsService.checkout(req.user.sub, body);
     }
 };
 exports.SubscriptionsController = SubscriptionsController;
@@ -41,7 +42,7 @@ __decorate([
 ], SubscriptionsController.prototype, "list", null);
 __decorate([
     (0, common_1.Post)('sync'),
-    (0, rate_limit_decorator_1.RateLimit)({ points: 12, duration: 3600 }),
+    (0, rate_limit_decorator_1.RateLimit)({ points: 12, duration: subscriptionRateLimitDuration }),
     __param(0, (0, common_1.Req)()),
     __param(1, (0, common_1.Body)()),
     __metadata("design:type", Function),
@@ -50,7 +51,7 @@ __decorate([
 ], SubscriptionsController.prototype, "sync", null);
 __decorate([
     (0, common_1.Post)('checkout'),
-    (0, rate_limit_decorator_1.RateLimit)({ points: 6, duration: 3600 }),
+    (0, rate_limit_decorator_1.RateLimit)({ points: 6, duration: subscriptionRateLimitDuration }),
     __param(0, (0, common_1.Req)()),
     __param(1, (0, common_1.Body)()),
     __metadata("design:type", Function),

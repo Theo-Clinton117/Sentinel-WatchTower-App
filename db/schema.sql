@@ -531,6 +531,20 @@ create table if not exists subscriptions (
   provider_ref text
 );
 
+create table if not exists auth_refresh_sessions (
+  id uuid primary key default gen_random_uuid(),
+  user_id uuid not null references users(id) on delete cascade,
+  device_id text,
+  token_id text not null unique,
+  token_hash text not null unique,
+  expires_at timestamptz not null,
+  last_used_at timestamptz,
+  revoked_at timestamptz,
+  replaced_by_session_id uuid references auth_refresh_sessions(id) on delete set null,
+  created_at timestamptz default now(),
+  updated_at timestamptz default now()
+);
+
 create table if not exists telemetry_events (
   id uuid primary key default gen_random_uuid(),
   user_id uuid references users(id) on delete cascade,
@@ -602,6 +616,9 @@ create index if not exists idx_reports_user_created on reports(user_id, created_
 create index if not exists idx_trusted_contacts_user_priority_created on trusted_contacts(user_id, priority asc, created_at desc);
 create index if not exists idx_notifications_user_created on notifications(user_id, created_at desc);
 create index if not exists idx_subscriptions_user_period on subscriptions(user_id, started_at desc nulls last, current_period_end desc nulls last);
+create index if not exists idx_auth_refresh_sessions_user on auth_refresh_sessions(user_id, created_at desc);
+create index if not exists idx_auth_refresh_sessions_token_hash on auth_refresh_sessions(token_hash);
+create index if not exists idx_auth_refresh_sessions_token_id on auth_refresh_sessions(token_id);
 create index if not exists idx_latency_metrics_user_recorded on latency_metrics(user_id, recorded_at desc);
 create index if not exists idx_states_geopolitical_zone on states(geopolitical_zone_id, sort_order, name);
 create index if not exists idx_operational_zones_state on operational_zones(state_id, sort_order, name);

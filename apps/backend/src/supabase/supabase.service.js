@@ -105,7 +105,7 @@ let SupabaseService = class SupabaseService {
             warnings.push('SUPABASE_SERVICE_ROLE_KEY is not set, so privileged Supabase REST or storage operations are intentionally unavailable.');
         }
         if (!smsConfigured) {
-            warnings.push('Set KUDISMS_TOKEN and KUDISMS_SENDER_ID so phone verification can use KudiSMS.');
+            warnings.push('Set KUDISMS_TOKEN, KUDISMS_SENDER_ID, KUDISMS_APP_NAME_CODE, and KUDISMS_TEMPLATE_CODE so phone verification can use KudiSMS OTP.');
         }
         return {
             configured: Boolean(projectUrl && publishableKey),

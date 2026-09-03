@@ -99,7 +99,6 @@ module.exports = ({ config }) => {
     extra: {
       appEnv: APP_ENV,
       apiBaseUrl: readEnv('EXPO_PUBLIC_API_BASE_URL'),
-      googleMapsApiKey: readEnv('EXPO_PUBLIC_GOOGLE_MAPS_API_KEY'),
       wsUrl: readEnv('EXPO_PUBLIC_WS_URL'),
     },
   };

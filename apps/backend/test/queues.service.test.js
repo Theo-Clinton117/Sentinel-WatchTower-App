@@ -155,7 +155,10 @@ test("processAlertContactNotifications records in-app, SMS, email, and audit del
                 ]);
                 const trustedRecord = db.notificationRecords.find((record) => record.payload.audience === "trusted_contact");
                 assert.equal(trustedRecord.userId, "trusted-user-1");
-                assert.equal(trustedRecord.payload.location.lat, 6.5244);
+                assert.equal(trustedRecord.payload.location, undefined);
+                assert.equal(trustedRecord.payload.recipientEmail, undefined);
+                assert.equal(trustedRecord.payload.recipientPhone, undefined);
+                assert.equal(typeof trustedRecord.payload.message, "string");
                 assert.equal(db.auditRecords.length, 1);
                 assert.equal(db.auditRecords[0].eventType, "notification_fanout_completed");
                 assert.deepEqual(db.auditRecords[0].metadata, {

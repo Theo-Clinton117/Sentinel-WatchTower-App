@@ -34,6 +34,8 @@ test("health reports optional provider configuration using the env names service
             REDIS_URL: "",
             KUDISMS_TOKEN: "token",
             KUDISMS_SENDER_ID: "Sentinel",
+            KUDISMS_APP_NAME_CODE: "Sentinel-Watchtower",
+            KUDISMS_TEMPLATE_CODE: "Your @@Sentinel_Watchtower@@ OTP is @@code@@. It expires in 10mins",
             RESEND_API_KEY: "resend",
             OTP_EMAIL_FROM: "security@example.com",
             PAYSTACK_SECRET_KEY: "secret",
@@ -52,6 +54,34 @@ test("health reports optional provider configuration using the env names service
             assert.equal(health.checks.phoneVerification.configured, true);
             assert.equal(health.checks.email.configured, true);
             assert.equal(health.checks.paystack.configured, true);
+        },
+    );
+});
+
+test("health marks phone verification unhealthy when KudiSMS OTP template fields are missing", async () => {
+    await withEnv(
+        {
+            REDIS_URL: "",
+            KUDISMS_TOKEN: "token",
+            KUDISMS_SENDER_ID: "Sentinel",
+            KUDISMS_APP_NAME_CODE: undefined,
+            KUDISMS_TEMPLATE_CODE: undefined,
+            RESEND_API_KEY: "resend",
+            OTP_EMAIL_FROM: "security@example.com",
+            PAYSTACK_SECRET_KEY: "secret",
+        },
+        async () => {
+            const service = new HealthService({
+                async query() {
+                    return { rows: [{ ok: 1 }] };
+                },
+            }, async () => ({ ok: false, configured: false }));
+
+            const health = await service.getHealth();
+
+            assert.equal(health.checks.sms.configured, true);
+            assert.equal(health.checks.phoneVerification.configured, false);
+            assert.equal(health.checks.phoneVerification.ok, false);
         },
     );
 });

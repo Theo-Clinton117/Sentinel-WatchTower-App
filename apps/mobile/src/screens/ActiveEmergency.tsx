@@ -1,6 +1,7 @@
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import { ActivityIndicator, Animated, Pressable, StyleSheet, Text, View } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
+import { DismissibleNoticeCard } from '../components/DismissibleNoticeCard';
 import { LiveMap } from '../components/LiveMap';
 import { MotionView } from '../components/MotionView';
 import { useAppStore } from '../store/useAppStore';
@@ -434,7 +435,12 @@ export const ActiveEmergencyScreen = () => {
             : 'Waiting for the first location update.'}
       </Text>
 
-      {error ? <Text style={styles.error}>{error}</Text> : null}
+      <DismissibleNoticeCard
+        visible={Boolean(error)}
+        title="Emergency update"
+        message={error}
+        onDismiss={() => setError('')}
+      />
 
       {isSoftAlert ? (
         <View style={styles.actionsRow}>

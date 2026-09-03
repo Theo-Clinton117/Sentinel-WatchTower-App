@@ -12,6 +12,7 @@ import {
 } from 'react-native';
 import { shallow } from 'zustand/shallow';
 import { LiveMap } from '../components/LiveMap';
+import { DismissibleNoticeCard } from '../components/DismissibleNoticeCard';
 import { MotionView } from '../components/MotionView';
 import { AppIcon } from '../components/AppIcon';
 import { useAppStore } from '../store/useAppStore';
@@ -545,11 +546,12 @@ export const HomeScreen = () => {
         </MotionView>
       ) : null}
 
-      {error ? (
-        <MotionView delay={40} style={styles.errorWrap}>
-          <Text style={styles.errorText}>{error}</Text>
-        </MotionView>
-      ) : null}
+      <DismissibleNoticeCard
+        visible={Boolean(error)}
+        title="Action needed"
+        message={error}
+        onDismiss={() => setError('')}
+      />
 
       <MotionView
         delay={80}

@@ -5,6 +5,7 @@ node_modules
 .npm-cache
 .env
 .env.*
+!apps/mobile/.env.render.example
 apps/mobile/.expo
 apps/mobile/.expo-shared
 apps/mobile/dist

@@ -12,6 +12,7 @@ import {
 } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import { MotionView } from '../../components/MotionView';
+import { DismissibleNoticeCard } from '../../components/DismissibleNoticeCard';
 import { ApiError } from '../../services/api';
 import {
   AuthFlow,
@@ -60,19 +61,19 @@ export const AuthEntryScreen = () => {
     const trimmedName = name.trim();
 
     if (isSignup && trimmedName.length < 2) {
-      setError('Enter your name so we can set up your account.');
+      setError('Enter your full name.');
       return;
     }
 
     const isEmail = contactMethod === 'email';
 
     if (isEmail && !isEmailValid(normalizedEmail)) {
-      setError('Enter a valid email address to receive your verification code.');
+      setError('Enter a valid email address.');
       return;
     }
 
     if (!isEmail && !isPhoneValid(normalizedPhone)) {
-      setError('Enter a valid phone number, including your country code.');
+      setError('Enter a valid phone number.');
       return;
     }
 
@@ -104,7 +105,7 @@ export const AuthEntryScreen = () => {
       const message =
         requestError instanceof ApiError
           ? requestError.message
-          : 'Could not send the verification code right now. Please try again.';
+          : 'Could not send a code right now. Please try again.';
       setError(message);
     } finally {
       setLoading(false);
@@ -123,12 +124,11 @@ export const AuthEntryScreen = () => {
         showsVerticalScrollIndicator={false}
       >
         <MotionView delay={20} style={styles.heroBlock}>
-          <Text style={styles.eyebrow}>Secure Access</Text>
           <Text style={styles.title}>{isSignup ? 'Create your account' : 'Welcome back'}</Text>
           <Text style={styles.subtitle}>
             {isSignup
-              ? 'Start with your name, then verify by email or phone to finish setup.'
-              : 'Enter the email or phone linked to your account and we will send a fresh verification code.'}
+              ? 'Create your account with email or phone.'
+              : 'Use email or phone to continue.'}
           </Text>
         </MotionView>
 
@@ -151,15 +151,6 @@ export const AuthEntryScreen = () => {
                 );
               })}
             </View>
-
-            <View style={styles.badgeRow}>
-              <View style={styles.badge}>
-                <Text style={styles.badgeText}>
-                  {contactMethod === 'email' ? 'Supabase email verification' : 'Amazon SNS phone verification'}
-                </Text>
-              </View>
-            </View>
-
             <View style={styles.contactSwitcher}>
               {(['email', 'phone'] as const).map((option) => {
                 const active = contactMethod === option;
@@ -207,11 +198,13 @@ export const AuthEntryScreen = () => {
                 <TextInput
                   autoCapitalize="none"
                   autoCorrect={false}
+                  autoComplete="email"
                   keyboardType="email-address"
                   placeholder="you@example.com"
                   placeholderTextColor={theme.colors.muted}
                   style={styles.input}
                   value={email}
+                  textContentType="emailAddress"
                   onChangeText={(value) => {
                     setEmail(value);
                     if (error) {
@@ -226,11 +219,13 @@ export const AuthEntryScreen = () => {
                 <TextInput
                   autoCapitalize="none"
                   autoCorrect={false}
+                  autoComplete="tel"
                   keyboardType="phone-pad"
                   placeholder="+2348012345678"
                   placeholderTextColor={theme.colors.muted}
                   style={styles.input}
                   value={phone}
+                  textContentType="telephoneNumber"
                   onChangeText={(value) => {
                     setPhone(value);
                     if (error) {
@@ -241,7 +236,12 @@ export const AuthEntryScreen = () => {
               </View>
             )}
 
-            {error ? <Text style={styles.error}>{error}</Text> : null}
+            <DismissibleNoticeCard
+              visible={Boolean(error)}
+              title="Action needed"
+              message={error}
+              onDismiss={() => setError('')}
+            />
 
             <Pressable
               style={[styles.button, loading && styles.buttonDisabled]}
@@ -309,23 +309,6 @@ const createStyles = (theme: ReturnType<typeof useAppTheme>) =>
       borderColor: theme.colors.border,
       marginBottom: 18,
     },
-    badgeRow: {
-      marginBottom: 16,
-    },
-    badge: {
-      alignSelf: 'flex-start',
-      paddingHorizontal: 12,
-      paddingVertical: 7,
-      borderRadius: 999,
-      backgroundColor: theme.colors.blueSoft,
-      borderWidth: 1,
-      borderColor: theme.colors.borderStrong,
-    },
-    badgeText: {
-      color: theme.colors.text,
-      fontSize: 12,
-      fontWeight: '700',
-    },
     contactSwitcher: {
       flexDirection: 'row',
       gap: 8,
@@ -372,14 +355,6 @@ const createStyles = (theme: ReturnType<typeof useAppTheme>) =>
     },
     modeChipTextActive: {
       color: theme.colors.text,
-    },
-    eyebrow: {
-      color: theme.colors.blueGlow,
-      fontSize: 12,
-      fontWeight: '700',
-      letterSpacing: 1,
-      textTransform: 'uppercase',
-      marginBottom: 10,
     },
     title: {
       color: theme.colors.text,

@@ -1,6 +1,7 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import type { EmergencyLocation } from '../store/useAppStore';
 import { apiGet, apiPost } from './api';
+import { getEncryptedItem, setEncryptedItem } from './encrypted-storage';
 
 export type NearbyMotionState = 'stationary' | 'walking' | 'running' | 'driving' | 'unknown';
 export type NearbyProximityBand = 'near' | 'medium' | 'far';
@@ -126,7 +127,11 @@ function createRandomToken() {
 
 async function getEphemeralDeviceId(nowMs = Date.now()) {
   const dayBucket = getUtcDayBucket(nowMs);
-  const rawValue = await AsyncStorage.getItem(EPHEMERAL_ID_STORAGE_KEY);
+  const rawValue = await getEncryptedItem(
+    AsyncStorage,
+    'nearby-safety-mesh',
+    EPHEMERAL_ID_STORAGE_KEY,
+  );
 
   if (rawValue) {
     try {
@@ -140,7 +145,12 @@ async function getEphemeralDeviceId(nowMs = Date.now()) {
   }
 
   const id = `mesh-${dayBucket}-${createRandomToken()}`;
-  await AsyncStorage.setItem(EPHEMERAL_ID_STORAGE_KEY, JSON.stringify({ dayBucket, id }));
+  await setEncryptedItem(
+    AsyncStorage,
+    'nearby-safety-mesh',
+    EPHEMERAL_ID_STORAGE_KEY,
+    JSON.stringify({ dayBucket, id }),
+  );
   return id;
 }
 

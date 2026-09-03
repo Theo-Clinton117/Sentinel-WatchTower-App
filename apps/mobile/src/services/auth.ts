@@ -137,3 +137,11 @@ export async function verifyOtp(
 
   return apiPost<VerifyOtpResponse>('/auth/otp/verify', body);
 }
+
+export async function logout(refreshToken: string) {
+  if (!refreshToken) {
+    return { success: true };
+  }
+
+  return apiPost<{ success: boolean }>('/auth/logout', { refreshToken });
+}

@@ -59,6 +59,9 @@ function validateRuntimeConfig() {
     getJwtAccessSecret();
     getJwtRefreshSecret();
     if (isProduction()) {
+        if (String(process.env.FIELD_ENCRYPTION_KEY || "").trim().length < 32) {
+            throw new Error("FIELD_ENCRYPTION_KEY must be set to a strong production secret.");
+        }
         const databaseUrl = String(process.env.SUPABASE_DB_URL || process.env.DATABASE_URL || "").trim();
         const redisUrl = String(process.env.REDIS_URL || "").trim();
         const supabaseEmailOtpConfigured = Boolean(String(process.env.SUPABASE_URL || "").trim() &&

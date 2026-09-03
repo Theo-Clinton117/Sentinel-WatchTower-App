@@ -46,16 +46,40 @@ function generatePhoneOtpCode() {
 function getOtpHashSecret() {
     return String(process.env.OTP_CODE_SECRET || process.env.JWT_ACCESS_SECRET || 'change-me').trim();
 }
+function getRefreshTokenHashSecret() {
+    return String(process.env.REFRESH_TOKEN_HASH_SECRET || process.env.JWT_REFRESH_SECRET || 'change-me').trim();
+}
 function hashPhoneOtp(phone, code) {
     return crypto
         .createHmac('sha256', getOtpHashSecret())
         .update(`${phone}:${code}`, 'utf8')
         .digest('hex');
 }
+function hashRefreshTokenId(tokenId) {
+    return crypto
+        .createHmac('sha256', getRefreshTokenHashSecret())
+        .update(String(tokenId || ''), 'utf8')
+        .digest('hex');
+}
 function safeEqualHex(left, right) {
     const a = Buffer.from(String(left || ''), 'hex');
     const b = Buffer.from(String(right || ''), 'hex');
     return a.length === b.length && crypto.timingSafeEqual(a, b);
+}
+function createRefreshTokenId() {
+    return crypto.randomUUID();
+}
+function decodeTokenExpiry(token, jwtService) {
+    try {
+        const decoded = jwtService.decode(token);
+        if (decoded && typeof decoded === 'object' && typeof decoded.exp === 'number') {
+            return new Date(decoded.exp * 1000);
+        }
+    }
+    catch {
+        return null;
+    }
+    return null;
 }
 function mapUserRow(user, extras) {
     return {
@@ -76,6 +100,130 @@ let AuthService = class AuthService {
         this.db = db;
         this.jwt = jwt;
         this.supabaseService = supabaseService;
+    }
+    async issueRefreshToken(client, user, payload = {}) {
+        const tokenId = createRefreshTokenId();
+        const refreshToken = this.jwt.sign({
+            sub: user.id,
+            jti: tokenId,
+            deviceId: payload.deviceId || null,
+        }, {
+            secret: (0, runtime_1.getJwtRefreshSecret)(),
+            expiresIn: process.env.JWT_REFRESH_TTL || '30d',
+        });
+        const expiresAt = decodeTokenExpiry(refreshToken, this.jwt);
+        if (!expiresAt) {
+            throw new common_1.InternalServerErrorException('Could not determine refresh token expiry.');
+        }
+        const tokenHash = hashRefreshTokenId(tokenId);
+        await client.query(`
+      insert into auth_refresh_sessions (
+        user_id,
+        device_id,
+        token_id,
+        token_hash,
+        expires_at,
+        last_used_at
+      )
+      values ($1, $2, $3, $4, $5, now())
+    `, [user.id, payload.deviceId || null, tokenId, tokenHash, expiresAt]);
+        return { refreshToken, tokenId, expiresAt };
+    }
+    async revokeRefreshToken(refreshToken) {
+        const payload = this.jwt.verify(refreshToken, {
+            secret: (0, runtime_1.getJwtRefreshSecret)(),
+        });
+        if (!payload?.jti || !payload?.sub) {
+            throw new common_1.UnauthorizedException('Invalid refresh token');
+        }
+        return this.db.transaction(async (client) => {
+            const result = await client.query(`
+        select id, user_id, token_id, revoked_at, expires_at
+        from auth_refresh_sessions
+        where token_id = $1 and user_id = $2
+        limit 1
+        for update
+      `, [payload.jti, payload.sub]);
+            const session = result.rows[0];
+            if (!session) {
+                throw new common_1.UnauthorizedException('Invalid refresh token');
+            }
+            if (session.revoked_at || new Date(session.expires_at).getTime() <= Date.now()) {
+                throw new common_1.UnauthorizedException('Invalid refresh token');
+            }
+            await client.query(`
+        update auth_refresh_sessions
+        set revoked_at = now(), updated_at = now()
+        where id = $1
+      `, [session.id]);
+            return { revoked: true };
+        });
+    }
+    async rotateRefreshToken(refreshToken) {
+        const payload = this.jwt.verify(refreshToken, {
+            secret: (0, runtime_1.getJwtRefreshSecret)(),
+        });
+        if (!payload?.jti || !payload?.sub) {
+            throw new common_1.UnauthorizedException('Invalid refresh token');
+        }
+        return this.db.transaction(async (client) => {
+            const currentResult = await client.query(`
+        select id, user_id, token_id, revoked_at, expires_at, device_id
+        from auth_refresh_sessions
+        where token_id = $1 and user_id = $2
+        limit 1
+        for update
+      `, [payload.jti, payload.sub]);
+            const current = currentResult.rows[0];
+            if (!current) {
+                throw new common_1.UnauthorizedException('Invalid refresh token');
+            }
+            if (current.revoked_at || new Date(current.expires_at).getTime() <= Date.now()) {
+                throw new common_1.UnauthorizedException('Invalid refresh token');
+            }
+            const userResult = await client.query('select * from users where id = $1 limit 1', [current.user_id]);
+            const user = userResult.rows[0];
+            if (!user) {
+                throw new common_1.UnauthorizedException('User not found');
+            }
+            const nextTokenId = createRefreshTokenId();
+            const nextRefreshToken = this.jwt.sign({
+                sub: user.id,
+                jti: nextTokenId,
+                deviceId: current.device_id || null,
+            }, {
+                secret: (0, runtime_1.getJwtRefreshSecret)(),
+                expiresIn: process.env.JWT_REFRESH_TTL || '30d',
+            });
+            const nextExpiresAt = decodeTokenExpiry(nextRefreshToken, this.jwt);
+            if (!nextExpiresAt) {
+                throw new common_1.InternalServerErrorException('Could not determine refresh token expiry.');
+            }
+            const nextTokenHash = hashRefreshTokenId(nextTokenId);
+            const created = await client.query(`
+        insert into auth_refresh_sessions (
+          user_id,
+          device_id,
+          token_id,
+          token_hash,
+          expires_at,
+          last_used_at
+        )
+        values ($1, $2, $3, $4, $5, now())
+        returning id
+      `, [user.id, current.device_id || null, nextTokenId, nextTokenHash, nextExpiresAt]);
+            await client.query(`
+        update auth_refresh_sessions
+        set revoked_at = now(),
+            replaced_by_session_id = $2,
+            updated_at = now()
+        where id = $1
+      `, [current.id, created.rows[0].id]);
+            return {
+                user,
+                refreshToken: nextRefreshToken,
+            };
+        });
     }
     async requestOtp(dto) {
         const email = normalizeEmail(dto.email);
@@ -106,8 +254,18 @@ let AuthService = class AuthService {
         const otpCode = resolveOtpCode();
         if (phone) {
             const phoneCode = generatePhoneOtpCode();
-            await this.createPhoneChallenge(phone, phoneCode);
-            await this.sendPhoneVerification(phone, phoneCode);
+            try {
+                await this.createPhoneChallenge(phone, phoneCode);
+                await this.sendPhoneVerification(phone, phoneCode);
+            }
+            catch (error) {
+                if (error instanceof common_1.HttpException) {
+                    throw error;
+                }
+                throw new common_1.ServiceUnavailableException(error instanceof Error
+                    ? error.message
+                    : 'Could not prepare phone verification right now.');
+            }
         }
         else {
             if (this.supabaseService.isEnabled()) {
@@ -120,7 +278,7 @@ let AuthService = class AuthService {
                 await this.sendOtpEmail({ email, name, code: otpCode, mode });
             }
             else {
-                throw new common_1.InternalServerErrorException('Email verification is not configured.');
+                throw new common_1.InternalServerErrorException('Email verification is temporarily unavailable.');
             }
         }
         const response = {
@@ -208,38 +366,29 @@ let AuthService = class AuthService {
             await (0, roles_logic_1.ensureDefaultUserRole)(client, row.id);
             return row;
         });
+        const tokenRecord = await this.db.transaction(async (client) => this.issueRefreshToken(client, user, { deviceId: dto.deviceId }));
         const credibility = await (0, credibility_logic_1.ensureCredibilityProfile)(this.db, user.id);
         const roles = await (0, roles_logic_1.getUserRoleNames)(this.db, user.id);
         const reviewerRequest = await (0, roles_logic_1.getLatestReviewerRequest)(this.db, user.id);
-        const payload = { sub: user.id, email: user.email };
+        const payload = { sub: user.id };
         const accessToken = this.jwt.sign(payload);
-        const refreshToken = this.jwt.sign(payload, {
-            secret: (0, runtime_1.getJwtRefreshSecret)(),
-            expiresIn: process.env.JWT_REFRESH_TTL || '30d',
-        });
         return {
             accessToken,
-            refreshToken,
+            refreshToken: tokenRecord.refreshToken,
             userId: payload.sub,
             user: mapUserRow(user, { credibility, roles, reviewerRequest }),
         };
     }
     async refresh(refreshToken) {
         try {
-            const payload = this.jwt.verify(refreshToken, {
-                secret: (0, runtime_1.getJwtRefreshSecret)(),
-            });
-            const result = await this.db.query('select * from users where id = $1 limit 1', [payload.sub]);
-            const user = result.rows[0];
-            if (!user) {
-                throw new common_1.UnauthorizedException('User not found');
-            }
+            const rotated = await this.rotateRefreshToken(refreshToken);
+            const user = rotated.user;
             const credibility = await (0, credibility_logic_1.ensureCredibilityProfile)(this.db, user.id);
             const roles = await (0, roles_logic_1.getUserRoleNames)(this.db, user.id);
             const reviewerRequest = await (0, roles_logic_1.getLatestReviewerRequest)(this.db, user.id);
             return {
-                accessToken: this.jwt.sign({ sub: user.id, email: user.email }),
-                refreshToken,
+                accessToken: this.jwt.sign({ sub: user.id }),
+                refreshToken: rotated.refreshToken,
                 userId: user.id,
                 user: mapUserRow(user, { credibility, roles, reviewerRequest }),
             };
@@ -247,6 +396,10 @@ let AuthService = class AuthService {
         catch (error) {
             throw new common_1.UnauthorizedException('Invalid refresh token');
         }
+    }
+    async logout(refreshToken) {
+        await this.revokeRefreshToken(refreshToken);
+        return { success: true };
     }
     isOtpValid(code) {
         const bypassCode = process.env.OTP_BYPASS_CODE || (process.env.NODE_ENV !== 'production' ? process.env.DEV_OTP_CODE || '123456' : '');
@@ -260,10 +413,17 @@ let AuthService = class AuthService {
     }
     async createPhoneChallenge(phone, code) {
         const ttlMinutes = Math.max(1, Number.parseInt(String(process.env.PHONE_OTP_TTL_MINUTES || '10'), 10) || 10);
-        await this.db.query(`
+        try {
+            await this.db.query(`
       insert into phone_otp_challenges (phone_e164, code_hash, expires_at)
       values ($1, $2, now() + ($3::int * interval '1 minute'))
     `, [phone, hashPhoneOtp(phone, code), ttlMinutes]);
+        }
+        catch (error) {
+            throw new common_1.ServiceUnavailableException(error instanceof Error
+                ? error.message
+                : 'Phone verification storage is not available right now.');
+        }
     }
     async sendPhoneVerification(phone, code) {
         if (!(0, kudisms_1.isKudiSmsOtpConfigured)()) {

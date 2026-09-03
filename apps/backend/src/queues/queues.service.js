@@ -16,6 +16,8 @@ const db_service_1 = require("../db/db.service");
 const ws_service_1 = require("../ws/ws.service");
 const alert_stages_1 = require("../alerts/alert-stages");
 const kudisms_1 = require("../common/kudisms");
+const privacy_1 = require("../common/privacy");
+const field_encryption_1 = require("../common/field-encryption");
 const ESCALATION_SWEEP_INTERVAL_MS = 15000;
 function hasValue(value) {
     return value !== null && value !== undefined && String(value).trim().length > 0;
@@ -60,7 +62,7 @@ async function recordAlertAudit(queryable, { alertId, sessionId, userId, eventTy
         source || 'system',
         fromStage || null,
         toStage || null,
-        JSON.stringify(metadata || {}),
+        JSON.stringify((0, privacy_1.sanitizeAuditMetadata)(metadata)),
     ]);
 }
 let QueuesService = class QueuesService {
@@ -322,7 +324,12 @@ let QueuesService = class QueuesService {
       where tc.user_id = $1
       order by tc.priority asc, tc.created_at asc
         `, [payload.userId]);
-        const contacts = contactsResult.rows;
+        const contacts = contactsResult.rows.map((contact) => ({
+            ...contact,
+            contact_name: (0, field_encryption_1.decryptField)(contact.contact_name),
+            contact_phone: (0, field_encryption_1.decryptField)(contact.contact_phone),
+            contact_email: (0, field_encryption_1.decryptField)(contact.contact_email),
+        }));
         if (contacts.length === 0) {
             await recordAlertAudit(this.db, {
                 alertId: alert.alert_id,
@@ -610,6 +617,7 @@ let QueuesService = class QueuesService {
         if (!userId) {
             return null;
         }
+        const sanitizedPayload = (0, privacy_1.sanitizeNotificationPayload)(payload);
         const result = await this.db.query(`
       insert into notifications (
         user_id,
@@ -627,7 +635,7 @@ let QueuesService = class QueuesService {
             type || 'alert_contact_update',
             channel || 'in_app',
             status || 'queued',
-            JSON.stringify(payload || {}),
+            JSON.stringify(sanitizedPayload),
             relatedSessionId || null,
         ]);
         return result.rows[0]?.id || null;

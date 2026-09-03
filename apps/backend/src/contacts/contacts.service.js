@@ -9,14 +9,15 @@ Object.defineProperty(exports, "__esModule", { value: true });
 exports.ContactsService = void 0;
 const common_1 = require("@nestjs/common");
 const db_service_1 = require("../db/db.service");
+const field_encryption_1 = require("../common/field-encryption");
 function mapContactRow(row) {
     return {
         id: row.id,
         userId: row.user_id,
         contactUserId: row.contact_user_id,
-        contactName: row.contact_name,
-        contactPhone: row.contact_phone,
-        contactEmail: row.contact_email,
+        contactName: (0, field_encryption_1.decryptField)(row.contact_name),
+        contactPhone: (0, field_encryption_1.decryptField)(row.contact_phone),
+        contactEmail: (0, field_encryption_1.decryptField)(row.contact_email),
         status: row.status,
         priority: row.priority,
         canViewLocation: row.can_view_location ?? true,
@@ -84,9 +85,9 @@ let ContactsService = class ContactsService {
       `, [
                 userId,
                 body?.contactUserId ?? null,
-                body?.contactName ?? null,
-                body?.contactPhone ?? null,
-                body?.contactEmail ?? null,
+                (0, field_encryption_1.encryptField)(body?.contactName ?? null),
+                (0, field_encryption_1.encryptField)(body?.contactPhone ?? null),
+                (0, field_encryption_1.encryptField)(body?.contactEmail ?? null),
                 body?.status ?? null,
                 body?.priority ?? 0,
             ]);
@@ -188,9 +189,9 @@ let ContactsService = class ContactsService {
                 userId,
                 id,
                 body?.contactUserId ?? null,
-                body?.contactName ?? null,
-                body?.contactPhone ?? null,
-                body?.contactEmail ?? null,
+                (0, field_encryption_1.encryptField)(body?.contactName ?? null),
+                (0, field_encryption_1.encryptField)(body?.contactPhone ?? null),
+                (0, field_encryption_1.encryptField)(body?.contactEmail ?? null),
                 body?.status ?? null,
                 body?.priority ?? null,
             ]);

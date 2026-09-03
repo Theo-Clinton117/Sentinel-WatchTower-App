@@ -2,6 +2,8 @@ import { Platform } from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { create } from 'zustand';
 import { createJSONStorage, persist } from 'zustand/middleware';
+import { isRootScreen } from '../navigation/screens';
+import { createEncryptedStorage } from '../services/encrypted-storage';
 
 export type Screen =
   | 'home'
@@ -152,6 +154,7 @@ type AppState = {
   watchSessionHistory: WatchSession[];
   hasHydrated: boolean;
   hasSecureAuthHydrated: boolean;
+  devTestModeExited: boolean;
   setScreen: (screen: Screen) => void;
   pushScreen: (screen: Screen) => void;
   resetNavigation: (screen: Screen) => void;
@@ -196,16 +199,13 @@ type AppState = {
   clearAuthSession: () => void;
   setHasHydrated: (value: boolean) => void;
   setHasSecureAuthHydrated: (value: boolean) => void;
+  exitDevTestMode: () => void;
   restoreSecureAuth: (payload: {
     accessToken: string;
     refreshToken: string;
-    user: AppUser | null;
   }) => void;
 };
 
-const rootScreens: Screen[] = ['home', 'risk-log', 'contacts', 'profile'];
-
-const isRootScreen = (screen: Screen) => rootScreens.includes(screen);
 const defaultDeviceId = `expo-${Platform.OS}-sentinel`;
 const MAX_ACTIVE_LOCATIONS = 250;
 
@@ -330,6 +330,7 @@ export const useAppStore = create<AppState>()(
       watchSessionHistory: [],
       hasHydrated: false,
       hasSecureAuthHydrated: false,
+      devTestModeExited: false,
       setScreen: (screen) =>
         set((state) => {
           if (state.currentScreen === screen) {
@@ -547,37 +548,28 @@ export const useAppStore = create<AppState>()(
         })),
       setHasHydrated: (value) => set({ hasHydrated: value }),
       setHasSecureAuthHydrated: (value) => set({ hasSecureAuthHydrated: value }),
-      restoreSecureAuth: ({ accessToken, refreshToken, user }) =>
+      exitDevTestMode: () => set({ devTestModeExited: true }),
+      restoreSecureAuth: ({ accessToken, refreshToken }) =>
         set({
           accessToken,
           refreshToken,
-          user,
           authStatus: 'authenticated',
         }),
     }),
     {
       name: 'sentinel-mobile-store',
-      storage: createJSONStorage(() => AsyncStorage),
+      storage: createJSONStorage(() =>
+        createEncryptedStorage({
+          namespace: 'mobile-store',
+          storage: AsyncStorage,
+        }),
+      ),
       partialize: (state) => ({
-        currentScreen: state.currentScreen,
-        screenStack: state.screenStack,
-        sessionStatus: state.sessionStatus,
-        authStatus: state.authStatus,
         onboardingComplete: state.onboardingComplete,
         themePreference: state.themePreference,
         nearbySafetyMeshEnabled: state.nearbySafetyMeshEnabled,
-        pendingEmail: state.pendingEmail,
-        pendingPhone: state.pendingPhone,
-        pendingName: state.pendingName,
-        authFlow: state.authFlow,
         deviceId: state.deviceId,
-        otpRequestedAt: state.otpRequestedAt,
-        otpDevCode: state.otpDevCode,
-        savedPlaces: state.savedPlaces,
-        activeSession: state.activeSession,
-        activeWatchSession: state.activeWatchSession,
-        sessionHistory: state.sessionHistory,
-        watchSessionHistory: state.watchSessionHistory,
+        devTestModeExited: state.devTestModeExited,
       }),
       onRehydrateStorage: () => (state) => {
         state?.setHasHydrated(true);

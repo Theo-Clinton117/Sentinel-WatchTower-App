@@ -22,9 +22,11 @@ import { ScreenCanvas } from './src/components/ScreenCanvas';
 import { SidebarDrawer } from './src/components/SidebarDrawer';
 import { useAppStore } from './src/store/useAppStore';
 import { useAppTheme } from './src/theme';
-import { isRootScreen } from './src/utils/screenUtils';
+import { isRootScreen, isSidebarScreen } from './src/navigation/screens';
+import { ApiError } from './src/services/api';
 import { verifyOtp } from './src/services/auth';
 import { clearSecureSession, loadSecureSession, saveSecureSession } from './src/services/secure-session';
+import { getCurrentUser } from './src/services/users';
 import { initializePaystackForUser } from './src/services/subscriptions';
 import { HomeScreen } from './src/screens/Home';
 import { ActiveEmergencyScreen } from './src/screens/ActiveEmergency';
@@ -61,25 +63,13 @@ const DRAWER_SWIPE_EDGE_WIDTH = 36;
 const BACK_SWIPE_DISTANCE = 86;
 const BACK_SWIPE_VELOCITY = 0.55;
 const DEV_TEST_SESSION_ENABLED =
-  __DEV__ && process.env.EXPO_PUBLIC_ENABLE_DEV_TEST_SESSION !== 'false';
+  __DEV__ && process.env.EXPO_PUBLIC_ENABLE_DEV_TEST_SESSION === 'true';
 const DEV_TEST_EMAIL =
   process.env.EXPO_PUBLIC_DEV_TEST_EMAIL || 'tester@sentinel.dev';
 const DEV_TEST_NAME =
   process.env.EXPO_PUBLIC_DEV_TEST_NAME || 'Sentinel Tester';
 const DEV_TEST_OTP =
   process.env.EXPO_PUBLIC_DEV_TEST_OTP || '123456';
-const sidebarScreens = new Set([
-  'settings',
-  'organizations',
-  'notifications',
-  'support',
-  'about',
-  'reviewer-dashboard',
-  'subscription',
-]);
-
-const isSidebarScreen = (screen: string) => sidebarScreens.has(screen);
-
 const ScreenRouter = () => {
   const { currentScreen, screenStack, sessionStatus, authStatus, onboardingComplete, setScreen } = useAppStore(
     (state) => ({
@@ -94,13 +84,12 @@ const ScreenRouter = () => {
   );
 
   // Ensure sidebar menu screens don't become the default entry point
-  const rootScreens = ['home', 'risk-log', 'contacts', 'profile'];
   const shouldResetToHome = 
     authStatus === 'authenticated' && 
     onboardingComplete && 
     sessionStatus === 'idle' &&
     screenStack.length <= 1 &&
-    !rootScreens.includes(currentScreen);
+    !isRootScreen(currentScreen);
 
   React.useEffect(() => {
     if (shouldResetToHome) {
@@ -411,7 +400,7 @@ const AppChrome = ({
   );
 
   const canGoBack =
-    !['home', 'risk-log', 'contacts', 'profile'].includes(currentScreen) &&
+    !isRootScreen(currentScreen) &&
     sessionStatus !== 'active' &&
     sessionStatus !== 'soft_alert' &&
     screenStack.length > 1;
@@ -420,7 +409,7 @@ const AppChrome = ({
     sessionStatus !== 'soft_alert' &&
     authStatus === 'authenticated' &&
     onboardingComplete &&
-    ['home', 'risk-log', 'contacts', 'profile'].includes(currentScreen);
+    isRootScreen(currentScreen);
   const canSwipeOpenSidebar =
     authStatus === 'authenticated' &&
     onboardingComplete &&
@@ -763,9 +752,11 @@ export default function App() {
     user,
     hasHydrated,
     hasSecureAuthHydrated,
+    devTestModeExited,
     markSecureAuthHydrated,
     restoreSecureAuth,
     setAuthSession,
+    setUser,
     setOnboardingComplete,
     resetNavigation,
   } = useAppStore(
@@ -776,9 +767,11 @@ export default function App() {
       user: state.user,
       hasHydrated: state.hasHydrated,
       hasSecureAuthHydrated: state.hasSecureAuthHydrated,
+      devTestModeExited: state.devTestModeExited,
       markSecureAuthHydrated: state.setHasSecureAuthHydrated,
       restoreSecureAuth: state.restoreSecureAuth,
       setAuthSession: state.setAuthSession,
+      setUser: state.setUser,
       setOnboardingComplete: state.setOnboardingComplete,
       resetNavigation: state.resetNavigation,
     }),
@@ -801,8 +794,23 @@ export default function App() {
     const hydrateSecureAuth = async () => {
       try {
         const session = await loadSecureSession();
-        if (active && session?.accessToken && session?.refreshToken) {
+        if (session?.accessToken === 'dev-test-access-token') {
+          await clearSecureSession();
+        } else if (active && session?.accessToken && session?.refreshToken) {
           restoreSecureAuth(session);
+          try {
+            const freshUser = await getCurrentUser();
+            if (active) {
+              setUser(freshUser);
+            }
+          } catch (error) {
+            if (error instanceof ApiError && (error.status === 401 || error.status === 403)) {
+              await clearSecureSession();
+              if (active) {
+                useAppStore.getState().clearAuthSession();
+              }
+            }
+          }
         }
       } finally {
         if (active) {
@@ -816,7 +824,7 @@ export default function App() {
     return () => {
       active = false;
     };
-  }, [markSecureAuthHydrated, restoreSecureAuth]);
+  }, [markSecureAuthHydrated, restoreSecureAuth, setUser]);
 
   React.useEffect(() => {
     if (!hasSecureAuthHydrated) {
@@ -827,7 +835,6 @@ export default function App() {
       void saveSecureSession({
         accessToken,
         refreshToken,
-        user,
       });
       return;
     }
@@ -836,7 +843,7 @@ export default function App() {
   }, [accessToken, refreshToken, hasSecureAuthHydrated, user]);
 
   React.useEffect(() => {
-    if (!DEV_TEST_SESSION_ENABLED || !hasSecureAuthHydrated) {
+    if (!DEV_TEST_SESSION_ENABLED || devTestModeExited || !hasSecureAuthHydrated) {
       return;
     }
 
@@ -872,27 +879,10 @@ export default function App() {
           refreshToken: result.refreshToken,
           user: result.user,
         });
+        setOnboardingComplete(true);
+        resetNavigation('home');
       } catch {
-        if (!active) {
-          return;
-        }
-
-        setAuthSession({
-          accessToken: 'dev-test-access-token',
-          refreshToken: 'dev-test-refresh-token',
-          user: {
-            id: 'dev-test-user',
-            name: DEV_TEST_NAME,
-            email: DEV_TEST_EMAIL,
-            status: 'active',
-            roles: ['user'],
-          },
-        });
-      } finally {
-        if (active) {
-          setOnboardingComplete(true);
-          resetNavigation('home');
-        }
+        return;
       }
     };
 
@@ -904,6 +894,7 @@ export default function App() {
   }, [
     accessToken,
     deviceId,
+    devTestModeExited,
     hasSecureAuthHydrated,
     refreshToken,
     resetNavigation,

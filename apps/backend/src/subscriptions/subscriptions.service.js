@@ -86,7 +86,7 @@ let SubscriptionsService = class SubscriptionsService {
         await this.persistSnapshot(userId, verifiedSnapshot, catalog);
         return this.buildResponse(userId, catalog, verifiedSnapshot, 'verified');
     }
-    async checkout(userId, userEmail, body) {
+    async checkout(userId, body) {
         if (!isPaystackConfigured()) {
             throw new common_1.ServiceUnavailableException('Paystack is not configured for this environment.');
         }
@@ -96,7 +96,7 @@ let SubscriptionsService = class SubscriptionsService {
         if (!plan || plan.id === 'free') {
             throw new common_1.BadRequestException('Choose a paid subscription plan.');
         }
-        const email = await this.resolveBillingEmail(userId, userEmail || body?.email);
+        const email = await this.resolveBillingEmail(userId, body?.email);
         if (!email) {
             throw new common_1.BadRequestException('Add an email address before starting Paystack checkout.');
         }

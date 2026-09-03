@@ -23,6 +23,10 @@ function validateBackend() {
   if (process.env.NODE_ENV !== "production") {
     fail("NODE_ENV must be set to production.");
   }
+  requireEnv("KUDISMS_TOKEN");
+  requireEnv("KUDISMS_SENDER_ID");
+  requireEnv("KUDISMS_APP_NAME_CODE");
+  requireEnv("KUDISMS_TEMPLATE_CODE");
   validateRuntimeConfig();
 }
 

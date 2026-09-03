@@ -11,6 +11,7 @@ import {
   View,
 } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
+import { DismissibleNoticeCard } from '../../components/DismissibleNoticeCard';
 import { MotionView } from '../../components/MotionView';
 import { ApiError } from '../../services/api';
 import { isOtpValid, requestOtp, verifyOtp } from '../../services/auth';
@@ -190,11 +191,15 @@ export const OtpScreen = () => {
             <View style={styles.fieldBlock}>
               <Text style={styles.label}>Verification code</Text>
               <TextInput
+                autoComplete="one-time-code"
+                autoCorrect={false}
                 keyboardType="number-pad"
                 placeholder="123456"
                 placeholderTextColor={theme.colors.muted}
+                importantForAutofill="yes"
                 style={styles.input}
                 value={code}
+                textContentType="oneTimeCode"
                 onChangeText={(value) => {
                   setCode(value.replace(/[^\d]/g, ''));
                   if (error) {
@@ -206,7 +211,12 @@ export const OtpScreen = () => {
             </View>
 
             {otpDevCode ? <Text style={styles.devHint}>Dev code: {otpDevCode}</Text> : null}
-            {error ? <Text style={styles.error}>{error}</Text> : null}
+            <DismissibleNoticeCard
+              visible={Boolean(error)}
+              title="Verification issue"
+              message={error}
+              onDismiss={() => setError('')}
+            />
 
             <Pressable
               style={[styles.button, loading && styles.buttonDisabled]}

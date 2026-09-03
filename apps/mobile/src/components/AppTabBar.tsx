@@ -5,13 +5,19 @@ import { Screen, useAppStore } from '../store/useAppStore';
 import { MotionView } from './MotionView';
 import { useAppTheme } from '../theme';
 import { AppIcon } from './AppIcon';
+import { tabScreens } from '../navigation/screens';
 
-const tabs: Array<{ key: Screen; label: string }> = [
-  { key: 'home', label: 'Location' },
-  { key: 'risk-log', label: 'History' },
-  { key: 'contacts', label: 'Contacts' },
-  { key: 'profile', label: 'Account' },
-];
+const tabs: Array<{ key: Screen; label: string }> = tabScreens.map((key) => ({
+  key,
+  label:
+    key === 'home'
+      ? 'Location'
+      : key === 'risk-log'
+        ? 'History'
+        : key === 'contacts'
+          ? 'Contacts'
+          : 'Account',
+}));
 
 export const AppTabBar = () => {
   const theme = useAppTheme();

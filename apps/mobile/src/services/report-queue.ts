@@ -6,6 +6,7 @@ import {
   type RapidAlertTag,
 } from '../constants/rapid-alerts';
 import { createRapidReport } from './reports';
+import { getEncryptedItem, setEncryptedItem } from './encrypted-storage';
 
 const QUEUED_RAPID_REPORTS_KEY = 'sentinel-queued-rapid-reports';
 
@@ -21,7 +22,7 @@ export type QueuedRapidReport = {
 };
 
 async function readQueue() {
-  const raw = await AsyncStorage.getItem(QUEUED_RAPID_REPORTS_KEY);
+  const raw = await getEncryptedItem(AsyncStorage, 'rapid-report-queue', QUEUED_RAPID_REPORTS_KEY);
   if (!raw) {
     return [] as QueuedRapidReport[];
   }
@@ -35,7 +36,12 @@ async function readQueue() {
 }
 
 async function writeQueue(queue: QueuedRapidReport[]) {
-  await AsyncStorage.setItem(QUEUED_RAPID_REPORTS_KEY, JSON.stringify(queue));
+  await setEncryptedItem(
+    AsyncStorage,
+    'rapid-report-queue',
+    QUEUED_RAPID_REPORTS_KEY,
+    JSON.stringify(queue),
+  );
 }
 
 export async function queueRapidReport(

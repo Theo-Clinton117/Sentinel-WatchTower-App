@@ -15,29 +15,76 @@ Object.defineProperty(exports, "__esModule", { value: true });
 exports.SessionsGateway = void 0;
 const websockets_1 = require("@nestjs/websockets");
 const socket_io_1 = require("socket.io");
+const jsonwebtoken = require("jsonwebtoken");
+const db_service_1 = require("../db/db.service");
+const runtime_1 = require("../config/runtime");
 const ws_service_1 = require("./ws.service");
-let SessionsGateway = class SessionsGateway {
-    constructor(wsService) {
-        this.wsService = wsService;
+function getAccessToken(client) {
+    const authToken = client.handshake?.auth?.token;
+    if (typeof authToken === 'string' && authToken.trim()) {
+        return authToken.trim();
     }
-    handleConnection(client) {
+    const header = client.handshake?.headers?.authorization;
+    if (typeof header === 'string' && header.startsWith('Bearer ')) {
+        return header.slice(7).trim();
+    }
+    return null;
+}
+let SessionsGateway = class SessionsGateway {
+    constructor(wsService, db) {
+        this.wsService = wsService;
+        this.db = db;
+    }
+    async handleConnection(client) {
         this.wsService.setServer(this.server);
-        client.emit('connected', { ok: true });
+        const token = getAccessToken(client);
+        if (!token) {
+            client.emit('connection:error', { message: 'Missing access token' });
+            client.disconnect(true);
+            return;
+        }
+        try {
+            const payload = jsonwebtoken.verify(token, (0, runtime_1.getJwtAccessSecret)());
+            if (!payload || typeof payload !== 'object' || !payload.sub) {
+                throw new Error('Invalid token payload');
+            }
+            client.data.user = payload;
+            client.emit('connected', { ok: true });
+        }
+        catch {
+            client.emit('connection:error', { message: 'Invalid access token' });
+            client.disconnect(true);
+        }
     }
     handleDisconnect() {
         return;
     }
-    handleJoin(client, body) {
+    async handleJoin(client, body) {
+        const sessionId = typeof body?.sessionId === 'string' ? body.sessionId.trim() : '';
+        const userId = client.data?.user?.sub;
+        if (!sessionId || !userId) {
+            return { joined: false, sessionId: sessionId || null };
+        }
+        const sessionResult = await this.db.query('select id from watch_sessions where id = $1 and user_id = $2 limit 1', [sessionId, userId]);
+        if (!sessionResult.rows[0]) {
+            client.emit('session:error', { sessionId, message: 'Not authorized for this session' });
+            return { joined: false, sessionId, reason: 'forbidden' };
+        }
         if (body?.sessionId) {
             client.join(body.sessionId);
         }
         return { joined: true, sessionId: body?.sessionId };
     }
-    handleLeave(client, body) {
-        if (body?.sessionId) {
-            client.leave(body.sessionId);
+    async handleLeave(client, body) {
+        const sessionId = typeof body?.sessionId === 'string' ? body.sessionId.trim() : '';
+        const userId = client.data?.user?.sub;
+        if (sessionId && userId) {
+            const sessionResult = await this.db.query('select id from watch_sessions where id = $1 and user_id = $2 limit 1', [sessionId, userId]);
+            if (sessionResult.rows[0]) {
+                client.leave(sessionId);
+            }
         }
-        return { left: true, sessionId: body?.sessionId };
+        return { left: true, sessionId: sessionId || null };
     }
 };
 exports.SessionsGateway = SessionsGateway;
@@ -65,10 +112,10 @@ exports.SessionsGateway = SessionsGateway = __decorate([
     (0, websockets_1.WebSocketGateway)({
         namespace: '/sessions',
         cors: {
-            origin: '*',
+            origin: (0, runtime_1.getCorsOrigins)(),
             credentials: true,
         },
     }),
-    __metadata("design:paramtypes", [ws_service_1.WsService])
+    __metadata("design:paramtypes", [ws_service_1.WsService, db_service_1.DbService])
 ], SessionsGateway);
 //# sourceMappingURL=sessions.gateway.js.map

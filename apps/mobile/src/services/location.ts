@@ -1,6 +1,5 @@
 import * as Location from 'expo-location';
 import * as TaskManager from 'expo-task-manager';
-import AsyncStorage from '@react-native-async-storage/async-storage';
 import { ingestSessionLocations } from './sessions';
 import { useAppStore, type EmergencyLocation } from '../store/useAppStore';
 
@@ -33,9 +32,7 @@ const MIN_TIME_BETWEEN_UPLOADS_MS = 15000;
 const MAX_TIME_BETWEEN_UPLOADS_MS = 45000;
 const BUFFER_FLUSH_MS = 20000;
 const MAX_BUFFER_SIZE = 3;
-const MAX_PERSISTED_LOCATION_BATCHES = 12;
 const STRICT_LOCATION_ACCURACY_METERS = 50;
-const PENDING_LOCATION_UPLOADS_KEY = 'sentinel-pending-location-uploads';
 const GOOGLE_GEOCODE_URL = 'https://maps.googleapis.com/maps/api/geocode/json';
 const GOOGLE_GEOCODE_RESULT_TYPES = 'street_address|premise|subpremise';
 const GOOGLE_GEOCODE_LOCATION_TYPES = 'ROOFTOP';
@@ -47,6 +44,7 @@ type PendingLocationUpload = {
 
 let foregroundSubscription: Location.LocationSubscription | null = null;
 let bufferedLocations: EmergencyLocation[] = [];
+let pendingUploadBatches: PendingLocationUpload[] = [];
 let flushTimeout: ReturnType<typeof setTimeout> | null = null;
 let lastUploadedLocation: EmergencyLocation | null = null;
 let lastUploadedAtMs = 0;
@@ -296,33 +294,19 @@ function compactLocationUploads(locations: EmergencyLocation[]) {
 }
 
 async function readPendingLocationUploads() {
-  try {
-    const raw = await AsyncStorage.getItem(PENDING_LOCATION_UPLOADS_KEY);
-    if (!raw) {
-      return [] as PendingLocationUpload[];
-    }
-
-    const parsed = JSON.parse(raw) as PendingLocationUpload[];
-    return Array.isArray(parsed) ? parsed : [];
-  } catch {
-    return [];
-  }
+  return pendingUploadBatches;
 }
 
 async function writePendingLocationUploads(queue: PendingLocationUpload[]) {
-  await AsyncStorage.setItem(
-    PENDING_LOCATION_UPLOADS_KEY,
-    JSON.stringify(queue.slice(-MAX_PERSISTED_LOCATION_BATCHES)),
-  );
+  pendingUploadBatches = queue.slice(-12);
 }
 
-async function persistLocationUploadFailure(sessionId: string, locations: EmergencyLocation[]) {
+function persistLocationUploadFailure(sessionId: string, locations: EmergencyLocation[]) {
   if (locations.length === 0) {
     return;
   }
 
-  const queue = await readPendingLocationUploads();
-  await writePendingLocationUploads([...queue, { sessionId, locations }]);
+  pendingUploadBatches = [...pendingUploadBatches, { sessionId, locations }].slice(-12);
 }
 
 async function takePendingLocationsForSession(sessionId: string) {
@@ -384,7 +368,7 @@ async function flushLocationBuffer() {
     markUploaded(payload);
   } catch {
     bufferedLocations = [...payload, ...bufferedLocations].slice(-MAX_BUFFER_SIZE * 2);
-    void persistLocationUploadFailure(sessionId, payload).catch(() => undefined);
+    persistLocationUploadFailure(sessionId, payload);
     if (!flushTimeout) {
       scheduleFlush();
     }
@@ -399,10 +383,6 @@ function queueLocationUpload(locations: EmergencyLocation[], forceFlush = false)
   }
 
   bufferedLocations = [...bufferedLocations, ...locations].slice(-MAX_BUFFER_SIZE * 2);
-  const sessionId = useAppStore.getState().activeSession?.sessionId;
-  if (sessionId) {
-    void persistLocationUploadFailure(sessionId, locations).catch(() => undefined);
-  }
 
   if (forceFlush || bufferedLocations.length >= MAX_BUFFER_SIZE) {
     if (flushTimeout) {

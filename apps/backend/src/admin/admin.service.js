@@ -10,6 +10,8 @@ exports.AdminService = void 0;
 const common_1 = require("@nestjs/common");
 const db_service_1 = require("../db/db.service");
 const credibility_logic_1 = require("../credibility/credibility.logic");
+const privacy_1 = require("../common/privacy");
+const field_encryption_1 = require("../common/field-encryption");
 function toNumber(value, fallback = 0) {
     const parsed = Number(value);
     return Number.isFinite(parsed) ? parsed : fallback;
@@ -51,7 +53,7 @@ function mapReviewerReportRow(row) {
             corroborationCount: toNumber(row.corroboration_count, 0),
             reviewedAt: row.reviewed_at || null,
             reviewedBy: row.reviewed_by || null,
-            notes: row.notes || null,
+            notes: (0, field_encryption_1.decryptField)(row.notes) || null,
         },
         reporter: {
             id: row.user_id,
@@ -227,11 +229,11 @@ let AdminService = class AdminService {
             'flag_alert',
             'alert',
             id,
-            {
+            (0, privacy_1.sanitizeAuditMetadata)({
                 reason: body?.reason ?? null,
                 note: body?.note ?? null,
                 alertStatus: alert.status,
-            },
+            }),
         ]);
         return {
             id,
@@ -260,11 +262,11 @@ let AdminService = class AdminService {
                 'classify_report',
                 'report',
                 id,
-                {
+                (0, privacy_1.sanitizeAuditMetadata)({
                     classification: body?.classification,
                     responseOutcome: body?.responseOutcome ?? 'pending',
                     notes: body?.notes ?? null,
-                },
+                }),
             ]);
             return {
                 ...result,

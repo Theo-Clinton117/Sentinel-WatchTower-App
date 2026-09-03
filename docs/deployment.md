@@ -14,16 +14,26 @@
 - `DATABASE_URL` or `SUPABASE_DB_URL`
 - `REDIS_URL`
 - `JWT_ACCESS_SECRET` and `JWT_REFRESH_SECRET`, each at least 32 characters
+- `FIELD_ENCRYPTION_KEY`, a dedicated secret of at least 32 characters. It encrypts trusted-contact identifiers and reviewer notes. Store it in a secret manager and keep it stable during rotation migrations.
 - `CORS_ORIGINS` with explicit HTTPS origins
-- Email OTP through either Supabase auth (`SUPABASE_URL` + `SUPABASE_SERVICE_ROLE_KEY`) or Resend (`RESEND_API_KEY` + `OTP_EMAIL_FROM`)
-- Phone OTP and SMS delivery through KudiSMS (`KUDISMS_TOKEN`, `KUDISMS_SENDER_ID`)
+- Email OTP through Supabase auth (`SUPABASE_URL` + `SUPABASE_SERVICE_ROLE_KEY`)
+- Optional fallback email delivery through Resend (`RESEND_API_KEY` + `OTP_EMAIL_FROM`) if you choose not to use Supabase auth OTP
+- Phone OTP through KudiSMS using multipart form data fields `token`, `senderID`, `recipients`, `otp`, `appnamecode`, and `templatecode`
+- Required KudiSMS env vars: `KUDISMS_TOKEN`, `KUDISMS_SENDER_ID`, `KUDISMS_APP_NAME_CODE`, `KUDISMS_TEMPLATE_CODE`
+- Optional KudiSMS OTP endpoint override: `KUDISMS_OTP_URL` (defaults to `https://my.kudisms.net/api/otp`)
+- Set the KudiSMS values only in your backend environment on Render; do not copy live credentials into docs or the mobile app.
 - `OTP_BYPASS_CODE` must be empty
+
+The backend accepts legacy plaintext contact and reviewer-note values for read compatibility, but all new writes use authenticated AES-256-GCM envelopes. After deploying the key, re-save existing contacts and classifications or run an approved data migration before treating the database as fully encrypted. Losing `FIELD_ENCRYPTION_KEY` makes those protected values unrecoverable.
 
 ## Mobile Production Environment
 
 - `EXPO_PUBLIC_APP_ENV=production`
 - `EXPO_PUBLIC_API_BASE_URL` must be a public HTTPS API URL
 - `EXPO_PUBLIC_WS_URL` must be a public HTTPS API URL for Socket.IO
+- For a physical device using Expo Go, copy `apps/mobile/.env.render.example` to `apps/mobile/.env` before starting Expo. This points both clients at `https://sentinel-watchtower-backend.onrender.com` instead of the phone's own `localhost`.
+- Set `EXPO_PUBLIC_ENABLE_DEV_TEST_SESSION=true` only if you want the dev-only tester bootstrap to auto-sign in during local Expo development.
+- Keep local development values in `apps/mobile/.env` when using a local backend; the mobile runtime automatically maps localhost to the computer running Metro during development.
 - Configure `IOS_BUNDLE_IDENTIFIER`, `IOS_BUILD_NUMBER`, `ANDROID_PACKAGE`, and `ANDROID_VERSION_CODE`
 - Configure `PAYSTACK_SECRET_KEY` and optional `PAYSTACK_CALLBACK_URL` before enabling paid plans in release builds
 

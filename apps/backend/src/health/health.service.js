@@ -59,8 +59,8 @@ let HealthService = class HealthService {
                 configured: (0, kudisms_1.isKudiSmsConfigured)(),
             },
             phoneVerification: {
-                ok: (0, kudisms_1.isKudiSmsConfigured)(),
-                configured: (0, kudisms_1.isKudiSmsConfigured)(),
+                ok: (0, kudisms_1.isKudiSmsOtpConfigured)(),
+                configured: (0, kudisms_1.isKudiSmsOtpConfigured)(),
             },
             email: {
                 ok: configured(process.env.RESEND_API_KEY, process.env.OTP_EMAIL_FROM),

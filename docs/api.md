@@ -6,6 +6,7 @@ Base URL: `/api`
 - `POST /auth/otp/request`
 - `POST /auth/otp/verify`
 - `POST /auth/refresh`
+- `POST /auth/logout`
 
 ## Users
 - `GET /users/me`
@@ -95,3 +96,8 @@ Base URL: `/api`
 - `POST /admin/alerts/:id/flag`
 - `POST /admin/reports/:id/classify`
   - Body can include `classification`, `responseOutcome`, `qualityScore`, `corroborationCount`, `aiConfidence`, and `notes`.
+
+## Waitlist
+- `POST /waitlist`
+  - Public signup endpoint for launch interest capture.
+  - Rate limited to reduce spam and abuse.

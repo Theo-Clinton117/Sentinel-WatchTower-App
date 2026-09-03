@@ -17,6 +17,7 @@ Object.defineProperty(exports, "__esModule", { value: true });
 exports.RolesService = void 0;
 const common_1 = require("@nestjs/common");
 const db_service_1 = require("../db/db.service");
+const privacy_1 = require("../common/privacy");
 const roles_logic_1 = require("./roles.logic");
 let RolesService = class RolesService {
     constructor(db) {
@@ -153,11 +154,11 @@ let RolesService = class RolesService {
                 nextStatus === 'approved' ? 'approve_reviewer_request' : 'reject_reviewer_request',
                 'reviewer_role_request',
                 requestId,
-                {
-                    requestedUserId: request.user_id,
-                    requestedRole: 'reviewer',
-                    adminNote: body?.adminNote ?? null,
-                },
+            (0, privacy_1.sanitizeAuditMetadata)({
+                requestedUserId: request.user_id,
+                requestedRole: 'reviewer',
+                adminNote: body?.adminNote ?? null,
+            }),
             ]);
             return (0, roles_logic_1.mapReviewerRequestRow)(updated.rows[0]);
         });

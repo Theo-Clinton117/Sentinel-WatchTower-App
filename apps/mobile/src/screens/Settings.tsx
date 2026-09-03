@@ -2,6 +2,7 @@ import React from 'react';
 import { Alert, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { shallow } from 'zustand/shallow';
 import { MotionView } from '../components/MotionView';
+import { logout } from '../services/auth';
 import { ThemePreference, useAppStore } from '../store/useAppStore';
 import { useAppTheme } from '../theme';
 
@@ -10,21 +11,41 @@ export const SettingsScreen = () => {
   const styles = createStyles(theme);
   const {
     clearAuthSession,
+    refreshToken,
     pushScreen,
     setThemePreference,
     themePreference,
     user,
+    devTestModeExited,
+    exitDevTestMode,
   } = useAppStore(
     (state) => ({
       clearAuthSession: state.clearAuthSession,
+      refreshToken: state.refreshToken,
       pushScreen: state.pushScreen,
       setThemePreference: state.setThemePreference,
       themePreference: state.themePreference,
       user: state.user,
+      devTestModeExited: state.devTestModeExited,
+      exitDevTestMode: state.exitDevTestMode,
     }),
     shallow,
   );
   const modes: ThemePreference[] = ['system', 'light', 'dark'];
+  const testerModeActive =
+    __DEV__ &&
+    process.env.EXPO_PUBLIC_ENABLE_DEV_TEST_SESSION === 'true' &&
+    !devTestModeExited;
+
+  const signOut = async () => {
+    try {
+      await logout(refreshToken || '');
+    } catch {
+      // Local sign-out should still work if the network is unavailable.
+    } finally {
+      clearAuthSession();
+    }
+  };
 
   const handleDeleteLocalData = () => {
     Alert.alert(
@@ -35,7 +56,7 @@ export const SettingsScreen = () => {
         {
           text: 'Delete local data',
           style: 'destructive',
-          onPress: clearAuthSession,
+          onPress: () => void signOut(),
         },
       ],
     );
@@ -91,9 +112,24 @@ export const SettingsScreen = () => {
           <Text style={styles.itemMeta}>Removes saved data from this phone.</Text>
         </Pressable>
       </MotionView>
+      {testerModeActive ? (
+        <MotionView delay={270}>
+          <Text style={styles.groupLabel}>Developer access</Text>
+          <Pressable
+            style={styles.item}
+            onPress={() => {
+              exitDevTestMode();
+              void signOut();
+            }}
+          >
+            <Text style={styles.itemText}>Exit tester mode</Text>
+            <Text style={styles.itemMeta}>Sign out and return to real account sign up.</Text>
+          </Pressable>
+        </MotionView>
+      ) : null}
       <MotionView delay={300}>
         <Text style={styles.groupLabel}>Danger zone</Text>
-        <Pressable style={styles.logout} onPress={clearAuthSession}>
+        <Pressable style={styles.logout} onPress={() => void signOut()}>
           <Text style={styles.logoutText}>Sign Out</Text>
         </Pressable>
       </MotionView>

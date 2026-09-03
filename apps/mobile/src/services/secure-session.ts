@@ -1,12 +1,14 @@
 import * as SecureStore from 'expo-secure-store';
-import type { AppUser } from '../store/useAppStore';
 
 const SESSION_KEY = 'sentinel-secure-session';
+
+const SECURE_OPTIONS = {
+  keychainAccessible: SecureStore.WHEN_UNLOCKED_THIS_DEVICE_ONLY,
+};
 
 type SecureSessionPayload = {
   accessToken: string;
   refreshToken: string;
-  user: AppUser | null;
 };
 
 export async function loadSecureSession(): Promise<SecureSessionPayload | null> {
@@ -24,7 +26,7 @@ export async function loadSecureSession(): Promise<SecureSessionPayload | null> 
 }
 
 export async function saveSecureSession(payload: SecureSessionPayload) {
-  await SecureStore.setItemAsync(SESSION_KEY, JSON.stringify(payload));
+  await SecureStore.setItemAsync(SESSION_KEY, JSON.stringify(payload), SECURE_OPTIONS);
 }
 
 export async function clearSecureSession() {
