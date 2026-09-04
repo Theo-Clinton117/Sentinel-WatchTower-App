@@ -1,6 +1,7 @@
 declare const process: {
   env: Record<string, string | undefined> & {
     EXPO_PUBLIC_API_BASE_URL?: string;
+    EXPO_PUBLIC_PAYSTACK_CALLBACK_URL?: string;
     EXPO_PUBLIC_APP_ENV?: string;
     EXPO_PUBLIC_ENABLE_DEV_TEST_SESSION?: string;
     EXPO_PUBLIC_GOOGLE_MAPS_API_KEY?: string;

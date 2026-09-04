@@ -12,6 +12,7 @@ Object.defineProperty(exports, "__esModule", { value: true });
 exports.QueuesService = void 0;
 const common_1 = require("@nestjs/common");
 const bullmq_1 = require("bullmq");
+const ioredis_1 = require("ioredis");
 const db_service_1 = require("../db/db.service");
 const ws_service_1 = require("../ws/ws.service");
 const alert_stages_1 = require("../alerts/alert-stages");
@@ -69,6 +70,8 @@ let QueuesService = class QueuesService {
     constructor(db, ws) {
         this.escalationQueue = null;
         this.notificationQueue = null;
+        this.queueWorkers = [];
+        this.redisProbe = null;
         this.fallbackEscalationTimers = new Map();
         this.escalationSweepInFlight = false;
         this.logger = new common_1.Logger(QueuesService.name);
@@ -87,16 +90,37 @@ let QueuesService = class QueuesService {
         const connection = {
             connection: {
                 url: process.env.REDIS_URL,
+                connectTimeout: 1000,
+                maxRetriesPerRequest: 1,
             },
         };
-        this.escalationQueue = new bullmq_1.Queue('escalation', connection);
-        this.notificationQueue = new bullmq_1.Queue('notifications', connection);
-        new bullmq_1.Worker('escalation', async (job) => {
-            return this.processEscalationJob(job);
-        }, connection);
-        new bullmq_1.Worker('notifications', async (job) => {
-            return this.processNotificationJob(job);
-        }, connection);
+        this.redisProbe = this.initializeRedisQueues(connection);
+    }
+    async initializeRedisQueues(connection) {
+        const redis = new ioredis_1.default(process.env.REDIS_URL, {
+            lazyConnect: true,
+            connectTimeout: 1000,
+            maxRetriesPerRequest: 1,
+            retryStrategy: () => null,
+        });
+        redis.on('error', () => undefined);
+        try {
+            await redis.connect();
+            await redis.ping();
+            this.escalationQueue = new bullmq_1.Queue('escalation', connection);
+            this.notificationQueue = new bullmq_1.Queue('notifications', connection);
+            this.queueWorkers = [
+                new bullmq_1.Worker('escalation', async (job) => this.processEscalationJob(job), connection),
+                new bullmq_1.Worker('notifications', async (job) => this.processNotificationJob(job), connection),
+            ];
+            this.logger.log('Redis queue workers enabled.');
+        }
+        catch (error) {
+            this.logger.warn(`Redis unavailable. Using in-process fallback: ${error instanceof Error ? error.message : 'connection failed'}`);
+        }
+        finally {
+            redis.disconnect();
+        }
     }
     async processEscalationJob(job) {
         const targetStage = (0, alert_stages_1.normalizeAlertStage)(job.data?.targetStage);
@@ -677,6 +701,11 @@ let QueuesService = class QueuesService {
             clearTimeout(timer);
         }
         this.fallbackEscalationTimers.clear();
+        await Promise.all(this.queueWorkers.map((worker) => worker.close().catch(() => undefined)));
+        await Promise.all([
+            this.escalationQueue?.close().catch(() => undefined),
+            this.notificationQueue?.close().catch(() => undefined),
+        ]);
     }
 };
 exports.QueuesService = QueuesService;

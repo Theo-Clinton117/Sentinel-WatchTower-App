@@ -2,6 +2,7 @@ import React from 'react';
 import {
   Animated,
   BackHandler,
+  Linking,
   PanResponder,
   Pressable,
   Platform,
@@ -50,6 +51,7 @@ import {
   ReviewerDashboardScreen,
 } from './src/screens/SidebarPages';
 import { SubscriptionScreen } from './src/screens/Subscription';
+import { PaymentSuccessScreen } from './src/screens/PaymentSuccess';
 import { SettingsScreen } from './src/screens/Settings';
 import { AuthEntryScreen } from './src/screens/Auth/PhoneInput';
 import { OtpScreen } from './src/screens/Auth/Otp';
@@ -70,7 +72,24 @@ const DEV_TEST_NAME =
   process.env.EXPO_PUBLIC_DEV_TEST_NAME || 'Sentinel Tester';
 const DEV_TEST_OTP =
   process.env.EXPO_PUBLIC_DEV_TEST_OTP || '123456';
-const ScreenRouter = () => {
+const getPaymentReference = (url: string) => {
+  try {
+    const parsed = new URL(url);
+    const isPaymentCallback =
+      parsed.protocol === 'sentinel:' &&
+      (parsed.hostname === 'payment-success' || parsed.pathname === '/payment-success');
+
+    if (!isPaymentCallback) {
+      return null;
+    }
+
+    return parsed.searchParams.get('reference') || parsed.searchParams.get('trxref');
+  } catch {
+    return null;
+  }
+};
+
+const ScreenRouter = ({ paymentReference }: { paymentReference: string | null }) => {
   const { currentScreen, screenStack, sessionStatus, authStatus, onboardingComplete, setScreen } = useAppStore(
     (state) => ({
       currentScreen: state.currentScreen,
@@ -89,7 +108,8 @@ const ScreenRouter = () => {
     onboardingComplete && 
     sessionStatus === 'idle' &&
     screenStack.length <= 1 &&
-    !isRootScreen(currentScreen);
+    !isRootScreen(currentScreen) &&
+    currentScreen !== 'payment-success';
 
   React.useEffect(() => {
     if (shouldResetToHome) {
@@ -136,6 +156,8 @@ const ScreenRouter = () => {
       return <WorkAddressScreen />;
     case 'subscription':
       return <SubscriptionScreen />;
+    case 'payment-success':
+      return <PaymentSuccessScreen reference={paymentReference} />;
     case 'organizations':
       return <OrganizationsScreen />;
     case 'notifications':
@@ -357,9 +379,11 @@ const BootSplash = ({
 const AppChrome = ({
   showBootSplash,
   onContinueBootSplash,
+  paymentReference,
 }: {
   showBootSplash: boolean;
   onContinueBootSplash: () => void;
+  paymentReference: string | null;
 }) => {
   const theme = useAppTheme();
   const { width: windowWidth } = useWindowDimensions();
@@ -620,7 +644,7 @@ const AppChrome = ({
       ) : null}
 
       <View style={styles.screen} {...navigationPanResponder.panHandlers}>
-        <ScreenRouter />
+        <ScreenRouter paymentReference={paymentReference} />
       </View>
 
       {backGestureActive ? (
@@ -750,6 +774,7 @@ export default function App() {
     refreshToken,
     deviceId,
     user,
+    onboardingComplete,
     hasHydrated,
     hasSecureAuthHydrated,
     devTestModeExited,
@@ -765,6 +790,7 @@ export default function App() {
       refreshToken: state.refreshToken,
       deviceId: state.deviceId,
       user: state.user,
+      onboardingComplete: state.onboardingComplete,
       hasHydrated: state.hasHydrated,
       hasSecureAuthHydrated: state.hasSecureAuthHydrated,
       devTestModeExited: state.devTestModeExited,
@@ -778,7 +804,33 @@ export default function App() {
     shallow,
   );
   const [hasPlayedOpeningIntro, setHasPlayedOpeningIntro] = React.useState(false);
+  const [paymentReference, setPaymentReference] = React.useState<string | null>(null);
   const hasAttemptedDevTestSession = React.useRef(false);
+
+  React.useEffect(() => {
+    if (!hasSecureAuthHydrated || !user?.id || !onboardingComplete) {
+      return;
+    }
+
+    let active = true;
+    const handleUrl = (url: string | null) => {
+      const reference = url ? getPaymentReference(url) : null;
+      if (!active || !reference) {
+        return;
+      }
+
+      setPaymentReference(reference);
+      resetNavigation('payment-success');
+    };
+
+    void Linking.getInitialURL().then(handleUrl);
+    const subscription = Linking.addEventListener('url', ({ url }) => handleUrl(url));
+
+    return () => {
+      active = false;
+      subscription.remove();
+    };
+  }, [hasSecureAuthHydrated, onboardingComplete, resetNavigation, user?.id]);
 
   React.useEffect(() => {
     const timer = setTimeout(() => {
@@ -922,6 +974,7 @@ export default function App() {
               <AppChrome
                 showBootSplash={!hasHydrated || !hasSecureAuthHydrated || !hasPlayedOpeningIntro}
                 onContinueBootSplash={() => setHasPlayedOpeningIntro(true)}
+                paymentReference={paymentReference}
               />
             </View>
           </AppErrorBoundary>

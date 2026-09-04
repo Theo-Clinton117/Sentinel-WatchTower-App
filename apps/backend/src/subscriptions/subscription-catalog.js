@@ -26,10 +26,10 @@ const planCatalog = [
     },
     {
         id: 'basic',
-        name: 'Individual',
+        name: 'Sentinel Pro',
         priceLabel: 'NGN 1,000',
         cadence: 'per month',
-        summary: 'Affordable individual safety coverage with stronger limits than the free tier.',
+        summary: 'Personal safety coverage with stronger limits than the free tier.',
         features: [
             'More trusted contacts',
             'Faster alert delivery',
@@ -54,7 +54,7 @@ const planCatalog = [
             'One main account plus up to 4 circle members',
             'Add new or existing Sentinel accounts',
             'Shared household visibility',
-            'Discounted family coverage versus individual plans',
+            'Discounted family coverage versus personal plans',
         ],
         amountNgn: 3500,
         entitlementKey: null,

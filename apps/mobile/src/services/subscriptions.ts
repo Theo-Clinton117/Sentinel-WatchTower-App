@@ -53,6 +53,9 @@ export type CheckoutResult = {
   reference: string | null;
 };
 
+export const PAYSTACK_CALLBACK_URL =
+  String(process.env.EXPO_PUBLIC_PAYSTACK_CALLBACK_URL || 'sentinel://payment-success').trim();
+
 type SyncSource = 'manual' | 'purchase' | 'restore';
 
 export async function initializePaystackForUser(user: AppUser | null) {
@@ -103,6 +106,7 @@ export async function purchaseSubscriptionPlan(
     {
       planId: plan.id,
       email: user.email,
+      callbackUrl: PAYSTACK_CALLBACK_URL,
     },
     { auth: true },
   );

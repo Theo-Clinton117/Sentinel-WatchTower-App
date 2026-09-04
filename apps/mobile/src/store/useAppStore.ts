@@ -24,6 +24,7 @@ export type Screen =
   | 'organizations'
   | 'notifications'
   | 'subscription'
+  | 'payment-success'
   | 'support'
   | 'about'
   | 'reviewer-dashboard'
