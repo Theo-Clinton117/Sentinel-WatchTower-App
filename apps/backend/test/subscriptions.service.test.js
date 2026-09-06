@@ -98,7 +98,7 @@ test("subscription catalog exposes current paid tier pricing and aliases", () =>
     const organization = catalog.find((plan) => plan.id === "pro");
 
     assert.equal(catalog[0].name, "Free");
-    assert.equal(individual.name, "Individual");
+    assert.equal(individual.name, "Sentinel Pro");
     assert.equal(individual.amountNgn, 1000);
     assert.equal(family.name, "Family");
     assert.equal(family.amountNgn, 3500);

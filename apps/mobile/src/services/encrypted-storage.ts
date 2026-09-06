@@ -1,5 +1,7 @@
 import * as Crypto from 'expo-crypto';
 import * as SecureStore from 'expo-secure-store';
+import { gcm } from '@noble/ciphers/aes.js';
+import { fromByteArray, toByteArray } from 'base64-js';
 
 type StringStorage = {
   getItem: (key: string) => Promise<string | null>;
@@ -19,7 +21,7 @@ const SECURE_OPTIONS = {
 
 const encoder = new TextEncoder();
 const decoder = new TextDecoder();
-const keyCache = new Map<string, Promise<Crypto.AESEncryptionKey>>();
+const keyCache = new Map<string, Promise<Uint8Array>>();
 
 function keyName(namespace: string) {
   return `${KEY_PREFIX}:${namespace}`;
@@ -36,15 +38,14 @@ async function loadOrCreateKey(namespace: string) {
     const stored = await SecureStore.getItemAsync(cacheKey);
     if (stored) {
       try {
-        return await Crypto.AESEncryptionKey.import(stored, 'base64');
+        return toByteArray(stored);
       } catch {
         await SecureStore.deleteItemAsync(cacheKey);
       }
     }
 
-    const generated = await Crypto.AESEncryptionKey.generate();
-    const encoded = await generated.encoded('base64');
-    await SecureStore.setItemAsync(cacheKey, encoded, SECURE_OPTIONS);
+    const generated = await Crypto.getRandomBytesAsync(32);
+    await SecureStore.setItemAsync(cacheKey, fromByteArray(generated), SECURE_OPTIONS);
     return generated;
   })();
 
@@ -54,14 +55,18 @@ async function loadOrCreateKey(namespace: string) {
 
 async function encryptString(namespace: string, plaintext: string) {
   const key = await loadOrCreateKey(namespace);
-  const sealed = await Crypto.aesEncryptAsync(encoder.encode(plaintext), key);
-  return sealed.combined('base64');
+  const nonce = await Crypto.getRandomBytesAsync(12);
+  const ciphertext = gcm(key, nonce).encrypt(encoder.encode(plaintext));
+  return `v1.${fromByteArray(nonce)}.${fromByteArray(ciphertext)}`;
 }
 
 async function decryptString(namespace: string, ciphertext: string) {
   const key = await loadOrCreateKey(namespace);
-  const sealed = Crypto.AESSealedData.fromCombined(ciphertext);
-  const bytes = await Crypto.aesDecryptAsync(sealed, key, { output: 'bytes' });
+  const [version, nonceEncoded, ciphertextEncoded] = ciphertext.split('.');
+  if (version !== 'v1' || !nonceEncoded || !ciphertextEncoded) {
+    throw new Error('Invalid encrypted storage envelope');
+  }
+  const bytes = gcm(key, toByteArray(nonceEncoded)).decrypt(toByteArray(ciphertextEncoded));
   return decoder.decode(bytes);
 }
 

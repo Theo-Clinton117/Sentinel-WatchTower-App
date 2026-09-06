@@ -11,7 +11,7 @@ const runtime_1 = require("./config/runtime");
 async function bootstrap() {
     (0, load_env_1.loadEnv)();
     (0, runtime_1.validateRuntimeConfig)();
-    const app = await core_1.NestFactory.create(app_module_1.AppModule);
+    const app = await core_1.NestFactory.create(app_module_1.AppModule, { rawBody: true });
     app.enableCors({
         origin: (0, runtime_1.getCorsOrigins)(),
         credentials: true,

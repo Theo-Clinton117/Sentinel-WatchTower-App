@@ -80,6 +80,8 @@ Base URL: `/api`
   - Refreshes the authenticated user's server-side subscription record. Include `reference` to verify a Paystack payment.
 - `POST /subscriptions/checkout`
   - Initializes a Paystack checkout for a paid plan. Body: `{ "planId": "basic" | "silver" | "family" | "gold" | "pro" | "platinum" | "enterprise" }`.
+- `POST /payments/paystack/webhook`
+  - Public Paystack callback. The backend verifies `x-paystack-signature` against the raw request body and processes successful charges idempotently.
 
 ## Telemetry
 - `POST /telemetry`

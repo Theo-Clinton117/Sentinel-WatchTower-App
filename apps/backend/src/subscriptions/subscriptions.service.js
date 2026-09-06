@@ -11,6 +11,7 @@ var __metadata = (this && this.__metadata) || function (k, v) {
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.SubscriptionsService = void 0;
 const common_1 = require("@nestjs/common");
+const crypto_1 = require("crypto");
 const db_service_1 = require("../db/db.service");
 const subscription_catalog_1 = require("./subscription-catalog");
 function getPaystackSecretKey() {
@@ -55,7 +56,7 @@ function normalizeStatus(value, activePlanId) {
     if (['active', 'trialing', 'grace_period', 'cancelled', 'expired', 'inactive'].includes(raw)) {
         return raw;
     }
-    return activePlanId === 'free' ? 'inactive' : 'active';
+    return activePlanId === 'free' ? 'active' : 'active';
 }
 let SubscriptionsService = class SubscriptionsService {
     constructor(db) {
@@ -85,6 +86,36 @@ let SubscriptionsService = class SubscriptionsService {
         const verifiedSnapshot = await this.fetchPaystackSnapshot(userId, reference, catalog);
         await this.persistSnapshot(userId, verifiedSnapshot, catalog);
         return this.buildResponse(userId, catalog, verifiedSnapshot, 'verified');
+    }
+    async handlePaystackWebhook(rawBody, signature) {
+        const body = Buffer.isBuffer(rawBody) ? rawBody : Buffer.from(String(rawBody || ''), 'utf8');
+        const expected = (0, crypto_1.createHmac)('sha512', getPaystackSecretKey()).update(body).digest('hex');
+        const provided = String(signature || '').trim().toLowerCase();
+        if (!provided || provided.length !== expected.length || !(0, crypto_1.timingSafeEqual)(Buffer.from(provided), Buffer.from(expected))) {
+            throw new common_1.UnauthorizedException('Invalid Paystack webhook signature.');
+        }
+        let event;
+        try {
+            event = JSON.parse(body.toString('utf8'));
+        }
+        catch {
+            throw new common_1.BadRequestException('Invalid Paystack webhook payload.');
+        }
+        if (event.event !== 'charge.success') {
+            return { received: true, processed: false, reason: 'event_not_supported' };
+        }
+        const transaction = event.data || {};
+        const userId = transaction.metadata?.userId;
+        if (!userId || transaction.status !== 'success') {
+            return { received: true, processed: false, reason: 'missing_verified_transaction_identity' };
+        }
+        const catalog = (0, subscription_catalog_1.getSubscriptionCatalog)();
+        const snapshot = this.snapshotFromPaystackTransaction(transaction, catalog);
+        if (!snapshot.providerRef || !snapshot.activePlanId || snapshot.activePlanId === 'free') {
+            return { received: true, processed: false, reason: 'unrecognized_plan' };
+        }
+        await this.persistSnapshot(String(userId), snapshot, catalog);
+        return { received: true, processed: true, providerRef: snapshot.providerRef };
     }
     async checkout(userId, body) {
         if (!isPaystackConfigured()) {
@@ -160,6 +191,10 @@ let SubscriptionsService = class SubscriptionsService {
         if (metadata.userId && String(metadata.userId) !== String(userId)) {
             throw new common_1.ForbiddenException('This payment reference belongs to another user.');
         }
+        return this.snapshotFromPaystackTransaction(transaction, catalog);
+    }
+    snapshotFromPaystackTransaction(transaction, catalog) {
+        const metadata = transaction.metadata || {};
         const activePlanId = (0, subscription_catalog_1.normalizePlanId)(metadata.planId);
         const matchedPlan = catalog.find((plan) => plan.id === activePlanId && plan.id !== 'free') || this.resolvePlanFromAmount(catalog, transaction.amount);
         const paidAt = toIso(transaction.paid_at || transaction.created_at) || new Date().toISOString();
@@ -169,7 +204,7 @@ let SubscriptionsService = class SubscriptionsService {
             status: matchedPlan ? 'active' : 'inactive',
             currentPeriodEnd: matchedPlan ? periodEnd : null,
             provider: 'paystack',
-            providerRef: transaction.reference || reference,
+            providerRef: transaction.reference || null,
             startedAt: paidAt,
             source: 'paystack',
             lastSyncedAt: new Date().toISOString(),
@@ -181,7 +216,7 @@ let SubscriptionsService = class SubscriptionsService {
         return catalog
             .filter((plan) => plan.id !== 'free')
             .sort((left, right) => right.amountNgn - left.amountNgn)
-            .find((plan) => plan.amountNgn === amountNgn);
+            .find((plan) => Math.abs(plan.amountNgn - amountNgn) < 1);
     }
     resolvePaystackPeriodEnd(transaction) {
         const subscription = transaction.subscription || {};
@@ -199,7 +234,7 @@ let SubscriptionsService = class SubscriptionsService {
     buildFreeSnapshot() {
         return {
             activePlanId: 'free',
-            status: 'inactive',
+            status: 'active',
             currentPeriodEnd: null,
             provider: null,
             providerRef: null,
@@ -210,23 +245,20 @@ let SubscriptionsService = class SubscriptionsService {
         };
     }
     async persistSnapshot(userId, snapshot, catalog) {
-        const plan = catalog.find((item) => item.id === snapshot.activePlanId) || catalog[0];
-        const current = await this.db.query('select id from subscriptions where user_id = $1 order by started_at desc nulls last, current_period_end desc nulls last limit 1', [userId]);
-        const existingId = current.rows[0]?.id;
-        if (existingId) {
-            await this.db.query('update subscriptions set provider = $2, status = $3, plan_name = $4, amount_ngn = $5, started_at = coalesce($6, started_at, now()), current_period_end = $7, provider_ref = $8 where id = $1', [
-                existingId,
-                snapshot.provider || 'paystack',
-                snapshot.status,
-                plan.id,
-                snapshot.amountNgn,
-                snapshot.startedAt,
-                snapshot.currentPeriodEnd,
-                snapshot.providerRef,
-            ]);
+        const persist = async (client) => this.persistSnapshotWithClient(client, userId, snapshot, catalog);
+        if (typeof this.db.transaction === 'function') {
+            await this.db.transaction(persist);
             return;
         }
-        await this.db.query('insert into subscriptions (user_id, provider, status, plan_name, amount_ngn, started_at, current_period_end, provider_ref) values ($1, $2, $3, $4, $5, coalesce($6::timestamptz, now()), $7::timestamptz, $8)', [
+        await persist(this.db);
+    }
+    async persistSnapshotWithClient(client, userId, snapshot, catalog) {
+        const plan = catalog.find((item) => item.id === snapshot.activePlanId) || catalog[0];
+        const existing = await client.query('select id from subscriptions where provider = $1 and provider_ref = $2 limit 1', ['paystack', snapshot.providerRef]);
+        if (existing.rows[0]) {
+            return;
+        }
+        await client.query('insert into subscriptions (user_id, provider, status, plan_name, amount_ngn, started_at, current_period_end, provider_ref) values ($1, $2, $3, $4, $5, coalesce($6::timestamptz, now()), $7::timestamptz, $8) on conflict (provider, provider_ref) do nothing', [
             userId,
             snapshot.provider || 'paystack',
             snapshot.status,

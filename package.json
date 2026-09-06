@@ -44,6 +44,7 @@
     }
   },
   "dependencies": {
-    "expo-contacts": "~15.0.11"
+    "expo-contacts": "~15.0.11",
+    "expo-crypto": "~15.0.9"
   }
 }
