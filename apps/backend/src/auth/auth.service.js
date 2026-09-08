@@ -288,7 +288,7 @@ let AuthService = class AuthService {
                     await this.supabaseService.sendOtp(email);
                 }
                 else if (provider === 'resend') {
-                    const emailCode = otpCode || generateEmailOtpCode();
+                    const emailCode = generateEmailOtpCode();
                     await this.createEmailChallenge(email, emailCode, name);
                     await this.sendOtpEmail({ email, name, code: emailCode, mode });
                 }
@@ -314,7 +314,7 @@ let AuthService = class AuthService {
         if (phone) {
             response.phone = phone;
         }
-        if (process.env.NODE_ENV !== 'production') {
+        if (process.env.NODE_ENV !== 'production' && !(email && provider === 'resend')) {
             response.devCode = phone ? process.env.DEV_OTP_CODE || '123456' : otpCode;
         }
         return response;
@@ -338,7 +338,9 @@ let AuthService = class AuthService {
         const isBypass = Boolean(bypassCode && otpCode === bypassCode);
         let verifiedName = name;
         if (!isBypass && !/^[0-9]{4,8}$/.test(otpCode)) {
-            throw new common_1.UnauthorizedException('Invalid OTP code');
+            throw email
+                ? new common_1.BadRequestException('Invalid OTP code')
+                : new common_1.UnauthorizedException('Invalid OTP code');
         }
         if (phone) {
             if (!isBypass) {
@@ -500,9 +502,9 @@ let AuthService = class AuthService {
         });
     }
     async verifyEmailCode(email, code) {
-        await this.db.transaction(async (client) => {
+        return this.db.transaction(async (client) => {
             const result = await client.query(`
-        select id, code_hash, attempts
+        select id, name, code_hash, attempts
         from email_otp_challenges
         where lower(email) = $1
           and consumed_at is null
@@ -516,7 +518,7 @@ let AuthService = class AuthService {
                 if (challenge) {
                     await client.query('update email_otp_challenges set attempts = attempts + 1 where id = $1', [challenge.id]);
                 }
-                throw new common_1.UnauthorizedException('Invalid verification code');
+                throw new common_1.BadRequestException('Invalid verification code');
             }
             await client.query('update email_otp_challenges set consumed_at = now() where id = $1', [challenge.id]);
             return challenge.name || null;
