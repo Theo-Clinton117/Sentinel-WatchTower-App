@@ -36,6 +36,7 @@ create table if not exists phone_otp_challenges (
 create table if not exists email_otp_challenges (
   id uuid primary key default gen_random_uuid(),
   email text not null,
+  name text,
   code_hash text not null,
   attempts int not null default 0,
   expires_at timestamptz not null,

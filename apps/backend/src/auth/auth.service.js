@@ -244,6 +244,9 @@ let AuthService = class AuthService {
         if (!email && !phone) {
             throw new common_1.BadRequestException('Email or phone is required.');
         }
+        if (mode === 'signup' && !name) {
+            throw new common_1.BadRequestException('Name is required for signup.');
+        }
         if (email && phone) {
             throw new common_1.BadRequestException('Provide either email or phone, not both.');
         }
@@ -286,7 +289,7 @@ let AuthService = class AuthService {
                 }
                 else if (provider === 'resend') {
                     const emailCode = otpCode || generateEmailOtpCode();
-                    await this.createEmailChallenge(email, emailCode);
+                    await this.createEmailChallenge(email, emailCode, name);
                     await this.sendOtpEmail({ email, name, code: emailCode, mode });
                 }
                 else {
@@ -333,6 +336,7 @@ let AuthService = class AuthService {
         const otpCode = String(dto.code || '').trim();
         const bypassCode = resolveOtpCode();
         const isBypass = Boolean(bypassCode && otpCode === bypassCode);
+        let verifiedName = name;
         if (!isBypass && !/^[0-9]{4,8}$/.test(otpCode)) {
             throw new common_1.UnauthorizedException('Invalid OTP code');
         }
@@ -348,8 +352,11 @@ let AuthService = class AuthService {
                 }
             }
             else if (!isBypass) {
-                await this.verifyEmailCode(email, otpCode);
+                verifiedName = (await this.verifyEmailCode(email, otpCode)) || name;
             }
+        }
+        if (mode === 'signup' && !verifiedName) {
+            throw new common_1.BadRequestException('Name is required for signup.');
         }
         const user = await this.db.transaction(async (client) => {
             const existingUser = phone
@@ -366,12 +373,12 @@ let AuthService = class AuthService {
             if (!row) {
                 const createdUser = await client.query(
                     "insert into users (email, name, phone_e164, status) values ($1, $2, $3, 'active') returning *",
-                    [email || null, name || null, phone || null],
+                    [email || null, verifiedName || null, phone || null],
                 );
                 row = createdUser.rows[0];
             }
-            else if (name) {
-                const updatedUser = await client.query('update users set name = $2, updated_at = now() where id = $1 returning *', [row.id, name]);
+            else if (verifiedName) {
+                const updatedUser = await client.query('update users set name = $2, updated_at = now() where id = $1 returning *', [row.id, verifiedName]);
                 row = updatedUser.rows[0];
             }
             if (dto.deviceId) {
@@ -445,13 +452,13 @@ let AuthService = class AuthService {
                 : 'Phone verification storage is not available right now.');
         }
     }
-    async createEmailChallenge(email, code) {
+    async createEmailChallenge(email, code, name) {
         const ttlMinutes = Math.max(1, Number.parseInt(String(process.env.EMAIL_OTP_TTL_MINUTES || '10'), 10) || 10);
         try {
             await this.db.query(`
-      insert into email_otp_challenges (email, code_hash, expires_at)
-      values ($1, $2, now() + ($3::int * interval '1 minute'))
-    `, [email, hashEmailOtp(email, code), ttlMinutes]);
+      insert into email_otp_challenges (email, name, code_hash, expires_at)
+      values ($1, $2, $3, now() + ($4::int * interval '1 minute'))
+    `, [email, name || null, hashEmailOtp(email, code), ttlMinutes]);
         }
         catch (error) {
             throw new common_1.ServiceUnavailableException(error instanceof Error
@@ -473,7 +480,7 @@ let AuthService = class AuthService {
     async verifyPhoneCode(phone, code) {
         await this.db.transaction(async (client) => {
             const result = await client.query(`
-        select id, code_hash, attempts
+        select id, name, code_hash, attempts
         from phone_otp_challenges
         where phone_e164 = $1
           and consumed_at is null
@@ -512,6 +519,7 @@ let AuthService = class AuthService {
                 throw new common_1.UnauthorizedException('Invalid verification code');
             }
             await client.query('update email_otp_challenges set consumed_at = now() where id = $1', [challenge.id]);
+            return challenge.name || null;
         });
     }
     async sendOtpEmail({ email, name, code, mode }) {

@@ -29,9 +29,35 @@ test('phone signup returns a service unavailable error when phone OTP storage fa
     () =>
       service.requestOtp({
         phone: '+2348012345678',
+        name: 'Test User',
         mode: 'signup',
         deviceId: 'device-1',
       }),
     /phone_otp_challenges table is unavailable/,
+  );
+});
+
+test('signup OTP request rejects a missing name before sending a code', async () => {
+  const db = {
+    async query() {
+      throw new Error('database should not be queried');
+    },
+    transaction() {
+      throw new Error('transaction should not be called');
+    },
+  };
+
+  const service = new AuthService(db, { sign: () => 'token' }, {
+    isEnabled: () => false,
+  });
+
+  await assert.rejects(
+    () =>
+      service.requestOtp({
+        email: 'test@example.com',
+        mode: 'signup',
+        deviceId: 'device-1',
+      }),
+    /Name is required for signup/,
   );
 });
