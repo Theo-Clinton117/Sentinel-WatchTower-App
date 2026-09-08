@@ -24,7 +24,7 @@ import { SidebarDrawer } from './src/components/SidebarDrawer';
 import { useAppStore } from './src/store/useAppStore';
 import { useAppTheme } from './src/theme';
 import { isRootScreen, isSidebarScreen } from './src/navigation/screens';
-import { ApiError } from './src/services/api';
+import { ApiError, checkBackendHealth } from './src/services/api';
 import { verifyOtp } from './src/services/auth';
 import { clearSecureSession, loadSecureSession, saveSecureSession } from './src/services/secure-session';
 import { getCurrentUser } from './src/services/users';
@@ -65,7 +65,9 @@ const DRAWER_SWIPE_EDGE_WIDTH = 36;
 const BACK_SWIPE_DISTANCE = 86;
 const BACK_SWIPE_VELOCITY = 0.55;
 const DEV_TEST_SESSION_ENABLED =
-  __DEV__ && process.env.EXPO_PUBLIC_ENABLE_DEV_TEST_SESSION === 'true';
+  __DEV__ &&
+  process.env.EXPO_PUBLIC_APP_ENV !== 'production' &&
+  process.env.EXPO_PUBLIC_ENABLE_DEV_TEST_SESSION !== 'false';
 const DEV_TEST_EMAIL =
   process.env.EXPO_PUBLIC_DEV_TEST_EMAIL || 'tester@sentinel.dev';
 const DEV_TEST_NAME =
@@ -843,6 +845,26 @@ export default function App() {
   React.useEffect(() => {
     let active = true;
 
+    void checkBackendHealth()
+      .then((health) => {
+        if (active) {
+          console.info('[Sentinel] Backend health:', health.status, health);
+        }
+      })
+      .catch((error) => {
+        if (active) {
+          console.warn('[Sentinel] Backend health check failed:', error);
+        }
+      });
+
+    return () => {
+      active = false;
+    };
+  }, []);
+
+  React.useEffect(() => {
+    let active = true;
+
     const hydrateSecureAuth = async () => {
       try {
         const session = await loadSecureSession();
@@ -895,7 +917,12 @@ export default function App() {
   }, [accessToken, refreshToken, hasSecureAuthHydrated, user]);
 
   React.useEffect(() => {
-    if (!DEV_TEST_SESSION_ENABLED || devTestModeExited || !hasSecureAuthHydrated) {
+    if (!DEV_TEST_SESSION_ENABLED || !hasSecureAuthHydrated) {
+      return;
+    }
+
+    if (devTestModeExited) {
+      hasAttemptedDevTestSession.current = false;
       return;
     }
 
@@ -933,7 +960,8 @@ export default function App() {
         });
         setOnboardingComplete(true);
         resetNavigation('home');
-      } catch {
+      } catch (error) {
+        console.warn('Developer tester session could not start.', error);
         return;
       }
     };
@@ -1014,7 +1042,7 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
   },
   transitionWrap: {
-    ...StyleSheet.absoluteFillObject,
+    ...StyleSheet.absoluteFill,
     alignItems: 'center',
     justifyContent: 'center',
   },
@@ -1031,7 +1059,7 @@ const styles = StyleSheet.create({
     overflow: 'hidden',
   },
   bootBackdrop: {
-    ...StyleSheet.absoluteFillObject,
+    ...StyleSheet.absoluteFill,
     alignItems: 'center',
     justifyContent: 'center',
   },

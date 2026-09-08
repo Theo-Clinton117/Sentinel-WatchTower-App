@@ -3,6 +3,12 @@ import { resolveDevBackendUrl } from './runtime-host';
 
 const baseUrl = resolveDevBackendUrl(process.env.EXPO_PUBLIC_API_BASE_URL);
 
+export const API_BASE_URL = baseUrl;
+
+if (__DEV__) {
+  console.info('[Sentinel] API base URL:', baseUrl);
+}
+
 type RequestOptions = {
   auth?: boolean;
   timeoutMs?: number;
@@ -46,9 +52,14 @@ async function request<T>(
   }
 
   let res: Response;
+  const requestUrl = `${baseUrl}/api${path}`;
+
+  if (__DEV__) {
+    console.info('[Sentinel] API request:', requestUrl);
+  }
 
   try {
-    res = await fetch(`${baseUrl}/api${path}`, {
+    res = await fetch(requestUrl, {
       ...init,
       headers,
       signal: controller.signal,
@@ -68,6 +79,10 @@ async function request<T>(
 
   const text = await res.text();
   const data = text ? tryParseJson(text) : null;
+
+  if (__DEV__) {
+    console.info('[Sentinel] API response:', res.status, requestUrl);
+  }
 
   if (!res.ok) {
     const message =
@@ -106,6 +121,16 @@ function normalizeMessage(message: unknown) {
 
 export async function apiGet<T>(path: string, options?: RequestOptions): Promise<T> {
   return request<T>(path, { method: 'GET' }, options);
+}
+
+export type BackendHealth = {
+  status: string;
+  timestamp?: string;
+  checks?: Record<string, unknown>;
+};
+
+export function checkBackendHealth() {
+  return apiGet<BackendHealth>('/health', { timeoutMs: 10000 });
 }
 
 export async function apiPost<T>(

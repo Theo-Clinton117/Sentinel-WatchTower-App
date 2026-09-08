@@ -15,11 +15,15 @@ let HttpExceptionFilter = class HttpExceptionFilter {
         const request = ctx.getRequest();
         const status = exception instanceof common_1.HttpException ? exception.getStatus() : common_1.HttpStatus.INTERNAL_SERVER_ERROR;
         const message = exception instanceof common_1.HttpException ? exception.getResponse() : 'Internal server error';
+        const requestId = request.id || 'unknown';
+        if (status >= common_1.HttpStatus.INTERNAL_SERVER_ERROR) {
+            common_1.Logger.error(`Unhandled ${request.method} ${request.url} (${requestId}): ${exception instanceof Error ? exception.message : String(exception)}`, exception instanceof Error ? exception.stack : undefined, 'HttpExceptionFilter');
+        }
         response.status(status).json({
             statusCode: status,
             path: request.url,
             message,
-            requestId: request.id,
+            requestId,
             timestamp: new Date().toISOString(),
         });
     }

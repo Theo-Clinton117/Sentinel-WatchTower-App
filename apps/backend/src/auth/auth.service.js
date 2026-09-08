@@ -43,6 +43,9 @@ function generatePhoneOtpCode() {
     }
     return String(crypto.randomInt(100000, 1000000));
 }
+function generateEmailOtpCode() {
+    return String(crypto.randomInt(100000, 1000000));
+}
 function getOtpHashSecret() {
     return String(process.env.OTP_CODE_SECRET || process.env.JWT_ACCESS_SECRET || 'change-me').trim();
 }
@@ -53,6 +56,12 @@ function hashPhoneOtp(phone, code) {
     return crypto
         .createHmac('sha256', getOtpHashSecret())
         .update(`${phone}:${code}`, 'utf8')
+        .digest('hex');
+}
+function hashEmailOtp(email, code) {
+    return crypto
+        .createHmac('sha256', getOtpHashSecret())
+        .update(`${email}:${code}`, 'utf8')
         .digest('hex');
 }
 function hashRefreshTokenId(tokenId) {
@@ -100,6 +109,7 @@ let AuthService = class AuthService {
         this.db = db;
         this.jwt = jwt;
         this.supabaseService = supabaseService;
+        this.logger = new common_1.Logger(AuthService.name);
     }
     async issueRefreshToken(client, user, payload = {}) {
         const tokenId = createRefreshTokenId();
@@ -268,17 +278,26 @@ let AuthService = class AuthService {
             }
         }
         else {
-            if (this.supabaseService.isEnabled()) {
-                await this.supabaseService.sendOtp(email);
-            }
-            else if (this.isEmailDeliveryEnabled()) {
-                if (!otpCode) {
-                    throw new common_1.InternalServerErrorException('OTP email delivery is not configured correctly.');
+            const provider = this.supabaseService.isEnabled() ? 'supabase' : this.isEmailDeliveryEnabled() ? 'resend' : 'none';
+            try {
+                if (provider === 'supabase') {
+                    await this.supabaseService.sendOtp(email);
                 }
-                await this.sendOtpEmail({ email, name, code: otpCode, mode });
+                else if (provider === 'resend') {
+                    const emailCode = otpCode || generateEmailOtpCode();
+                    await this.createEmailChallenge(email, emailCode);
+                    await this.sendOtpEmail({ email, name, code: emailCode, mode });
+                }
+                else {
+                    throw new common_1.InternalServerErrorException('Email verification is temporarily unavailable.');
+                }
             }
-            else {
-                throw new common_1.InternalServerErrorException('Email verification is temporarily unavailable.');
+            catch (error) {
+                this.logger.error(`Email OTP request failed (provider=${provider}): ${error instanceof Error ? error.message : String(error)}`, error instanceof Error ? error.stack : undefined);
+                if (error instanceof common_1.HttpException) {
+                    throw error;
+                }
+                throw new common_1.ServiceUnavailableException('Email verification is temporarily unavailable.');
             }
         }
         const response = {
@@ -327,8 +346,8 @@ let AuthService = class AuthService {
                     await this.supabaseService.verifyOtp(email, otpCode);
                 }
             }
-            else if (!this.isOtpValid(otpCode)) {
-                throw new common_1.UnauthorizedException('Invalid OTP code');
+            else if (!isBypass) {
+                await this.verifyEmailCode(email, otpCode);
             }
         }
         const user = await this.db.transaction(async (client) => {
@@ -425,6 +444,20 @@ let AuthService = class AuthService {
                 : 'Phone verification storage is not available right now.');
         }
     }
+    async createEmailChallenge(email, code) {
+        const ttlMinutes = Math.max(1, Number.parseInt(String(process.env.EMAIL_OTP_TTL_MINUTES || '10'), 10) || 10);
+        try {
+            await this.db.query(`
+      insert into email_otp_challenges (email, code_hash, expires_at)
+      values ($1, $2, now() + ($3::int * interval '1 minute'))
+    `, [email, hashEmailOtp(email, code), ttlMinutes]);
+        }
+        catch (error) {
+            throw new common_1.ServiceUnavailableException(error instanceof Error
+                ? error.message
+                : 'Email verification storage is not available right now.');
+        }
+    }
     async sendPhoneVerification(phone, code) {
         if (!(0, kudisms_1.isKudiSmsOtpConfigured)()) {
             throw new common_1.InternalServerErrorException('KudiSMS OTP is not configured.');
@@ -458,6 +491,28 @@ let AuthService = class AuthService {
             await client.query('update phone_otp_challenges set consumed_at = now() where id = $1', [challenge.id]);
         });
     }
+    async verifyEmailCode(email, code) {
+        await this.db.transaction(async (client) => {
+            const result = await client.query(`
+        select id, code_hash, attempts
+        from email_otp_challenges
+        where lower(email) = $1
+          and consumed_at is null
+          and expires_at > now()
+          and attempts < 5
+        order by created_at desc
+        limit 1
+      `, [email]);
+            const challenge = result.rows[0];
+            if (!challenge || !safeEqualHex(challenge.code_hash, hashEmailOtp(email, code))) {
+                if (challenge) {
+                    await client.query('update email_otp_challenges set attempts = attempts + 1 where id = $1', [challenge.id]);
+                }
+                throw new common_1.UnauthorizedException('Invalid verification code');
+            }
+            await client.query('update email_otp_challenges set consumed_at = now() where id = $1', [challenge.id]);
+        });
+    }
     async sendOtpEmail({ email, name, code, mode }) {
         const response = await fetch('https://api.resend.com/emails', {
             method: 'POST',
@@ -476,7 +531,8 @@ let AuthService = class AuthService {
             }),
         });
         if (!response.ok) {
-            throw new common_1.ServiceUnavailableException('Could not send verification email right now.');
+            const errorBody = await response.text();
+            throw new Error(`Resend rejected OTP email (${response.status}): ${errorBody || response.statusText}`);
         }
     }
 };

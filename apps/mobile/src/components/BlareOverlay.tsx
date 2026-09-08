@@ -29,7 +29,7 @@ export const BlareOverlay = () => {
     <Animated.View
       pointerEvents="none"
       style={[
-        StyleSheet.absoluteFillObject,
+        StyleSheet.absoluteFill,
         styles.container,
         { transform: [{ translateX }] },
       ]}

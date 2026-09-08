@@ -24,7 +24,7 @@ const decoder = new TextDecoder();
 const keyCache = new Map<string, Promise<Uint8Array>>();
 
 function keyName(namespace: string) {
-  return `${KEY_PREFIX}:${namespace}`;
+  return `${KEY_PREFIX}-${namespace}`;
 }
 
 async function loadOrCreateKey(namespace: string) {

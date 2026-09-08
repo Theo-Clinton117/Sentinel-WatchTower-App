@@ -2,6 +2,7 @@
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.getCorsOrigins = exports.validateRuntimeConfig = exports.getJwtRefreshSecret = exports.getJwtAccessSecret = exports.getRequiredSecret = exports.isProduction = void 0;
 const kudisms_1 = require("../common/kudisms");
+const supabase_service_1 = require("../supabase/supabase.service");
 
 function isProduction() {
     return process.env.NODE_ENV === "production";
@@ -65,7 +66,7 @@ function validateRuntimeConfig() {
         const databaseUrl = String(process.env.SUPABASE_DB_URL || process.env.DATABASE_URL || "").trim();
         const redisUrl = String(process.env.REDIS_URL || "").trim();
         const supabaseEmailOtpConfigured = Boolean(String(process.env.SUPABASE_URL || "").trim() &&
-            String(process.env.SUPABASE_SERVICE_ROLE_KEY || "").trim());
+            (0, supabase_service_1.getSupabasePrivilegedKey)());
         const resendEmailOtpConfigured = Boolean(String(process.env.RESEND_API_KEY || "").trim() &&
             String(process.env.OTP_EMAIL_FROM || "").trim());
         const smsConfigured = (0, kudisms_1.isKudiSmsOtpConfigured)();

@@ -7,9 +7,6 @@
     "orientation": "portrait",
     "userInterfaceStyle": "automatic",
     "icon": "./assets/icons/android-icon.png",
-    "splash": {
-      "backgroundColor": "#07101F"
-    },
     "platforms": [
       "ios",
       "android",

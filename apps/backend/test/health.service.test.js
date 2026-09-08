@@ -86,6 +86,55 @@ test("health marks phone verification unhealthy when KudiSMS OTP template fields
     );
 });
 
+test("health recognizes Supabase email OTP configuration", async () => {
+    await withEnv(
+        {
+            REDIS_URL: "",
+            SUPABASE_URL: "https://example.supabase.co",
+            SUPABASE_SERVICE_ROLE_KEY: "service-role",
+            RESEND_API_KEY: undefined,
+            OTP_EMAIL_FROM: undefined,
+        },
+        async () => {
+            const service = new HealthService({
+                async query() {
+                    return { rows: [{ ok: 1 }] };
+                },
+            }, async () => ({ ok: false, configured: false }));
+
+            const health = await service.getHealth();
+
+            assert.equal(health.checks.email.configured, true);
+            assert.equal(health.checks.email.provider, "supabase");
+        },
+    );
+});
+
+test("health recognizes the Supabase secret key used by the OTP integration", async () => {
+    await withEnv(
+        {
+            REDIS_URL: "",
+            SUPABASE_URL: "https://example.supabase.co",
+            SUPABASE_SERVICE_ROLE_KEY: undefined,
+            SUPABASE_SECRET_KEY: "sb_secret_test",
+            RESEND_API_KEY: undefined,
+            OTP_EMAIL_FROM: undefined,
+        },
+        async () => {
+            const service = new HealthService({
+                async query() {
+                    return { rows: [{ ok: 1 }] };
+                },
+            }, async () => ({ ok: false, configured: false }));
+
+            const health = await service.getHealth();
+
+            assert.equal(health.checks.email.configured, true);
+            assert.equal(health.checks.email.provider, "supabase");
+        },
+    );
+});
+
 test("health degrades when configured Redis is unreachable", async () => {
     await withEnv(
         {

@@ -14,6 +14,7 @@ const common_1 = require("@nestjs/common");
 const ioredis_1 = require("ioredis");
 const db_service_1 = require("../db/db.service");
 const kudisms_1 = require("../common/kudisms");
+const supabase_service_1 = require("../supabase/supabase.service");
 function configured(...values) {
     return values.every((value) => String(value || '').trim().length > 0);
 }
@@ -51,6 +52,9 @@ let HealthService = class HealthService {
         this.redisHealthCheck = redisHealthCheck;
     }
     async getHealth() {
+        const supabaseEmailConfigured = configured(process.env.SUPABASE_URL, (0, supabase_service_1.getSupabasePrivilegedKey)());
+        const resendEmailConfigured = configured(process.env.RESEND_API_KEY, process.env.OTP_EMAIL_FROM);
+        const emailConfigured = supabaseEmailConfigured || resendEmailConfigured;
         const checks = {
             database: { ok: false },
             redis: { ok: false, configured: configured(process.env.REDIS_URL) },
@@ -63,8 +67,9 @@ let HealthService = class HealthService {
                 configured: (0, kudisms_1.isKudiSmsOtpConfigured)(),
             },
             email: {
-                ok: configured(process.env.RESEND_API_KEY, process.env.OTP_EMAIL_FROM),
-                configured: configured(process.env.RESEND_API_KEY, process.env.OTP_EMAIL_FROM),
+                ok: emailConfigured,
+                configured: emailConfigured,
+                provider: supabaseEmailConfigured ? 'supabase' : resendEmailConfigured ? 'resend' : null,
             },
             paystack: {
                 ok: configured(process.env.PAYSTACK_SECRET_KEY),

@@ -37,6 +37,7 @@ export const AuthEntryScreen = () => {
     setPendingAuth,
     markOtpRequested,
     pushScreen,
+    enableDevTestMode,
   } =
     useAppStore();
   const [mode, setMode] = useState<AuthFlow>(authFlow);
@@ -263,6 +264,17 @@ export const AuthEntryScreen = () => {
                 {isSignup ? 'Already have an account? Log In' : 'Need an account? Sign Up'}
               </Text>
             </Pressable>
+
+            {__DEV__ &&
+            process.env.EXPO_PUBLIC_APP_ENV !== 'production' &&
+            process.env.EXPO_PUBLIC_ENABLE_DEV_TEST_SESSION !== 'false' ? (
+              <Pressable
+                onPress={enableDevTestMode}
+                style={styles.testerAction}
+              >
+                <Text style={styles.testerText}>Use developer tester</Text>
+              </Pressable>
+            ) : null}
           </LinearGradient>
         </MotionView>
       </ScrollView>
@@ -422,5 +434,13 @@ const createStyles = (theme: ReturnType<typeof useAppTheme>) =>
     secondaryText: {
       color: theme.colors.muted,
       fontWeight: '700',
+    },
+    testerAction: {
+      alignItems: 'center',
+      paddingTop: 18,
+    },
+    testerText: {
+      color: theme.colors.blueGlow,
+      fontWeight: '800',
     },
   });

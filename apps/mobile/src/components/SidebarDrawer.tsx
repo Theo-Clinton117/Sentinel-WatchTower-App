@@ -350,11 +350,11 @@ export const SidebarDrawer = ({
 const createStyles = (theme: ReturnType<typeof useAppTheme>) =>
   StyleSheet.create({
     scrim: {
-      ...StyleSheet.absoluteFillObject,
+      ...StyleSheet.absoluteFill,
       backgroundColor: 'rgba(5, 10, 18, 0.28)',
     },
     drawerWrap: {
-      ...StyleSheet.absoluteFillObject,
+      ...StyleSheet.absoluteFill,
       alignItems: 'flex-start',
       justifyContent: 'flex-start',
     },

@@ -37,12 +37,16 @@ function detectConnectionSource() {
     }
     return null;
 }
+function getSupabasePrivilegedKey() {
+    return String(process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.SUPABASE_SECRET_KEY || '').trim();
+}
+exports.getSupabasePrivilegedKey = getSupabasePrivilegedKey;
 let SupabaseService = class SupabaseService {
     getProjectUrl() {
         return normalizeUrl(process.env.SUPABASE_URL);
     }
     getServiceRoleKey() {
-        return String(process.env.SUPABASE_SERVICE_ROLE_KEY || '').trim();
+        return getSupabasePrivilegedKey();
     }
     isEnabled() {
         return Boolean(this.getProjectUrl() && this.getServiceRoleKey());
@@ -88,7 +92,7 @@ let SupabaseService = class SupabaseService {
     status() {
         const projectUrl = normalizeUrl(process.env.SUPABASE_URL);
         const publishableKey = String(process.env.SUPABASE_PUBLISHABLE_KEY || '').trim();
-        const serviceRoleKey = String(process.env.SUPABASE_SERVICE_ROLE_KEY || '').trim();
+        const serviceRoleKey = getSupabasePrivilegedKey();
         const databaseUrl = String(process.env.SUPABASE_DB_URL || process.env.DATABASE_URL || '').trim();
         const connectionSource = detectConnectionSource();
         const sqlConfigured = Boolean(databaseUrl);
@@ -102,7 +106,7 @@ let SupabaseService = class SupabaseService {
             warnings.push('This API still uses direct SQL queries. Add SUPABASE_DB_URL or DATABASE_URL to link the backend to Supabase Postgres.');
         }
         if (!serviceRoleKey) {
-            warnings.push('SUPABASE_SERVICE_ROLE_KEY is not set, so privileged Supabase REST or storage operations are intentionally unavailable.');
+            warnings.push('SUPABASE_SERVICE_ROLE_KEY or SUPABASE_SECRET_KEY is not set, so privileged Supabase REST or storage operations are intentionally unavailable.');
         }
         if (!smsConfigured) {
             warnings.push('Set KUDISMS_TOKEN, KUDISMS_SENDER_ID, KUDISMS_APP_NAME_CODE, and KUDISMS_TEMPLATE_CODE so phone verification can use KudiSMS OTP.');
@@ -121,6 +125,11 @@ let SupabaseService = class SupabaseService {
             keys: {
                 publishableConfigured: Boolean(publishableKey),
                 serviceRoleConfigured: Boolean(serviceRoleKey),
+                privilegedKeySource: process.env.SUPABASE_SERVICE_ROLE_KEY
+                    ? 'SUPABASE_SERVICE_ROLE_KEY'
+                    : process.env.SUPABASE_SECRET_KEY
+                        ? 'SUPABASE_SECRET_KEY'
+                        : null,
             },
             database: {
                 sqlConfigured,

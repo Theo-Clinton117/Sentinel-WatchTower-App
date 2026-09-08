@@ -146,7 +146,7 @@ const LiveMapBase = ({
     <View style={styles.container}>
       <MapView
         ref={mapRef}
-        style={StyleSheet.absoluteFillObject}
+        style={StyleSheet.absoluteFill}
         initialRegion={mapRegion}
         provider={PROVIDER_GOOGLE}
         mapType={

@@ -1,6 +1,6 @@
 import { Platform } from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import { create } from 'zustand';
+import { createWithEqualityFn } from 'zustand/traditional';
 import { createJSONStorage, persist } from 'zustand/middleware';
 import { isRootScreen } from '../navigation/screens';
 import { createEncryptedStorage } from '../services/encrypted-storage';
@@ -200,6 +200,7 @@ type AppState = {
   clearAuthSession: () => void;
   setHasHydrated: (value: boolean) => void;
   setHasSecureAuthHydrated: (value: boolean) => void;
+  enableDevTestMode: () => void;
   exitDevTestMode: () => void;
   restoreSecureAuth: (payload: {
     accessToken: string;
@@ -298,7 +299,7 @@ const mergeLocations = (current: EmergencyLocation[], incoming: EmergencyLocatio
   return needsSort ? sortAndTrimLocations(trimmed) : trimmed;
 };
 
-export const useAppStore = create<AppState>()(
+export const useAppStore = createWithEqualityFn<AppState>()(
   persist(
     (set) => ({
       currentScreen: 'auth',
@@ -549,6 +550,7 @@ export const useAppStore = create<AppState>()(
         })),
       setHasHydrated: (value) => set({ hasHydrated: value }),
       setHasSecureAuthHydrated: (value) => set({ hasSecureAuthHydrated: value }),
+      enableDevTestMode: () => set({ devTestModeExited: false }),
       exitDevTestMode: () => set({ devTestModeExited: true }),
       restoreSecureAuth: ({ accessToken, refreshToken }) =>
         set({
