@@ -265,6 +265,7 @@ let AuthService = class AuthService {
                 );
             }
         }
+        const provider = email ? (0, email_provider_1.getEmailOtpProvider)() || 'none' : null;
         const otpCode = resolveOtpCode();
         if (phone) {
             const phoneCode = generatePhoneOtpCode();
@@ -282,7 +283,6 @@ let AuthService = class AuthService {
             }
         }
         else {
-            const provider = (0, email_provider_1.getEmailOtpProvider)() || 'none';
             try {
                 if (provider === 'supabase') {
                     await this.supabaseService.sendOtp(email);
