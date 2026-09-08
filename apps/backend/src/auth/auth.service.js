@@ -17,6 +17,7 @@ const credibility_logic_1 = require("../credibility/credibility.logic");
 const roles_logic_1 = require("../roles/roles.logic");
 const supabase_service_1 = require("../supabase/supabase.service");
 const runtime_1 = require("../config/runtime");
+const email_provider_1 = require("../config/email-provider");
 const crypto = require("crypto");
 const kudisms_1 = require("../common/kudisms");
 function normalizeEmail(email) {
@@ -278,7 +279,7 @@ let AuthService = class AuthService {
             }
         }
         else {
-            const provider = this.supabaseService.isEnabled() ? 'supabase' : this.isEmailDeliveryEnabled() ? 'resend' : 'none';
+            const provider = (0, email_provider_1.getEmailOtpProvider)() || 'none';
             try {
                 if (provider === 'supabase') {
                     await this.supabaseService.sendOtp(email);
@@ -341,7 +342,7 @@ let AuthService = class AuthService {
             }
         }
         else {
-            if (this.supabaseService.isEnabled()) {
+            if ((0, email_provider_1.getEmailOtpProvider)() === 'supabase') {
                 if (!isBypass) {
                     await this.supabaseService.verifyOtp(email, otpCode);
                 }
@@ -428,7 +429,7 @@ let AuthService = class AuthService {
         return /^[0-9]{4,8}$/.test(String(code || ''));
     }
     isEmailDeliveryEnabled() {
-        return Boolean(process.env.RESEND_API_KEY && process.env.OTP_EMAIL_FROM);
+        return (0, email_provider_1.hasResendEmailConfig)();
     }
     async createPhoneChallenge(phone, code) {
         const ttlMinutes = Math.max(1, Number.parseInt(String(process.env.PHONE_OTP_TTL_MINUTES || '10'), 10) || 10);

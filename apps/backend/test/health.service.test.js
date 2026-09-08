@@ -135,6 +135,31 @@ test("health recognizes the Supabase secret key used by the OTP integration", as
     );
 });
 
+test("health selects Resend when explicitly requested", async () => {
+    await withEnv(
+        {
+            REDIS_URL: "",
+            EMAIL_OTP_PROVIDER: "resend",
+            SUPABASE_URL: "https://example.supabase.co/auth/v1/otp",
+            SUPABASE_SECRET_KEY: "supabase-secret",
+            RESEND_API_KEY: "resend",
+            OTP_EMAIL_FROM: "security@example.com",
+        },
+        async () => {
+            const service = new HealthService({
+                async query() {
+                    return { rows: [{ ok: 1 }] };
+                },
+            }, async () => ({ ok: false, configured: false }));
+
+            const health = await service.getHealth();
+
+            assert.equal(health.checks.email.configured, true);
+            assert.equal(health.checks.email.provider, "resend");
+        },
+    );
+});
+
 test("health degrades when configured Redis is unreachable", async () => {
     await withEnv(
         {

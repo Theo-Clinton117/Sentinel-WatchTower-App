@@ -15,6 +15,7 @@ const ioredis_1 = require("ioredis");
 const db_service_1 = require("../db/db.service");
 const kudisms_1 = require("../common/kudisms");
 const supabase_service_1 = require("../supabase/supabase.service");
+const email_provider_1 = require("../config/email-provider");
 function configured(...values) {
     return values.every((value) => String(value || '').trim().length > 0);
 }
@@ -52,9 +53,14 @@ let HealthService = class HealthService {
         this.redisHealthCheck = redisHealthCheck;
     }
     async getHealth() {
-        const supabaseEmailConfigured = configured(process.env.SUPABASE_URL, (0, supabase_service_1.getSupabasePrivilegedKey)());
-        const resendEmailConfigured = configured(process.env.RESEND_API_KEY, process.env.OTP_EMAIL_FROM);
-        const emailConfigured = supabaseEmailConfigured || resendEmailConfigured;
+        const emailProvider = (0, email_provider_1.getEmailOtpProvider)();
+        const supabaseEmailConfigured = (0, email_provider_1.hasSupabaseEmailConfig)();
+        const resendEmailConfigured = (0, email_provider_1.hasResendEmailConfig)();
+        const emailConfigured = emailProvider === 'supabase'
+            ? supabaseEmailConfigured
+            : emailProvider === 'resend'
+                ? resendEmailConfigured
+                : false;
         const checks = {
             database: { ok: false },
             redis: { ok: false, configured: configured(process.env.REDIS_URL) },
@@ -69,7 +75,7 @@ let HealthService = class HealthService {
             email: {
                 ok: emailConfigured,
                 configured: emailConfigured,
-                provider: supabaseEmailConfigured ? 'supabase' : resendEmailConfigured ? 'resend' : null,
+                provider: emailProvider,
             },
             paystack: {
                 ok: configured(process.env.PAYSTACK_SECRET_KEY),

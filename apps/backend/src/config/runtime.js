@@ -3,6 +3,7 @@ Object.defineProperty(exports, "__esModule", { value: true });
 exports.getCorsOrigins = exports.validateRuntimeConfig = exports.getJwtRefreshSecret = exports.getJwtAccessSecret = exports.getRequiredSecret = exports.isProduction = void 0;
 const kudisms_1 = require("../common/kudisms");
 const supabase_service_1 = require("../supabase/supabase.service");
+const email_provider_1 = require("./email-provider");
 
 function isProduction() {
     return process.env.NODE_ENV === "production";
@@ -65,10 +66,9 @@ function validateRuntimeConfig() {
         }
         const databaseUrl = String(process.env.SUPABASE_DB_URL || process.env.DATABASE_URL || "").trim();
         const redisUrl = String(process.env.REDIS_URL || "").trim();
-        const supabaseEmailOtpConfigured = Boolean(String(process.env.SUPABASE_URL || "").trim() &&
-            (0, supabase_service_1.getSupabasePrivilegedKey)());
-        const resendEmailOtpConfigured = Boolean(String(process.env.RESEND_API_KEY || "").trim() &&
-            String(process.env.OTP_EMAIL_FROM || "").trim());
+        const emailProvider = (0, email_provider_1.getEmailOtpProvider)();
+        const supabaseEmailOtpConfigured = (0, email_provider_1.hasSupabaseEmailConfig)();
+        const resendEmailOtpConfigured = (0, email_provider_1.hasResendEmailConfig)();
         const smsConfigured = (0, kudisms_1.isKudiSmsOtpConfigured)();
         if (!databaseUrl) {
             throw new Error("DATABASE_URL or SUPABASE_DB_URL must be set in production.");
@@ -82,7 +82,9 @@ function validateRuntimeConfig() {
         if (String(process.env.OTP_BYPASS_CODE || "").trim()) {
             throw new Error("OTP_BYPASS_CODE must be empty in production.");
         }
-        if (!supabaseEmailOtpConfigured && !resendEmailOtpConfigured) {
+        if ((emailProvider === 'supabase' && !supabaseEmailOtpConfigured) ||
+            (emailProvider === 'resend' && !resendEmailOtpConfigured) ||
+            (!emailProvider && !supabaseEmailOtpConfigured && !resendEmailOtpConfigured)) {
             throw new Error("Production email OTP requires Supabase auth or Resend email configuration.");
         }
         if (!smsConfigured) {
