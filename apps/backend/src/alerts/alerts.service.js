@@ -113,7 +113,11 @@ let AlertsService = class AlertsService {
     `, [userId]);
         return activeResult.rows[0] || null;
     }
-    async create(userId, body) {
+   async create(userId, body) {
+    console.log('[ALERT USER DEBUG]', {
+        userId,
+        userIdType: typeof userId,
+    });
         const active = await this.findActiveAlert(userId);
         if (active) {
             return mapAlertSessionRow(active);
