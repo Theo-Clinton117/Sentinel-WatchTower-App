@@ -29,6 +29,7 @@ import { verifyOtp } from './src/services/auth';
 import { clearSecureSession, loadSecureSession, saveSecureSession } from './src/services/secure-session';
 import { getCurrentUser } from './src/services/users';
 import { initializePaystackForUser } from './src/services/subscriptions';
+import { registerExpoPushToken } from './src/services/notifications';
 import { HomeScreen } from './src/screens/Home';
 import { ActiveEmergencyScreen } from './src/screens/ActiveEmergency';
 import { ContactsScreen } from './src/screens/Contacts';
@@ -991,6 +992,15 @@ export default function App() {
       // Subscription setup is allowed to fail quietly until payment keys are configured.
     });
   }, [hasSecureAuthHydrated, user]);
+
+  React.useEffect(() => {
+    if (!hasSecureAuthHydrated || !user?.id || !deviceId) return;
+    // Registration is best-effort: the permissions screen remains the source of
+    // status/action, and a denied or unsupported device must not affect a session.
+    void registerExpoPushToken(deviceId).then((state) => {
+      if (__DEV__) console.info('[Sentinel] push registration:', state);
+    });
+  }, [deviceId, hasSecureAuthHydrated, user?.id]);
 
   return (
     <QueryClientProvider client={queryClient}>

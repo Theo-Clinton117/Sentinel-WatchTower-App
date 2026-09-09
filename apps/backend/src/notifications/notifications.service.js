@@ -57,6 +57,28 @@ let NotificationsService = class NotificationsService {
             createdAt: row.created_at,
         }));
     }
+    async registerPushToken(userId, body) {
+        const deviceId = String(body?.deviceId || '').trim();
+        const token = String(body?.token || '').trim();
+        const platform = String(body?.platform || '').trim() || null;
+        if (!deviceId || !/^ExponentPushToken\[.+\]$|^ExpoPushToken\[.+\]$/.test(token)) {
+            throw new common_1.BadRequestException('A valid device and Expo push token are required.');
+        }
+        const existing = await this.db.query(`
+          select id from user_devices
+          where user_id = $1 and device_id = $2
+          order by created_at desc limit 1
+        `, [userId, deviceId]);
+        if (existing.rows[0]) {
+            await this.db.query('update user_devices set fcm_token = $2, platform = $3, last_seen_at = now() where id = $1', [existing.rows[0].id, token, platform]);
+        }
+        else {
+            await this.db.query('insert into user_devices (user_id, device_id, fcm_token, platform, last_seen_at) values ($1, $2, $3, $4, now())', [userId, deviceId, token, platform]);
+        }
+        // A token may move to another account after an explicit sign-in.
+        await this.db.query('update user_devices set fcm_token = null where user_id <> $1 and fcm_token = $2', [userId, token]);
+        return { status: 'ready' };
+    }
 };
 exports.NotificationsService = NotificationsService;
 exports.NotificationsService = NotificationsService = __decorate([

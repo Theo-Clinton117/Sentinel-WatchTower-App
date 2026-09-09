@@ -23,6 +23,9 @@ let NotificationsController = class NotificationsController {
     listAlertAudit(req, query) {
         return this.notificationsService.listAlertAudit(req.user.sub, query);
     }
+    registerPushToken(req, body) {
+        return this.notificationsService.registerPushToken(req.user.sub, body);
+    }
 };
 exports.NotificationsController = NotificationsController;
 __decorate([
@@ -41,6 +44,14 @@ __decorate([
     __metadata("design:paramtypes", [Object, Object]),
     __metadata("design:returntype", void 0)
 ], NotificationsController.prototype, "listAlertAudit", null);
+__decorate([
+    (0, common_1.Post)('push-token'),
+    __param(0, (0, common_1.Req)()),
+    __param(1, (0, common_1.Body)()),
+    __metadata("design:type", Function),
+    __metadata("design:paramtypes", [Object, Object]),
+    __metadata("design:returntype", void 0)
+], NotificationsController.prototype, "registerPushToken", null);
 exports.NotificationsController = NotificationsController = __decorate([
     (0, common_1.Controller)('notifications'),
     (0, common_1.UseGuards)(jwt_auth_guard_1.JwtAuthGuard),

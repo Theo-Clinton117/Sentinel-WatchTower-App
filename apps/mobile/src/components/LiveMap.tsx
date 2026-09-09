@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useRef } from 'react';
+import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { Platform, StyleSheet, Text, View } from 'react-native';
 import MapView, { Circle, Marker, Polyline, PROVIDER_GOOGLE } from 'react-native-maps';
 import type { EmergencyLocation } from '../store/useAppStore';
@@ -53,6 +53,8 @@ const LiveMapBase = ({
   const theme = useAppTheme();
   const styles = useMemo(() => createStyles(theme), [theme]);
   const mapRef = useRef<MapView | null>(null);
+  const [mapReady, setMapReady] = useState(false);
+  const [mapTimedOut, setMapTimedOut] = useState(false);
   const latestCameraPosition = useRef<{ lat: number; lng: number } | null>(null);
   const isMinimal = variant === 'minimal';
   const activeMarkerColor = markerColor || (isMinimal ? '#F19A3E' : theme.colors.blue);
@@ -60,6 +62,24 @@ const LiveMapBase = ({
   const latitude = latestLocation?.lat ?? lat;
   const longitude = latestLocation?.lng ?? lng;
   const markerCoordinate = useMemo(() => ({ latitude, longitude }), [latitude, longitude]);
+
+  useEffect(() => {
+    setMapReady(false);
+    setMapTimedOut(false);
+    const timeout = setTimeout(() => setMapTimedOut(true), 10000);
+    return () => clearTimeout(timeout);
+  }, []);
+
+  useEffect(() => {
+    if (__DEV__) {
+      console.info('[Sentinel] map diagnostics', {
+        platform: Platform.OS,
+        hasGoogleMapsKey: Boolean(process.env.EXPO_PUBLIC_GOOGLE_MAPS_API_KEY),
+        latitudeValid: Number.isFinite(latitude),
+        longitudeValid: Number.isFinite(longitude),
+      });
+    }
+  }, [latitude, longitude]);
 
   const coordinates = useMemo(
     () => {
@@ -146,6 +166,7 @@ const LiveMapBase = ({
     <View style={styles.container}>
       <MapView
         ref={mapRef}
+        onMapReady={() => { setMapReady(true); setMapTimedOut(false); }}
         style={StyleSheet.absoluteFill}
         initialRegion={mapRegion}
         provider={PROVIDER_GOOGLE}
@@ -222,6 +243,14 @@ const LiveMapBase = ({
           )}
         </Marker>
       </MapView>
+      {mapTimedOut && !mapReady ? (
+        <View style={styles.mapFallback}>
+          <Text style={styles.mapFallbackTitle}>Map is taking longer than expected</Text>
+          <Text style={styles.mapFallbackText}>
+            Your location can still be used for alerts. Check your connection and Google Maps setup in a development or production build.
+          </Text>
+        </View>
+      ) : null}
       {isMinimal ? null : (
         <>
           <View style={styles.topBadge}>
@@ -251,6 +280,12 @@ const createStyles = (theme: ReturnType<typeof useAppTheme>) =>
       borderRadius: 8,
       overflow: 'hidden',
     },
+    mapFallback: {
+      position: 'absolute', left: 14, right: 14, top: 14, padding: 14,
+      borderRadius: 12, backgroundColor: theme.colors.surface, borderWidth: 1, borderColor: theme.colors.border,
+    },
+    mapFallbackTitle: { color: theme.colors.text, fontWeight: '800', marginBottom: 4 },
+    mapFallbackText: { color: theme.colors.muted, fontSize: 12, lineHeight: 17 },
     markerWrap: {
       width: 34,
       height: 34,

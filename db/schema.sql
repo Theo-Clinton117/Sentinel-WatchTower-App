@@ -95,14 +95,24 @@ create table if not exists trusted_contacts (
 );
 
 create table if not exists user_trust_profiles (
+  user_id uuid primary key,
+  trust_score numeric not null default 0,
+  confirmations_total integer not null default 0,
+  accurate_confirmations integer not null default 0,
+  false_confirmations integer not null default 0,
+  updated_at timestamptz not null default now()
+);
+
+create table if not exists trusted_contact_preferences (
   id uuid primary key default gen_random_uuid(),
   user_id uuid references users(id) on delete cascade,
-  contact_id uuid references trusted_contacts(id) on delete cascade,
+  trusted_contact_id uuid references trusted_contacts(id) on delete cascade,
   can_view_location boolean default true,
   can_view_history boolean default false,
   can_sms boolean default true,
   can_call boolean default true,
-  created_at timestamptz default now()
+  created_at timestamptz default now(),
+  unique (user_id, trusted_contact_id)
 );
 
 create table if not exists alerts (
@@ -668,6 +678,7 @@ alter table users enable row level security;
 alter table user_devices enable row level security;
 alter table trusted_contacts enable row level security;
 alter table user_trust_profiles enable row level security;
+alter table trusted_contact_preferences enable row level security;
 alter table reviewer_role_requests enable row level security;
 alter table alerts enable row level security;
 alter table watch_sessions enable row level security;
@@ -690,6 +701,7 @@ create policy contacts_read on trusted_contacts for select using (user_id = auth
 create policy contacts_write on trusted_contacts for all using (user_id = auth.uid()) with check (user_id = auth.uid());
 
 create policy trust_profiles_rw on user_trust_profiles for all using (user_id = auth.uid()) with check (user_id = auth.uid());
+create policy trusted_contact_preferences_rw on trusted_contact_preferences for all using (user_id = auth.uid()) with check (user_id = auth.uid());
 create policy reviewer_role_requests_read on reviewer_role_requests for select using (user_id = auth.uid());
 create policy reviewer_role_requests_write on reviewer_role_requests for insert with check (user_id = auth.uid());
 

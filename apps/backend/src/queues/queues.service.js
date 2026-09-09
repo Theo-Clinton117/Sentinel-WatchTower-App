@@ -333,16 +333,16 @@ let QueuesService = class QueuesService {
         const contactsResult = await this.db.query(`
       select
         tc.*,
-        utp.can_view_location,
-        utp.can_view_history,
-        utp.can_sms,
-        utp.can_call,
+        tcp.can_view_location,
+        tcp.can_view_history,
+        tcp.can_sms,
+        tcp.can_call,
         linked_user.name as linked_name,
         linked_user.email as linked_email,
         linked_user.phone_e164 as linked_phone
       from trusted_contacts tc
-      left join user_trust_profiles utp
-        on utp.contact_id = tc.id and utp.user_id = tc.user_id
+      left join trusted_contact_preferences tcp
+        on tcp.trusted_contact_id = tc.id and tcp.user_id = tc.user_id
       left join users linked_user
         on linked_user.id = tc.contact_user_id
       where tc.user_id = $1
@@ -662,7 +662,28 @@ let QueuesService = class QueuesService {
             JSON.stringify(sanitizedPayload),
             relatedSessionId || null,
         ]);
-        return result.rows[0]?.id || null;
+        const notificationId = result.rows[0]?.id || null;
+        if ((channel || 'in_app') === 'in_app' && (status === 'sent' || status === 'delivered')) {
+            void this.sendExpoPush(userId, sanitizedPayload);
+        }
+        return notificationId;
+    }
+    async sendExpoPush(userId, payload) {
+        const message = typeof payload?.message === 'string' ? payload.message : 'You have a Sentinel safety update.';
+        try {
+            const result = await this.db.query('select fcm_token from user_devices where user_id = $1 and fcm_token is not null', [userId]);
+            const tokens = [...new Set((result?.rows || []).map((row) => row.fcm_token).filter((token) => /^ExponentPushToken\[.+\]$|^ExpoPushToken\[.+\]$/.test(String(token))))];
+            if (!tokens.length) return;
+            const response = await fetch('https://exp.host/--/api/v2/push/send', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json', Accept: 'application/json' },
+                body: JSON.stringify(tokens.map((to) => ({ to, sound: 'default', title: 'Sentinel safety update', body: message, data: { type: payload?.type || 'alert_update' } }))),
+            });
+            if (!response.ok) this.logger.warn(`Expo push dispatch failed with HTTP ${response.status}.`);
+        }
+        catch (error) {
+            this.logger.warn(`Expo push dispatch failed: ${error instanceof Error ? error.message : 'unknown error'}`);
+        }
     }
     isSmsConfigured() {
         return (0, kudisms_1.isKudiSmsConfigured)();

@@ -65,10 +65,10 @@ let ContactsService = class ContactsService {
     }
     async list(userId) {
         const result = await this.db.query(`
-      select tc.*, utp.can_view_location, utp.can_view_history, utp.can_sms, utp.can_call
+      select tc.*, tcp.can_view_location, tcp.can_view_history, tcp.can_sms, tcp.can_call
       from trusted_contacts tc
-      left join user_trust_profiles utp
-        on utp.contact_id = tc.id and utp.user_id = tc.user_id
+      left join trusted_contact_preferences tcp
+        on tcp.trusted_contact_id = tc.id and tcp.user_id = tc.user_id
       where tc.user_id = $1
       order by tc.priority asc, tc.created_at desc
     `, [userId]);
@@ -93,8 +93,8 @@ let ContactsService = class ContactsService {
             ]);
             const contact = contactResult.rows[0];
             const profileResult = await client.query(`
-        insert into user_trust_profiles (
-          user_id, contact_id, can_view_location, can_view_history, can_sms, can_call
+        insert into trusted_contact_preferences (
+          user_id, trusted_contact_id, can_view_location, can_view_history, can_sms, can_call
         )
         values ($1, $2, $3, $4, $5, $6)
         returning can_view_location, can_view_history, can_sms, can_call
@@ -200,17 +200,17 @@ let ContactsService = class ContactsService {
                 throw new common_1.NotFoundException('Contact not found');
             }
             const hasProfileUpdates = ['canViewLocation', 'canViewHistory', 'canSms', 'canCall'].some((key) => Object.prototype.hasOwnProperty.call(body || {}, key));
-            let profile = await client.query('select can_view_location, can_view_history, can_sms, can_call from user_trust_profiles where user_id = $1 and contact_id = $2 limit 1', [userId, id]);
+            let profile = await client.query('select can_view_location, can_view_history, can_sms, can_call from trusted_contact_preferences where user_id = $1 and trusted_contact_id = $2 limit 1', [userId, id]);
             if (hasProfileUpdates) {
                 if (profile.rows[0]) {
                     profile = await client.query(`
-            update user_trust_profiles
+            update trusted_contact_preferences
             set
               can_view_location = coalesce($3, can_view_location),
               can_view_history = coalesce($4, can_view_history),
               can_sms = coalesce($5, can_sms),
               can_call = coalesce($6, can_call)
-            where user_id = $1 and contact_id = $2
+            where user_id = $1 and trusted_contact_id = $2
             returning can_view_location, can_view_history, can_sms, can_call
           `, [
                         userId,
@@ -223,8 +223,8 @@ let ContactsService = class ContactsService {
                 }
                 else {
                     profile = await client.query(`
-            insert into user_trust_profiles (
-              user_id, contact_id, can_view_location, can_view_history, can_sms, can_call
+            insert into trusted_contact_preferences (
+              user_id, trusted_contact_id, can_view_location, can_view_history, can_sms, can_call
             )
             values ($1, $2, $3, $4, $5, $6)
             returning can_view_location, can_view_history, can_sms, can_call

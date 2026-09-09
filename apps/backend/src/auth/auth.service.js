@@ -473,9 +473,16 @@ let AuthService = class AuthService {
                 throw new common_1.UnauthorizedException('Invalid email or password.');
             }
             if (dto?.deviceId) {
-                await client.query(`insert into user_devices (user_id, device_id, platform, last_seen_at)
-                  values ($1, $2, $3, now())
-                  on conflict (user_id, device_id) do update set platform = excluded.platform, last_seen_at = now()`, [row.id, dto.deviceId, dto.platform || null]);
+                // Legacy deployments can contain duplicate device rows, so this
+                // deliberately updates the newest row instead of relying on a
+                // new uniqueness constraint that could make migration fail.
+                const device = await client.query('select id from user_devices where user_id = $1 and device_id = $2 order by created_at desc limit 1', [row.id, dto.deviceId]);
+                if (device.rows[0]) {
+                    await client.query('update user_devices set platform = $2, last_seen_at = now() where id = $1', [device.rows[0].id, dto.platform || null]);
+                }
+                else {
+                    await client.query('insert into user_devices (user_id, device_id, platform, last_seen_at) values ($1, $2, $3, now())', [row.id, dto.deviceId, dto.platform || null]);
+                }
             }
             await (0, roles_logic_1.ensureDefaultUserRole)(client, row.id);
             return row;

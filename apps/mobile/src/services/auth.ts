@@ -57,6 +57,13 @@ type VerifyOtpResponse = {
   user: AuthUser;
 };
 
+type PasswordAuthPayload = {
+  email: string;
+  password: string;
+  name?: string;
+  mode: AuthFlow;
+};
+
 const defaultDeviceId = `expo-${Platform.OS}-sentinel`;
 
 export function normalizeEmailInput(value: string) {
@@ -152,6 +159,20 @@ export async function verifyOtp(
   }
 
   return apiPost<VerifyOtpResponse>('/auth/otp/verify', body);
+}
+
+export async function authenticateWithPassword(
+  payload: PasswordAuthPayload,
+  deviceId = defaultDeviceId,
+) {
+  return apiPost<VerifyOtpResponse>('/auth/password', {
+    email: normalizeEmailInput(payload.email),
+    password: payload.password,
+    name: payload.name?.trim(),
+    mode: payload.mode,
+    deviceId,
+    platform: Platform.OS,
+  });
 }
 
 export async function logout(refreshToken: string) {

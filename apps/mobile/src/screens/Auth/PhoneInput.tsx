@@ -20,6 +20,7 @@ import {
   isPhoneValid,
   normalizeEmailInput,
   normalizePhoneInput,
+  authenticateWithPassword,
   requestOtp,
 } from '../../services/auth';
 import { useAppStore } from '../../store/useAppStore';
@@ -36,7 +37,10 @@ export const AuthEntryScreen = () => {
     deviceId,
     setPendingAuth,
     markOtpRequested,
+    onboardingComplete,
     pushScreen,
+    resetNavigation,
+    setAuthSession,
     enableDevTestMode,
   } =
     useAppStore();
@@ -47,6 +51,7 @@ export const AuthEntryScreen = () => {
   const [name, setName] = useState(pendingName);
   const [email, setEmail] = useState(pendingEmail);
   const [phone, setPhone] = useState(pendingPhone);
+  const [password, setPassword] = useState('');
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
   const normalizedEmail = useMemo(() => normalizeEmailInput(email), [email]);
@@ -58,7 +63,7 @@ export const AuthEntryScreen = () => {
     setError('');
   };
 
-  const handleSendOtp = async () => {
+  const handleContinue = async () => {
     const trimmedName = name.trim();
 
     if (isSignup && trimmedName.length < 2) {
@@ -73,6 +78,11 @@ export const AuthEntryScreen = () => {
       return;
     }
 
+    if (isEmail && password.length < 12) {
+      setError('Use a password with at least 12 characters.');
+      return;
+    }
+
     if (!isEmail && !isPhoneValid(normalizedPhone)) {
       setError('Enter a valid phone number.');
       return;
@@ -81,6 +91,19 @@ export const AuthEntryScreen = () => {
     try {
       setLoading(true);
       setError('');
+      if (isEmail) {
+        const result = await authenticateWithPassword(
+          { email: normalizedEmail, password, name: isSignup ? trimmedName : undefined, mode },
+          deviceId,
+        );
+        setAuthSession({
+          accessToken: result.accessToken,
+          refreshToken: result.refreshToken,
+          user: result.user,
+        });
+        resetNavigation(onboardingComplete ? 'home' : 'onboarding-contacts');
+        return;
+      }
       const result = await requestOtp(
         {
           email: isEmail ? normalizedEmail : undefined,
@@ -237,6 +260,25 @@ export const AuthEntryScreen = () => {
               </View>
             )}
 
+            {contactMethod === 'email' ? (
+              <View style={styles.fieldBlock}>
+                <Text style={styles.label}>Password</Text>
+                <TextInput
+                  autoCapitalize="none"
+                  autoCorrect={false}
+                  autoComplete={isSignup ? 'new-password' : 'current-password'}
+                  secureTextEntry
+                  placeholder="At least 12 characters"
+                  placeholderTextColor={theme.colors.muted}
+                  style={styles.input}
+                  value={password}
+                  textContentType={isSignup ? 'newPassword' : 'password'}
+                  onChangeText={(value) => { setPassword(value); if (error) setError(''); }}
+                />
+                <Text style={styles.passwordHint}>Your password signs in on this device. Phone sign-in continues with a one-time code.</Text>
+              </View>
+            ) : null}
+
             <DismissibleNoticeCard
               visible={Boolean(error)}
               title="Action needed"
@@ -246,13 +288,15 @@ export const AuthEntryScreen = () => {
 
             <Pressable
               style={[styles.button, loading && styles.buttonDisabled]}
-              onPress={handleSendOtp}
+              onPress={handleContinue}
               disabled={loading}
             >
               {loading ? (
                 <ActivityIndicator color={theme.colors.text} />
               ) : (
-                <Text style={styles.buttonText}>Continue</Text>
+                <Text style={styles.buttonText}>
+                  {contactMethod === 'email' ? (isSignup ? 'Create account' : 'Log in') : 'Continue with code'}
+                </Text>
               )}
             </Pressable>
 
@@ -401,6 +445,12 @@ const createStyles = (theme: ReturnType<typeof useAppTheme>) =>
     },
     inputSpaced: {
       marginTop: 14,
+    },
+    passwordHint: {
+      color: theme.colors.muted,
+      fontSize: 12,
+      lineHeight: 17,
+      marginTop: 7,
     },
     error: {
       color: theme.colors.red,
