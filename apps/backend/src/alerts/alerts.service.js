@@ -166,7 +166,7 @@ values (
       `, [
     userId,
     triggerSource,
-    alertStage,
+    'High',
     `Sentinel ${alertStage.replace('_', ' ')} alert`,
     triggerSource,
     escalationLevel,
