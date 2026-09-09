@@ -182,9 +182,15 @@ values (
 ]);
             const alert = alertResult.rows[0];
             const sessionResult = await client.query(`
-        insert into watch_sessions (alert_id, user_id, status, escalation_level)
-        values ($1, $2, 'active', $3)
-        returning *
+            insert into watch_sessions (
+            owner_id,
+            alert_id,
+            user_id,
+            status,
+            escalation_level
+            )
+            values ($2, $1, $2, 'active', $3)
+            returning *
       `, [alert.id, userId, escalationLevel]);
             const session = sessionResult.rows[0];
             await recordAlertAudit(client, {
