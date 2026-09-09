@@ -11,7 +11,6 @@ import {
   PaystackPlanOffer,
   getPaystackPlanOffers,
   getSubscriptionState,
-  openPaystackBillingManagement,
   purchaseSubscriptionPlan,
   restoreSubscriptionPaymentStatus,
   syncSubscriptionState,
@@ -29,16 +28,6 @@ const toneColors = {
     accent: '#5987FF',
     border: '#BFD0FF',
     fill: 'rgba(89,135,255,0.1)',
-  },
-  pro: {
-    accent: '#C89211',
-    border: '#E5CD8A',
-    fill: 'rgba(200,146,17,0.12)',
-  },
-  family: {
-    accent: '#2BAE73',
-    border: '#9DE2C2',
-    fill: 'rgba(43,174,115,0.12)',
   },
 } as const;
 
@@ -114,7 +103,7 @@ function describePlanAction(
     return 'Coming soon';
   }
 
-  return 'Subscribe';
+  return 'Renew';
 }
 
 type RestoreResult = {
@@ -232,18 +221,9 @@ export const SubscriptionScreen = () => {
     },
   });
 
-  const handleManageBilling = React.useCallback(async () => {
-    const opened = await openPaystackBillingManagement();
-    if (!opened) {
-      Alert.alert(
-        'Billing management unavailable',
-        'Use your Paystack receipt or contact Sentinel support to manage billing.',
-      );
-    }
-  }, []);
-
   const data = subscriptionQuery.data;
   const plans: SubscriptionPlan[] = data?.catalog || [];
+  const prepaidPlan = plans.find((plan) => plan.id === 'basic');
   const activePlan: SubscriptionPlan | undefined =
     plans.find((plan: SubscriptionPlan) => plan.id === data?.activePlanId) || plans[0];
   const expirationLabel = formatDate(data?.currentPeriodEnd);
@@ -258,7 +238,7 @@ export const SubscriptionScreen = () => {
         showsVerticalScrollIndicator={false}
       >
         <MotionView delay={40}>
-          <Text style={styles.title}>Subscription</Text>
+          <Text style={styles.title}>Sentinel service</Text>
           <Text style={styles.subtitle}>
             Loading your current plan and available upgrades.
           </Text>
@@ -282,7 +262,7 @@ export const SubscriptionScreen = () => {
         showsVerticalScrollIndicator={false}
       >
         <MotionView delay={40}>
-          <Text style={styles.title}>Subscription</Text>
+          <Text style={styles.title}>Sentinel service</Text>
           <Text style={styles.subtitle}>
             Sentinel could not load your plan right now.
           </Text>
@@ -315,9 +295,9 @@ export const SubscriptionScreen = () => {
       showsVerticalScrollIndicator={false}
     >
       <MotionView delay={40}>
-        <Text style={styles.title}>Subscription</Text>
+        <Text style={styles.title}>Sentinel service</Text>
         <Text style={styles.subtitle}>
-          Choose the safety plan that matches how much support you want around you.
+          ₦1,000 gives you 30 days of paid Sentinel service. Renew manually whenever you need another 30 days.
         </Text>
       </MotionView>
 
@@ -358,7 +338,7 @@ export const SubscriptionScreen = () => {
               Billing source: {data.provider ? data.provider.replace('_', ' ') : 'free plan'}
             </Text>
             <Text style={styles.heroMeta}>
-              {expirationLabel ? `Renews or ends on ${expirationLabel}` : 'No paid renewal date yet'}
+              {expirationLabel ? `Paid access ends on ${expirationLabel}` : 'No paid renewal date yet'}
             </Text>
           </View>
         </LinearGradient>
@@ -397,9 +377,9 @@ export const SubscriptionScreen = () => {
       </MotionView>
 
       <MotionView delay={190} style={styles.sectionHeader}>
-        <Text style={styles.sectionTitle}>Plans</Text>
+        <Text style={styles.sectionTitle}>Sentinel</Text>
         <Text style={styles.sectionText}>
-          Start with the free safety basics. Upgrade only if you want more automation, coverage, or family support.
+          Keep the free safety basics, or renew paid Sentinel service for 30 days at a time.
         </Text>
       </MotionView>
 
@@ -497,8 +477,12 @@ export const SubscriptionScreen = () => {
               ? 'If a plan says Coming soon, Paystack checkout is not available for it yet.'
               : 'Paystack payments are not connected for this build yet.'}
         </Text>
-        <Pressable onPress={handleManageBilling} style={[styles.manageButton, theme.shadow.glow]}>
-          <Text style={styles.manageButtonText}>Manage Paystack billing</Text>
+        <Pressable
+          onPress={() => prepaidPlan && purchaseMutation.mutate(prepaidPlan)}
+          disabled={isWorking || !prepaidPlan || !data.paystack.configured}
+          style={[styles.manageButton, theme.shadow.glow, (isWorking || !prepaidPlan || !data.paystack.configured) && { opacity: 0.6 }]}
+        >
+          <Text style={styles.manageButtonText}>Renew Sentinel</Text>
         </Pressable>
       </MotionView>
     </ScrollView>

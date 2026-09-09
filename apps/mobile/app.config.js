@@ -44,7 +44,7 @@ module.exports = ({ config }) => {
       userInterfaceStyle: 'automatic',
       config: {
         ...appConfig.ios?.config,
-        googleMapsApiKey: readEnv('EXPO_PUBLIC_GOOGLE_MAPS_API_KEY'),
+        googleMapsApiKey: readEnv('EXPO_PUBLIC_GOOGLE_MAPS_API_KEY_IOS'),
       },
       infoPlist: {
         NSLocationWhenInUseUsageDescription:
@@ -68,7 +68,7 @@ module.exports = ({ config }) => {
         ...appConfig.android.config,
         googleMaps: {
           ...appConfig.android.config?.googleMaps,
-          apiKey: readEnv('EXPO_PUBLIC_GOOGLE_MAPS_API_KEY'),
+          apiKey: readEnv('EXPO_PUBLIC_GOOGLE_MAPS_API_KEY_ANDROID'),
         },
       },
       adaptiveIcon: {
@@ -97,9 +97,12 @@ module.exports = ({ config }) => {
       ],
     ],
     extra: {
-      appEnv: APP_ENV,
-      apiBaseUrl: readEnv('EXPO_PUBLIC_API_BASE_URL'),
-      wsUrl: readEnv('EXPO_PUBLIC_WS_URL'),
-    },
+  appEnv: APP_ENV,
+  apiBaseUrl: readEnv('EXPO_PUBLIC_API_BASE_URL'),
+  wsUrl: readEnv('EXPO_PUBLIC_WS_URL'),
+  eas: {
+    projectId: 'eba1a2c9-ce47-404f-8072-0d4d9c88ed22',
+  },
+  },
   };
 };

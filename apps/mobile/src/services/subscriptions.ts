@@ -2,7 +2,7 @@ import { Linking } from 'react-native';
 import { AppUser } from '../store/useAppStore';
 import { apiGet, apiPost } from './api';
 
-export type SubscriptionPlanId = 'free' | 'basic' | 'pro' | 'family';
+export type SubscriptionPlanId = 'free' | 'basic';
 
 export type SubscriptionPlan = {
   id: SubscriptionPlanId;
@@ -83,7 +83,7 @@ export function getPaystackPlanOffers(
       {
         planId: plan.id,
         priceLabel: plan.priceLabel,
-        isAvailable: plan.id === 'free' || paystackConfigured,
+        isAvailable: plan.id === 'free' || (plan.id === 'basic' && paystackConfigured),
       } satisfies PaystackPlanOffer,
     ]),
   ) as Record<SubscriptionPlanId, PaystackPlanOffer>;
@@ -97,8 +97,8 @@ export async function purchaseSubscriptionPlan(
     throw new Error('Sign in before managing your subscription.');
   }
 
-  if (plan.id === 'free') {
-    throw new Error('The free tier does not require a purchase.');
+  if (plan.id !== 'basic') {
+    throw new Error('Only the ₦1,000 Sentinel 30-day renewal is available.');
   }
 
   const checkout = await apiPost<CheckoutResult>(
@@ -126,15 +126,4 @@ export async function purchaseSubscriptionPlan(
 
 export async function restoreSubscriptionPaymentStatus() {
   return syncSubscriptionState('restore');
-}
-
-export async function openPaystackBillingManagement() {
-  const url = 'https://paystack.com/pay';
-  const canOpen = await Linking.canOpenURL(url);
-  if (!canOpen) {
-    return false;
-  }
-
-  await Linking.openURL(url);
-  return true;
 }

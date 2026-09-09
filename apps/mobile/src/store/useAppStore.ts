@@ -42,6 +42,7 @@ export type AppUser = {
   name?: string | null;
   email?: string | null;
   status?: string | null;
+  phoneVerified?: boolean;
   hasPassword?: boolean;
   roles?: string[];
   reviewerRequest?: {

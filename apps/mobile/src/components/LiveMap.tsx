@@ -58,9 +58,21 @@ const LiveMapBase = ({
   const latestCameraPosition = useRef<{ lat: number; lng: number } | null>(null);
   const isMinimal = variant === 'minimal';
   const activeMarkerColor = markerColor || (isMinimal ? '#F19A3E' : theme.colors.blue);
-  const latestLocation = locations.length > 0 ? locations[locations.length - 1] : null;
-  const latitude = latestLocation?.lat ?? lat;
-  const longitude = latestLocation?.lng ?? lng;
+  const validLocations = useMemo(
+    () =>
+      locations.filter(
+        (location) =>
+          Number.isFinite(location.lat) &&
+          Number.isFinite(location.lng) &&
+          Math.abs(location.lat) <= 90 &&
+          Math.abs(location.lng) <= 180,
+      ),
+    [locations],
+  );
+  const latestLocation = validLocations.length > 0 ? validLocations[validLocations.length - 1] : null;
+  const latitude = latestLocation?.lat ?? (Number.isFinite(lat) && Math.abs(lat) <= 90 ? lat : 6.5244);
+  const longitude = latestLocation?.lng ?? (Number.isFinite(lng) && Math.abs(lng) <= 180 ? lng : 3.3792);
+  const googleMapsKey = String(process.env.EXPO_PUBLIC_GOOGLE_MAPS_API_KEY || '').trim();
   const markerCoordinate = useMemo(() => ({ latitude, longitude }), [latitude, longitude]);
 
   useEffect(() => {
@@ -84,35 +96,35 @@ const LiveMapBase = ({
   const coordinates = useMemo(
     () => {
       const trailLocations =
-        locations.length > MAX_RENDERED_TRAIL_POINTS
-          ? locations.slice(-MAX_RENDERED_TRAIL_POINTS)
-          : locations;
+        validLocations.length > MAX_RENDERED_TRAIL_POINTS
+          ? validLocations.slice(-MAX_RENDERED_TRAIL_POINTS)
+          : validLocations;
 
       return trailLocations.map((location) => ({
         latitude: location.lat,
         longitude: location.lng,
       }));
     },
-    [locations],
+    [validLocations],
   );
 
   // Calculate optimal zoom level and region based on all locations
   const mapRegion = useMemo(() => {
-    if (locations.length === 0) {
+    if (validLocations.length === 0) {
       return { latitude, longitude, latitudeDelta: 0.01, longitudeDelta: 0.01 };
     }
 
-    if (locations.length === 1) {
+    if (validLocations.length === 1) {
       return { latitude, longitude, latitudeDelta: 0.015, longitudeDelta: 0.015 };
     }
 
     // Calculate bounds of all locations
-    let maxLat = locations[0].lat;
-    let minLat = locations[0].lat;
-    let maxLng = locations[0].lng;
-    let minLng = locations[0].lng;
+    let maxLat = validLocations[0].lat;
+    let minLat = validLocations[0].lat;
+    let maxLng = validLocations[0].lng;
+    let minLng = validLocations[0].lng;
 
-    locations.forEach((loc) => {
+    validLocations.forEach((loc) => {
       maxLat = Math.max(maxLat, loc.lat);
       minLat = Math.min(minLat, loc.lat);
       maxLng = Math.max(maxLng, loc.lng);
@@ -131,7 +143,7 @@ const LiveMapBase = ({
       latitudeDelta: Math.max(latDelta * 1.4, 0.02),
       longitudeDelta: Math.max(lngDelta * 1.4, 0.02),
     };
-  }, [locations, latitude, longitude]);
+  }, [validLocations, latitude, longitude]);
 
   useEffect(() => {
     const nextPosition = { lat: latitude, lng: longitude };
@@ -169,7 +181,7 @@ const LiveMapBase = ({
         onMapReady={() => { setMapReady(true); setMapTimedOut(false); }}
         style={StyleSheet.absoluteFill}
         initialRegion={mapRegion}
-        provider={PROVIDER_GOOGLE}
+        provider={Platform.OS === 'android' || googleMapsKey ? PROVIDER_GOOGLE : undefined}
         mapType={
           mapLayer === 'satellite'
             ? Platform.OS === 'android'
