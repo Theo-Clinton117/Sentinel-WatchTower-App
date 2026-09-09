@@ -18,6 +18,7 @@ function mapUserRow(row, extras) {
         name: row.name,
         email: row.email,
         status: row.status,
+        hasPassword: Boolean(row.password_hash),
         credibility: extras?.credibility || null,
         roles: Array.isArray(extras?.roles) ? extras.roles : ['user'],
         reviewerRequest: extras?.reviewerRequest || null,

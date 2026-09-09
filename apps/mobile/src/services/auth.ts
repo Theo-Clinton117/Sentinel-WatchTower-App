@@ -9,6 +9,7 @@ export type AuthUser = {
   name?: string | null;
   email?: string | null;
   status?: string | null;
+  hasPassword?: boolean;
   roles?: string[];
   reviewerRequest?: {
     id: string;
@@ -173,6 +174,10 @@ export async function authenticateWithPassword(
     deviceId,
     platform: Platform.OS,
   });
+}
+
+export async function setInitialPassword(password: string) {
+  return apiPost<{ success: boolean }>('/auth/password/set', { password }, { auth: true });
 }
 
 export async function logout(refreshToken: string) {

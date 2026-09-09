@@ -56,6 +56,7 @@ import { PaymentSuccessScreen } from './src/screens/PaymentSuccess';
 import { SettingsScreen } from './src/screens/Settings';
 import { AuthEntryScreen } from './src/screens/Auth/PhoneInput';
 import { OtpScreen } from './src/screens/Auth/Otp';
+import { SetPasswordScreen } from './src/screens/Auth/SetPassword';
 import { OnboardingContactsScreen } from './src/screens/Onboarding/Contacts';
 import { OnboardingPermissionsScreen } from './src/screens/Onboarding/Permissions';
 
@@ -93,7 +94,7 @@ const getPaymentReference = (url: string) => {
 };
 
 const ScreenRouter = ({ paymentReference }: { paymentReference: string | null }) => {
-  const { currentScreen, screenStack, sessionStatus, authStatus, onboardingComplete, setScreen } = useAppStore(
+  const { currentScreen, screenStack, sessionStatus, authStatus, onboardingComplete, setScreen, user } = useAppStore(
     (state) => ({
       currentScreen: state.currentScreen,
       screenStack: state.screenStack,
@@ -101,6 +102,7 @@ const ScreenRouter = ({ paymentReference }: { paymentReference: string | null })
       authStatus: state.authStatus,
       onboardingComplete: state.onboardingComplete,
       setScreen: state.setScreen,
+      user: state.user,
     }),
     shallow,
   );
@@ -126,6 +128,10 @@ const ScreenRouter = ({ paymentReference }: { paymentReference: string | null })
 
   if (authStatus === 'unauthenticated') {
     return currentScreen === 'otp' ? <OtpScreen /> : <AuthEntryScreen />;
+  }
+
+  if (user?.hasPassword === false || currentScreen === 'set-password') {
+    return <SetPasswordScreen />;
   }
 
   if (!onboardingComplete) {

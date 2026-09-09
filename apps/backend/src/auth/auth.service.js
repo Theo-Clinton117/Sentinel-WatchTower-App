@@ -101,6 +101,13 @@ function passwordMatches(password, stored) {
     const actual = crypto.scryptSync(String(password), salt, 64).toString('hex');
     return safeEqualHex(digest, actual);
 }
+function validatePassword(password) {
+    const value = String(password || '');
+    if (value.length < 12 || value.length > 256) {
+        throw new common_1.BadRequestException('Password must be between 12 and 256 characters.');
+    }
+    return value;
+}
 function createRefreshTokenId() {
     return crypto.randomUUID();
 }
@@ -126,6 +133,7 @@ function mapUserRow(user, extras) {
         credibility: extras?.credibility || null,
         roles: Array.isArray(extras?.roles) ? extras.roles : ['user'],
         reviewerRequest: extras?.reviewerRequest || null,
+        hasPassword: Boolean(user.password_hash),
         createdAt: user.created_at,
         updatedAt: user.updated_at,
     };
@@ -456,7 +464,7 @@ let AuthService = class AuthService {
         const password = String(dto?.password || '');
         const mode = dto?.mode === 'login' ? 'login' : 'signup';
         const name = normalizeName(dto?.name);
-        if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email) || password.length < 12) {
+        if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email) || password.length < 12 || password.length > 256) {
             throw new common_1.BadRequestException('Enter a valid email and a password of at least 12 characters.');
         }
         if (mode === 'signup' && name.length < 2) throw new common_1.BadRequestException('Name is required for signup.');
@@ -492,6 +500,19 @@ let AuthService = class AuthService {
         const roles = await (0, roles_logic_1.getUserRoleNames)(this.db, user.id);
         const reviewerRequest = await (0, roles_logic_1.getLatestReviewerRequest)(this.db, user.id);
         return { accessToken: this.jwt.sign({ sub: user.id }), refreshToken: tokenRecord.refreshToken, userId: user.id, user: mapUserRow(user, { credibility, roles, reviewerRequest }) };
+    }
+    async setInitialPassword(userId, body) {
+        const password = validatePassword(body?.password);
+        return this.db.transaction(async (client) => {
+            const result = await client.query('select id, password_hash from users where id = $1 limit 1 for update', [userId]);
+            const user = result.rows[0];
+            if (!user) throw new common_1.UnauthorizedException('Invalid session.');
+            if (user.password_hash) {
+                throw new common_1.ConflictException('A password is already set for this account.');
+            }
+            await client.query('update users set password_hash = $2, updated_at = now() where id = $1', [userId, hashPassword(password)]);
+            return { success: true };
+        });
     }
     async logout(refreshToken) {
         await this.revokeRefreshToken(refreshToken);

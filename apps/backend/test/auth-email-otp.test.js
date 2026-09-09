@@ -134,3 +134,30 @@ test('email OTP verification succeeds with the generated code and rejects an inv
     },
   );
 });
+
+test('an authenticated passwordless account can set one scrypt password without changing its identity', async () => {
+  const user = { id: 'existing-user', password_hash: null, name: 'Existing member' };
+  let storedHash = null;
+  const service = new AuthService({
+    transaction: async (work) => work({
+      query: async (sql, params) => {
+        if (sql.includes('select id, password_hash from users')) return { rows: [{ ...user, password_hash: storedHash }] };
+        if (sql.includes('update users set password_hash')) { storedHash = params[1]; return { rows: [] }; }
+        throw new Error(`Unexpected query: ${sql}`);
+      },
+    }),
+  }, { sign: () => 'token' }, { isEnabled: () => false });
+
+  const result = await service.setInitialPassword(user.id, { password: 'a secure sentinel passphrase' });
+  assert.deepEqual(result, { success: true });
+  assert.match(storedHash, /^scrypt\$[a-f0-9]{32}\$[a-f0-9]{128}$/);
+  assert.notEqual(storedHash, 'a secure sentinel passphrase');
+  await assert.rejects(
+    () => service.setInitialPassword(user.id, { password: 'another secure passphrase' }),
+    (error) => error?.status === 409,
+  );
+  await assert.rejects(
+    () => service.setInitialPassword(user.id, { password: 'too-short' }),
+    (error) => error?.status === 400,
+  );
+});

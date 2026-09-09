@@ -15,6 +15,7 @@ Object.defineProperty(exports, "__esModule", { value: true });
 exports.AuthController = void 0;
 const common_1 = require("@nestjs/common");
 const rate_limit_decorator_1 = require("../common/guards/rate-limit.decorator");
+const jwt_auth_guard_1 = require("../common/guards/jwt-auth.guard");
 const auth_service_1 = require("./auth.service");
 const request_otp_dto_1 = require("./dto/request-otp.dto");
 const verify_otp_dto_1 = require("./dto/verify-otp.dto");
@@ -30,6 +31,9 @@ let AuthController = class AuthController {
     }
     password(dto) {
         return this.authService.passwordAuth(dto);
+    }
+    setPassword(req, body) {
+        return this.authService.setInitialPassword(req.user.sub, body);
     }
     refresh(body) {
         return this.authService.refresh(body.refreshToken);
@@ -63,6 +67,16 @@ __decorate([
     __metadata("design:paramtypes", [Object]),
     __metadata("design:returntype", void 0)
 ], AuthController.prototype, "password", null);
+__decorate([
+    (0, common_1.Post)('password/set'),
+    (0, common_1.UseGuards)(jwt_auth_guard_1.JwtAuthGuard),
+    (0, rate_limit_decorator_1.RateLimit)({ points: 8, duration: 60 }),
+    __param(0, (0, common_1.Req)()),
+    __param(1, (0, common_1.Body)()),
+    __metadata("design:type", Function),
+    __metadata("design:paramtypes", [Object, Object]),
+    __metadata("design:returntype", void 0)
+], AuthController.prototype, "setPassword", null);
 __decorate([
     (0, common_1.Post)('refresh'),
     (0, rate_limit_decorator_1.RateLimit)({ points: 30, duration: 60 }),

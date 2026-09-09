@@ -9,6 +9,7 @@ export type Screen =
   | 'home'
   | 'auth'
   | 'otp'
+  | 'set-password'
   | 'onboarding-contacts'
   | 'onboarding-permissions'
   | 'risk-log'
@@ -41,6 +42,7 @@ export type AppUser = {
   name?: string | null;
   email?: string | null;
   status?: string | null;
+  hasPassword?: boolean;
   roles?: string[];
   reviewerRequest?: {
     id: string;

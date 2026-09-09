@@ -111,7 +111,7 @@ export const OtpScreen = () => {
         refreshToken: result.refreshToken,
         user: result.user,
       });
-      resetNavigation(onboardingComplete ? 'home' : 'onboarding-contacts');
+      resetNavigation(result.user.hasPassword ? (onboardingComplete ? 'home' : 'onboarding-contacts') : 'set-password');
     } catch (verifyError) {
       const message =
         verifyError instanceof ApiError
