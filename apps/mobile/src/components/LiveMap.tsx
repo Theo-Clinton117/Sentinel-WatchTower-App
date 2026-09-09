@@ -72,7 +72,10 @@ const LiveMapBase = ({
   const latestLocation = validLocations.length > 0 ? validLocations[validLocations.length - 1] : null;
   const latitude = latestLocation?.lat ?? (Number.isFinite(lat) && Math.abs(lat) <= 90 ? lat : 6.5244);
   const longitude = latestLocation?.lng ?? (Number.isFinite(lng) && Math.abs(lng) <= 180 ? lng : 3.3792);
-  const googleMapsKey = String(process.env.EXPO_PUBLIC_GOOGLE_MAPS_API_KEY || '').trim();
+  const googleMapsKey =
+  Platform.OS === 'ios'
+    ? String(process.env.EXPO_PUBLIC_GOOGLE_MAPS_API_KEY_IOS || '').trim()
+    : String(process.env.EXPO_PUBLIC_GOOGLE_MAPS_API_KEY_ANDROID || '').trim();
   const markerCoordinate = useMemo(() => ({ latitude, longitude }), [latitude, longitude]);
 
   useEffect(() => {
@@ -86,7 +89,7 @@ const LiveMapBase = ({
     if (__DEV__) {
       console.info('[Sentinel] map diagnostics', {
         platform: Platform.OS,
-        hasGoogleMapsKey: Boolean(process.env.EXPO_PUBLIC_GOOGLE_MAPS_API_KEY),
+        hasGoogleMapsKey: Boolean(googleMapsKey),
         latitudeValid: Number.isFinite(latitude),
         longitudeValid: Number.isFinite(longitude),
       });
