@@ -65,8 +65,24 @@ export function normalizeEmailInput(value: string) {
 
 export function normalizePhoneInput(value: string) {
   const trimmed = value.trim();
-  const prefix = trimmed.startsWith('+') ? '+' : '';
-  return `${prefix}${trimmed.replace(/[^\d]/g, '')}`;
+  if (!/^\+?[\d\s().-]+$/.test(trimmed)) {
+    return trimmed;
+  }
+  const compact = trimmed.replace(/[\s().-]/g, '');
+
+  if (compact.startsWith('+234')) {
+    return `+234${compact.slice(4).replace(/\D/g, '')}`;
+  }
+
+  if (compact.startsWith('234')) {
+    return `+234${compact.slice(3).replace(/\D/g, '')}`;
+  }
+
+  if (compact.startsWith('0')) {
+    return `+234${compact.slice(1).replace(/\D/g, '')}`;
+  }
+
+  return compact;
 }
 
 export function isEmailValid(value: string) {
@@ -74,7 +90,7 @@ export function isEmailValid(value: string) {
 }
 
 export function isPhoneValid(value: string) {
-  return /^\+?[1-9]\d{7,14}$/.test(normalizePhoneInput(value));
+  return /^\+234[7-9]\d{9}$/.test(normalizePhoneInput(value));
 }
 
 export function isOtpValid(value: string) {

@@ -63,3 +63,32 @@ test("sendOtp posts the KudiSMS OTP template fields as multipart form data", asy
         global.fetch = originalFetch;
     }
 });
+
+test("sendOtp sanitizes KudiSMS provider errors", async () => {
+    const originalFetch = global.fetch;
+    global.fetch = async () => ({
+        ok: false,
+        status: 401,
+        text: async () => 'token=should-not-be-exposed',
+    });
+
+    try {
+        await withEnv(
+            {
+                KUDISMS_TOKEN: "token",
+                KUDISMS_SENDER_ID: "Sentinel",
+                KUDISMS_APP_NAME_CODE: "sentinel-app",
+                KUDISMS_TEMPLATE_CODE: "sentinel-otp",
+            },
+            async () => {
+                await assert.rejects(
+                    () => sendOtp("+2348012345678", "123456"),
+                    (error) => error?.message === "Could not publish OTP with KudiSMS (HTTP 401)." && !error.message.includes("should-not-be-exposed"),
+                );
+            },
+        );
+    }
+    finally {
+        global.fetch = originalFetch;
+    }
+});

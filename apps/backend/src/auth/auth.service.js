@@ -24,10 +24,24 @@ function normalizeEmail(email) {
     return String(email || '').trim().toLowerCase();
 }
 function normalizePhone(phone) {
-    return String(phone || '').trim();
+    const value = String(phone || '').trim();
+    if (!/^\+?[\d\s().-]+$/.test(value)) {
+        return value;
+    }
+    const compact = value.replace(/[\s().-]/g, '');
+    if (compact.startsWith('+234')) {
+        return `+234${compact.slice(4).replace(/\D/g, '')}`;
+    }
+    if (compact.startsWith('234')) {
+        return `+234${compact.slice(3).replace(/\D/g, '')}`;
+    }
+    if (compact.startsWith('0')) {
+        return `+234${compact.slice(1).replace(/\D/g, '')}`;
+    }
+    return compact;
 }
 function isPhoneValid(phone) {
-    return /^\+?[1-9]\d{7,14}$/.test(phone);
+    return /^\+234[7-9]\d{9}$/.test(normalizePhone(phone));
 }
 function normalizeName(name) {
     return String(name || '').trim();
@@ -482,7 +496,7 @@ let AuthService = class AuthService {
     async verifyPhoneCode(phone, code) {
         await this.db.transaction(async (client) => {
             const result = await client.query(`
-        select id, name, code_hash, attempts
+        select id, code_hash, attempts
         from phone_otp_challenges
         where phone_e164 = $1
           and consumed_at is null
@@ -548,6 +562,8 @@ let AuthService = class AuthService {
     }
 };
 exports.AuthService = AuthService;
+exports.normalizePhone = normalizePhone;
+exports.isPhoneValid = isPhoneValid;
 exports.AuthService = AuthService = __decorate([
     (0, common_1.Injectable)(),
     __metadata("design:paramtypes", [db_service_1.DbService, jwt_1.JwtService, supabase_service_1.SupabaseService])

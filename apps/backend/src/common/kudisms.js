@@ -1,5 +1,7 @@
 "use strict";
 
+const KUDISMS_TIMEOUT_MS = 10000;
+
 function getKudiSmsBaseUrl() {
     return String(process.env.KUDISMS_BASE_URL || "https://my.kudisms.net/api/sms").trim();
 }
@@ -41,19 +43,35 @@ function buildKudiSmsUrl(recipients, message) {
     return endpoint;
 }
 
+async function fetchKudiSms(url, options) {
+    const controller = new AbortController();
+    const timeout = setTimeout(() => controller.abort(), KUDISMS_TIMEOUT_MS);
+    try {
+        return await fetch(url, { ...options, signal: controller.signal });
+    }
+    catch (error) {
+        if (error?.name === "AbortError") {
+            throw new Error("KudiSMS request timed out.");
+        }
+        throw error;
+    }
+    finally {
+        clearTimeout(timeout);
+    }
+}
+
 async function sendSms(recipients, message) {
     if (!isKudiSmsConfigured()) {
         throw new Error("KudiSMS is not configured.");
     }
-    const response = await fetch(buildKudiSmsUrl(recipients, message), {
+    const response = await fetchKudiSms(buildKudiSmsUrl(recipients, message), {
         method: "GET",
         headers: {
             accept: "application/json, text/plain, */*",
         },
     });
     if (!response.ok) {
-        const errorBody = await response.text();
-        throw new Error(`Could not publish SMS with KudiSMS. ${errorBody || response.statusText}`);
+        throw new Error(`Could not publish SMS with KudiSMS (HTTP ${response.status || 'unknown'}).`);
     }
     return true;
 }
@@ -69,7 +87,7 @@ async function sendOtp(recipients, otp) {
     form.append("otp", otp);
     form.append("appnamecode", getKudiSmsAppNameCode());
     form.append("templatecode", getKudiSmsTemplateCode());
-    const response = await fetch(getKudiSmsOtpUrl(), {
+    const response = await fetchKudiSms(getKudiSmsOtpUrl(), {
         method: "POST",
         body: form,
         headers: {
@@ -77,8 +95,7 @@ async function sendOtp(recipients, otp) {
         },
     });
     if (!response.ok) {
-        const errorBody = await response.text();
-        throw new Error(`Could not publish OTP with KudiSMS. ${errorBody || response.statusText}`);
+        throw new Error(`Could not publish OTP with KudiSMS (HTTP ${response.status || 'unknown'}).`);
     }
     return true;
 }
