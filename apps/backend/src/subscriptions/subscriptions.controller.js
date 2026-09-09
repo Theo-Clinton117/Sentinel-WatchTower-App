@@ -17,7 +17,7 @@ const common_1 = require("@nestjs/common");
 const jwt_auth_guard_1 = require("../common/guards/jwt-auth.guard");
 const rate_limit_decorator_1 = require("../common/guards/rate-limit.decorator");
 const subscriptions_service_1 = require("./subscriptions.service");
-const subscriptionRateLimitDuration = process.env.NODE_ENV === 'production' ? 3600 : 60;
+const subscriptionRateLimitDuration = process.env.NODE_ENV === 'production' ? 600 : 60;
 let SubscriptionsController = class SubscriptionsController {
     constructor(subscriptionsService) {
         this.subscriptionsService = subscriptionsService;

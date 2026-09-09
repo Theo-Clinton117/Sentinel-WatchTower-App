@@ -17,6 +17,7 @@ function mapUserRow(row, extras) {
         phone: row.phone_e164,
         name: row.name,
         email: row.email,
+        phoneVerified: Boolean(row.phone_verified),
         status: row.status,
         hasPassword: Boolean(row.password_hash),
         credibility: extras?.credibility || null,

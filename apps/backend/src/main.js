@@ -12,6 +12,7 @@ async function bootstrap() {
     (0, load_env_1.loadEnv)();
     (0, runtime_1.validateRuntimeConfig)();
     const app = await core_1.NestFactory.create(app_module_1.AppModule, { rawBody: true });
+    app.set('trust proxy', Number(process.env.TRUST_PROXY_HOPS || (process.env.NODE_ENV === 'production' ? 1 : 0)));
     app.enableCors({
         origin: (0, runtime_1.getCorsOrigins)(),
         credentials: true,

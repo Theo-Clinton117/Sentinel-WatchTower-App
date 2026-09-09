@@ -85,7 +85,7 @@ let SubscriptionsService = class SubscriptionsService {
         }
         const verifiedSnapshot = await this.fetchPaystackSnapshot(userId, reference, catalog);
         await this.persistSnapshot(userId, verifiedSnapshot, catalog);
-        return this.buildResponse(userId, catalog, verifiedSnapshot, 'verified');
+        return this.buildResponse(userId, catalog, await this.getStoredSnapshot(userId, catalog), 'verified');
     }
     async handlePaystackWebhook(rawBody, signature) {
         const body = Buffer.isBuffer(rawBody) ? rawBody : Buffer.from(String(rawBody || ''), 'utf8');
@@ -111,7 +111,7 @@ let SubscriptionsService = class SubscriptionsService {
         }
         const catalog = (0, subscription_catalog_1.getSubscriptionCatalog)();
         const snapshot = this.snapshotFromPaystackTransaction(transaction, catalog);
-        if (!snapshot.providerRef || !snapshot.activePlanId || snapshot.activePlanId === 'free') {
+        if (!snapshot.providerRef || snapshot.status !== 'active' || snapshot.activePlanId !== 'basic' || transaction.metadata?.product !== 'sentinel_service' || Number(transaction.metadata?.durationDays) !== 30) {
             return { received: true, processed: false, reason: 'unrecognized_plan' };
         }
         await this.persistSnapshot(String(userId), snapshot, catalog);
@@ -122,11 +122,7 @@ let SubscriptionsService = class SubscriptionsService {
             throw new common_1.ServiceUnavailableException('Paystack is not configured for this environment.');
         }
         const catalog = (0, subscription_catalog_1.getSubscriptionCatalog)();
-        const planId = (0, subscription_catalog_1.normalizePlanId)(body?.planId);
-        const plan = catalog.find((item) => item.id === planId);
-        if (!plan || plan.id === 'free') {
-            throw new common_1.BadRequestException('Choose a paid subscription plan.');
-        }
+        const plan = catalog.find((item) => item.id === 'basic');
         const email = await this.resolveBillingEmail(userId, body?.email);
         if (!email) {
             throw new common_1.BadRequestException('Add an email address before starting Paystack checkout.');
@@ -136,11 +132,10 @@ let SubscriptionsService = class SubscriptionsService {
             amount: Math.round(plan.amountNgn * 100),
             currency: 'NGN',
             callback_url: String(body?.callbackUrl || '').trim() || getPaystackCallbackUrl() || undefined,
-            plan: String(process.env[`PAYSTACK_${plan.id.toUpperCase()}_PLAN_CODE`] || '').trim() || undefined,
             metadata: {
                 userId,
-                planId: plan.id,
-                planName: plan.name,
+                product: 'sentinel_service',
+                durationDays: 30,
             },
         };
         Object.keys(payload).forEach((key) => {
@@ -154,25 +149,26 @@ let SubscriptionsService = class SubscriptionsService {
         });
         return {
             provider: 'paystack',
-            planId: plan.id,
+            planId: 'basic',
             authorizationUrl: response?.data?.authorization_url || null,
             accessCode: response?.data?.access_code || null,
             reference: response?.data?.reference || null,
         };
     }
     async getStoredSnapshot(userId, catalog) {
-        const result = await this.db.query('select * from subscriptions where user_id = $1 order by started_at desc nulls last, current_period_end desc nulls last limit 1', [userId]);
+        const result = await this.db.query('select * from subscriptions where user_id = $1 order by paid_until desc nulls last, current_period_end desc nulls last, started_at desc nulls last limit 1', [userId]);
         const row = result.rows[0];
         if (!row) {
             return this.buildFreeSnapshot();
         }
         const activePlanId = (0, subscription_catalog_1.normalizePlanId)(row.plan_name);
         const matchingPlan = catalog.find((plan) => plan.id === activePlanId) || catalog[0];
-        const expiredPaidSnapshot = activePlanId !== 'free' && isPastIso(row.current_period_end);
+        const paidUntil = row.paid_until || row.current_period_end;
+        const expiredPaidSnapshot = activePlanId !== 'free' && isPastIso(paidUntil);
         return {
             activePlanId: expiredPaidSnapshot ? 'free' : activePlanId,
             status: expiredPaidSnapshot ? 'expired' : normalizeStatus(row.status, activePlanId),
-            currentPeriodEnd: expiredPaidSnapshot ? null : toIso(row.current_period_end),
+            currentPeriodEnd: expiredPaidSnapshot ? null : toIso(paidUntil),
             provider: row.provider ? String(row.provider) : null,
             providerRef: row.provider_ref || null,
             startedAt: toIso(row.started_at),
@@ -188,21 +184,24 @@ let SubscriptionsService = class SubscriptionsService {
             throw new common_1.ConflictException('Paystack payment has not completed successfully yet.');
         }
         const metadata = transaction.metadata || {};
-        if (metadata.userId && String(metadata.userId) !== String(userId)) {
+        if (String(metadata.userId || '') !== String(userId) || metadata.product !== 'sentinel_service' || Number(metadata.durationDays) !== 30) {
             throw new common_1.ForbiddenException('This payment reference belongs to another user.');
+        }
+        if (Number(transaction.amount) !== 100000 || String(transaction.currency || '').toUpperCase() !== 'NGN') {
+            throw new common_1.ConflictException('Payment amount or currency does not match Sentinel pricing.');
         }
         return this.snapshotFromPaystackTransaction(transaction, catalog);
     }
     snapshotFromPaystackTransaction(transaction, catalog) {
-        const metadata = transaction.metadata || {};
-        const activePlanId = (0, subscription_catalog_1.normalizePlanId)(metadata.planId);
-        const matchedPlan = catalog.find((plan) => plan.id === activePlanId && plan.id !== 'free') || this.resolvePlanFromAmount(catalog, transaction.amount);
+        const activePlanId = 'basic';
+        const matchedPlan = Number(transaction.amount) === 100000 && String(transaction.currency || 'NGN').toUpperCase() === 'NGN'
+            ? catalog.find((plan) => plan.id === 'basic')
+            : null;
         const paidAt = toIso(transaction.paid_at || transaction.created_at) || new Date().toISOString();
-        const periodEnd = this.resolvePaystackPeriodEnd(transaction) || new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString();
         return {
             activePlanId: matchedPlan?.id || 'free',
             status: matchedPlan ? 'active' : 'inactive',
-            currentPeriodEnd: matchedPlan ? periodEnd : null,
+            currentPeriodEnd: null,
             provider: 'paystack',
             providerRef: transaction.reference || null,
             startedAt: paidAt,
@@ -254,19 +253,26 @@ let SubscriptionsService = class SubscriptionsService {
     }
     async persistSnapshotWithClient(client, userId, snapshot, catalog) {
         const plan = catalog.find((item) => item.id === snapshot.activePlanId) || catalog[0];
-        const existing = await client.query('select id from subscriptions where provider = $1 and provider_ref = $2 limit 1', ['paystack', snapshot.providerRef]);
-        if (existing.rows[0]) {
-            return;
-        }
-        await client.query('insert into subscriptions (user_id, provider, status, plan_name, amount_ngn, started_at, current_period_end, provider_ref) values ($1, $2, $3, $4, $5, coalesce($6::timestamptz, now()), $7::timestamptz, $8) on conflict (provider, provider_ref) do nothing', [
+        // Serialize different successful payments for the same account even
+        // when the account has no existing subscription row to lock.
+        await client.query('select pg_advisory_xact_lock(hashtext($1))', [String(userId)]);
+        const current = await client.query('select paid_until from subscriptions where user_id = $1 order by paid_until desc nulls last, started_at desc nulls last limit 1 for update', [userId]);
+        const base = current.rows[0]?.paid_until && new Date(current.rows[0].paid_until).getTime() > Date.now()
+            ? new Date(current.rows[0].paid_until)
+            : new Date();
+        const paidUntil = new Date(base.getTime() + 30 * 24 * 60 * 60 * 1000);
+        await client.query('insert into subscriptions (user_id, provider, status, entitlement_status, plan_name, amount_ngn, payment_amount_ngn, payment_currency, started_at, payment_at, current_period_end, paid_until, duration_days, provider_ref, paystack_metadata) values ($1, $2, $3, $4, $5, $6, $6, $7, coalesce($8::timestamptz, now()), coalesce($8::timestamptz, now()), $9::timestamptz, $9::timestamptz, 30, $10, $11::jsonb) on conflict (provider, provider_ref) where provider_ref is not null do nothing', [
             userId,
             snapshot.provider || 'paystack',
             snapshot.status,
-            plan.id,
+            'active',
+            'basic',
             snapshot.amountNgn,
+            'NGN',
             snapshot.startedAt,
-            snapshot.currentPeriodEnd,
+            paidUntil.toISOString(),
             snapshot.providerRef,
+            JSON.stringify({ reference: snapshot.providerRef, durationDays: 30 }),
         ]);
     }
     buildResponse(userId, catalog, snapshot, syncStatus) {
@@ -285,7 +291,7 @@ let SubscriptionsService = class SubscriptionsService {
             management: {
                 provider: snapshot.provider,
                 mode: 'paystack',
-                helpText: 'Manage billing from your Paystack receipt or contact Sentinel support.',
+                helpText: 'Renew Sentinel manually for another 30 days when your service expires.',
             },
         };
     }

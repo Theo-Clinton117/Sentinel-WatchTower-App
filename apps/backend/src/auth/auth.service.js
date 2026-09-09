@@ -130,6 +130,7 @@ function mapUserRow(user, extras) {
         name: user.name,
         email: user.email,
         status: user.status,
+        phoneVerified: Boolean(user.phone_verified),
         credibility: extras?.credibility || null,
         roles: Array.isArray(extras?.roles) ? extras.roles : ['user'],
         reviewerRequest: extras?.reviewerRequest || null,
@@ -407,13 +408,13 @@ let AuthService = class AuthService {
             }
             if (!row) {
                 const createdUser = await client.query(
-                    "insert into users (email, name, phone_e164, status) values ($1, $2, $3, 'active') returning *",
-                    [email || null, verifiedName || null, phone || null],
+                    "insert into users (email, name, phone_e164, phone_verified, status) values ($1, $2, $3, $4, 'active') returning *",
+                    [email || null, verifiedName || null, phone || null, Boolean(phone)],
                 );
                 row = createdUser.rows[0];
             }
-            else if (verifiedName) {
-                const updatedUser = await client.query('update users set name = $2, updated_at = now() where id = $1 returning *', [row.id, verifiedName]);
+            else if (verifiedName || phone) {
+                const updatedUser = await client.query('update users set name = coalesce($2, name), phone_verified = case when $3 then true else phone_verified end, updated_at = now() where id = $1 returning *', [row.id, verifiedName || null, Boolean(phone)]);
                 row = updatedUser.rows[0];
             }
             if (dto.deviceId) {

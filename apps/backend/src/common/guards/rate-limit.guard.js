@@ -31,7 +31,24 @@ let RateLimitGuard = class RateLimitGuard {
             return true;
         }
         const request = context.switchToHttp().getRequest();
-        const key = request.user?.sub || request.ip;
+        // Scope buckets by route as well as caller. Previously every endpoint
+        // sharing the same points/duration also shared a bucket, so an OTP
+        // request could consume verification/login capacity for the same IP.
+        // Express derives req.ip from X-Forwarded-For only for trusted proxy
+        // hops. On Render, main.js trusts the single Render proxy hop in
+        // production (or the explicitly configured TRUST_PROXY_HOPS value).
+        // req.ips ordering is proxy-dependent, so it must not be used as the
+        // client identity here.
+        const identity = request.user?.sub || request.ip || 'unknown';
+const route = request.route?.path || request.url?.split('?')[0] || 'unknown';
+
+console.log('[RATE LIMIT DEBUG]', {
+    method: request.method,
+    route,
+    ip: request.ip,
+    identityType: request.user?.sub ? 'user' : 'ip',
+});
+        const key = `${request.method}:${route}:${identity}`;
         const limiter = this.getLimiter(config);
         if (!limiter) {
             return true;

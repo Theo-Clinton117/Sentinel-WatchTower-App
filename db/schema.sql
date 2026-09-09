@@ -4,8 +4,9 @@ create table if not exists users (
   id uuid primary key default gen_random_uuid(),
   phone_e164 text unique,
   name text,
-  email text,
-  password_hash text,
+    email text,
+    password_hash text,
+    phone_verified boolean not null default false,
   status text default 'active',
   created_at timestamptz default now(),
   updated_at timestamptz default now(),
@@ -557,8 +558,15 @@ create table if not exists subscriptions (
   amount_ngn int default 1000,
   started_at timestamptz default now(),
   current_period_end timestamptz,
-  provider_ref text
-);
+    provider_ref text,
+    paid_until timestamptz,
+    entitlement_status text not null default 'active',
+    duration_days integer not null default 30,
+    payment_amount_ngn integer,
+    payment_currency text,
+    payment_at timestamptz,
+    paystack_metadata jsonb not null default '{}'::jsonb
+  );
 
 create table if not exists auth_refresh_sessions (
   id uuid primary key default gen_random_uuid(),
@@ -645,6 +653,18 @@ create index if not exists idx_reports_user_created on reports(user_id, created_
 create index if not exists idx_trusted_contacts_user_priority_created on trusted_contacts(user_id, priority asc, created_at desc);
 create index if not exists idx_notifications_user_created on notifications(user_id, created_at desc);
 create index if not exists idx_subscriptions_user_period on subscriptions(user_id, started_at desc nulls last, current_period_end desc nulls last);
+create unique index if not exists idx_subscriptions_provider_ref_unique
+  on subscriptions(provider, provider_ref)
+  where provider_ref is not null;
+create table if not exists entitlement_reminders (
+    id uuid primary key default gen_random_uuid(),
+    user_id uuid not null references users(id) on delete cascade,
+    paid_until timestamptz not null,
+    reminder_key text not null,
+    sent_at timestamptz,
+    created_at timestamptz not null default now(),
+    unique (user_id, paid_until, reminder_key)
+);
 create index if not exists idx_auth_refresh_sessions_user on auth_refresh_sessions(user_id, created_at desc);
 create index if not exists idx_auth_refresh_sessions_token_hash on auth_refresh_sessions(token_hash);
 create index if not exists idx_auth_refresh_sessions_token_id on auth_refresh_sessions(token_id);

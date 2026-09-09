@@ -45,7 +45,7 @@ let AuthController = class AuthController {
 exports.AuthController = AuthController;
 __decorate([
     (0, common_1.Post)('otp/request'),
-    (0, rate_limit_decorator_1.RateLimit)({ points: 3, duration: 60 }),
+    (0, rate_limit_decorator_1.RateLimit)({ points: 5, duration: 600 }),
     __param(0, (0, common_1.Body)()),
     __metadata("design:type", Function),
     __metadata("design:paramtypes", [request_otp_dto_1.RequestOtpDto]),
@@ -53,7 +53,7 @@ __decorate([
 ], AuthController.prototype, "requestOtp", null);
 __decorate([
     (0, common_1.Post)('otp/verify'),
-    (0, rate_limit_decorator_1.RateLimit)({ points: 3, duration: 60 }),
+    (0, rate_limit_decorator_1.RateLimit)({ points: 8, duration: 600 }),
     __param(0, (0, common_1.Body)()),
     __metadata("design:type", Function),
     __metadata("design:paramtypes", [verify_otp_dto_1.VerifyOtpDto]),
@@ -61,7 +61,7 @@ __decorate([
 ], AuthController.prototype, "verifyOtp", null);
 __decorate([
     (0, common_1.Post)('password'),
-    (0, rate_limit_decorator_1.RateLimit)({ points: 8, duration: 60 }),
+    (0, rate_limit_decorator_1.RateLimit)({ points: 10, duration: 900 }),
     __param(0, (0, common_1.Body)()),
     __metadata("design:type", Function),
     __metadata("design:paramtypes", [Object]),
@@ -70,7 +70,7 @@ __decorate([
 __decorate([
     (0, common_1.Post)('password/set'),
     (0, common_1.UseGuards)(jwt_auth_guard_1.JwtAuthGuard),
-    (0, rate_limit_decorator_1.RateLimit)({ points: 8, duration: 60 }),
+    (0, rate_limit_decorator_1.RateLimit)({ points: 5, duration: 900 }),
     __param(0, (0, common_1.Req)()),
     __param(1, (0, common_1.Body)()),
     __metadata("design:type", Function),
