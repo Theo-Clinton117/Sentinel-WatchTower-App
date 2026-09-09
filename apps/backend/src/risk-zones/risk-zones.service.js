@@ -14,38 +14,41 @@ let RiskZonesService = class RiskZonesService {
         this.db = db;
     }
     async list() {
-        const result = await this.db.query(`
-      select
-        id,
-        name,
-        center_lat,
-        center_lng,
-        radius_m,
-        risk_level,
-        status,
-        created_at,
-        updated_at,
-        resolved_at
-      from risk_zones
-      where coalesce(status, 'active') = 'active'
-        and center_lat is not null
-        and center_lng is not null
-      order by coalesce(updated_at, created_at) desc
-      limit 500
-    `);
-        return result.rows.map((row) => ({
-            id: row.id,
-            name: row.name,
-            lat: Number(row.center_lat),
-            lng: Number(row.center_lng),
-            radiusM: row.radius_m,
-            riskLevel: row.risk_level,
-            status: row.status || 'active',
-            createdAt: row.created_at,
-            updatedAt: row.updated_at || null,
-            resolvedAt: row.resolved_at || null,
-        }));
-    }
+  const result = await this.db.query(`
+    select
+      zone_key,
+      center_lat,
+      center_lng,
+      risk_level,
+      status,
+      created_at,
+      updated_at,
+      resolved_at,
+      operational_zone_id,
+      response_grid_id
+    from risk_zones
+    where coalesce(status, 'active') = 'active'
+      and center_lat is not null
+      and center_lng is not null
+    order by coalesce(updated_at, created_at) desc
+    limit 500
+  `);
+
+  return result.rows.map((row) => ({
+    id: row.zone_key,
+    name: row.zone_key,
+    lat: Number(row.center_lat),
+    lng: Number(row.center_lng),
+    radiusM: null,
+    riskLevel: row.risk_level,
+    status: row.status || 'active',
+    createdAt: row.created_at,
+    updatedAt: row.updated_at || null,
+    resolvedAt: row.resolved_at || null,
+    operationalZoneId: row.operational_zone_id || null,
+    responseGridId: row.response_grid_id || null,
+  }));
+}
     async geography() {
         const result = await this.db.query(`
       select
