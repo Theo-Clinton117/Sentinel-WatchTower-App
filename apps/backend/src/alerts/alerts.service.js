@@ -135,38 +135,47 @@ let AlertsService = class AlertsService {
         const created = await this.db.transaction(async (client) => {
             const alertResult = await client.query(`
         insert into alerts (
-          user_id,
-          status,
-          trigger_source,
-          escalation_level,
-          stage,
-          risk_score,
-          risk_snapshot,
-          detection_summary,
-          cancel_expires_at
-        )
-        values (
-          $1,
-          'active',
-          $2,
-          $3,
-          $4,
-          $5,
-          $6::jsonb,
-          $7::jsonb,
-          case when $8::int > 0 then now() + ($8::int * interval '1 millisecond') else null end
-        )
+  user_id,
+  type,
+  severity,
+  message,
+  status,
+  trigger_source,
+  escalation_level,
+  stage,
+  risk_score,
+  risk_snapshot,
+  detection_summary,
+  cancel_expires_at
+)
+values (
+  $1,
+  $2,
+  $3,
+  $4,
+  'active',
+  $5,
+  $6,
+  $7,
+  $8,
+  $9::jsonb,
+  $10::jsonb,
+  case when $11::int > 0 then now() + ($11::int * interval '1 millisecond') else null end
+)
         returning *
       `, [
-                userId,
-                triggerSource,
-                escalationLevel,
-                alertStage,
-                riskScore,
-                JSON.stringify(riskSnapshot),
-                JSON.stringify(detectionSummary),
-                cancelWindowMs,
-            ]);
+    userId,
+    triggerSource,
+    alertStage,
+    `Sentinel ${alertStage.replace('_', ' ')} alert`,
+    triggerSource,
+    escalationLevel,
+    alertStage,
+    riskScore,
+    JSON.stringify(riskSnapshot),
+    JSON.stringify(detectionSummary),
+    cancelWindowMs,
+]);
             const alert = alertResult.rows[0];
             const sessionResult = await client.query(`
         insert into watch_sessions (alert_id, user_id, status, escalation_level)
