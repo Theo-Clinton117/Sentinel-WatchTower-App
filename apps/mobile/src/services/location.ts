@@ -34,8 +34,6 @@ const BUFFER_FLUSH_MS = 20000;
 const MAX_BUFFER_SIZE = 3;
 const STRICT_LOCATION_ACCURACY_METERS = 50;
 const GOOGLE_GEOCODE_URL = 'https://maps.googleapis.com/maps/api/geocode/json';
-const GOOGLE_GEOCODE_RESULT_TYPES = 'street_address|premise|subpremise';
-const GOOGLE_GEOCODE_LOCATION_TYPES = 'ROOFTOP';
 
 type PendingLocationUpload = {
   sessionId: string;
@@ -129,12 +127,7 @@ function buildGoogleReverseGeocodeUrl(location: CoordinateLike) {
     return null;
   }
 
-  const params = new URLSearchParams({
-    latlng: `${location.lat},${location.lng}`,
-    location_type: GOOGLE_GEOCODE_LOCATION_TYPES,
-    result_type: GOOGLE_GEOCODE_RESULT_TYPES,
-    key: apiKey,
-  });
+  const params = new URLSearchParams({ latlng: `${location.lat},${location.lng}`, key: apiKey });
 
   return `${GOOGLE_GEOCODE_URL}?${params.toString()}`;
 }
@@ -207,21 +200,10 @@ export async function getReadableLocationLabel(location: PreciseCoordinateLike) 
     return null;
   }
 
-  const strictResult =
-    payload.results.find(
-      (result) =>
-        result.geometry?.location_type === 'ROOFTOP' &&
-        Array.isArray(result.types) &&
-        result.types.some((type) =>
-          ['street_address', 'premise', 'subpremise'].includes(type),
-        ),
-    ) || payload.results[0];
-
-  if (!strictResult || strictResult.geometry?.location_type !== 'ROOFTOP') {
-    return null;
-  }
-
-  return buildGoogleAddressLabel(strictResult) || null;
+  // Nigerian addresses frequently resolve to route, neighbourhood, or plus-code
+  // results rather than a ROOFTOP record. Coordinates are already validated; use
+  // the best returned address instead of treating those valid results as failures.
+  return buildGoogleAddressLabel(payload.results[0]) || null;
 }
 
 function getRecordedAtMs(location: EmergencyLocation) {

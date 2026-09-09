@@ -5,6 +5,7 @@ create table if not exists users (
   phone_e164 text unique,
   name text,
   email text,
+  password_hash text,
   status text default 'active',
   created_at timestamptz default now(),
   updated_at timestamptz default now(),

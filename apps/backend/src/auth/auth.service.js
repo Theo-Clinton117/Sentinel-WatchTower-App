@@ -90,6 +90,17 @@ function safeEqualHex(left, right) {
     const b = Buffer.from(String(right || ''), 'hex');
     return a.length === b.length && crypto.timingSafeEqual(a, b);
 }
+function hashPassword(password) {
+    const salt = crypto.randomBytes(16).toString('hex');
+    const digest = crypto.scryptSync(String(password), salt, 64).toString('hex');
+    return `scrypt$${salt}$${digest}`;
+}
+function passwordMatches(password, stored) {
+    const [scheme, salt, digest] = String(stored || '').split('$');
+    if (scheme !== 'scrypt' || !salt || !digest) return false;
+    const actual = crypto.scryptSync(String(password), salt, 64).toString('hex');
+    return safeEqualHex(digest, actual);
+}
 function createRefreshTokenId() {
     return crypto.randomUUID();
 }
@@ -439,6 +450,41 @@ let AuthService = class AuthService {
         catch (error) {
             throw new common_1.UnauthorizedException('Invalid refresh token');
         }
+    }
+    async passwordAuth(dto) {
+        const email = normalizeEmail(dto?.email);
+        const password = String(dto?.password || '');
+        const mode = dto?.mode === 'login' ? 'login' : 'signup';
+        const name = normalizeName(dto?.name);
+        if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email) || password.length < 12) {
+            throw new common_1.BadRequestException('Enter a valid email and a password of at least 12 characters.');
+        }
+        if (mode === 'signup' && name.length < 2) throw new common_1.BadRequestException('Name is required for signup.');
+        const user = await this.db.transaction(async (client) => {
+            const found = await client.query('select * from users where lower(email) = $1 limit 1 for update', [email]);
+            let row = found.rows[0];
+            if (mode === 'signup') {
+                if (row) throw new common_1.ConflictException('An account already exists for this email.');
+                const created = await client.query("insert into users (email, name, status, password_hash) values ($1, $2, 'active', $3) returning *", [email, name, hashPassword(password)]);
+                row = created.rows[0];
+            }
+            else if (!row || !passwordMatches(password, row.password_hash)) {
+                // Deliberately do not disclose whether the account or password was wrong.
+                throw new common_1.UnauthorizedException('Invalid email or password.');
+            }
+            if (dto?.deviceId) {
+                await client.query(`insert into user_devices (user_id, device_id, platform, last_seen_at)
+                  values ($1, $2, $3, now())
+                  on conflict (user_id, device_id) do update set platform = excluded.platform, last_seen_at = now()`, [row.id, dto.deviceId, dto.platform || null]);
+            }
+            await (0, roles_logic_1.ensureDefaultUserRole)(client, row.id);
+            return row;
+        });
+        const tokenRecord = await this.db.transaction(async (client) => this.issueRefreshToken(client, user, { deviceId: dto?.deviceId }));
+        const credibility = await (0, credibility_logic_1.ensureCredibilityProfile)(this.db, user.id);
+        const roles = await (0, roles_logic_1.getUserRoleNames)(this.db, user.id);
+        const reviewerRequest = await (0, roles_logic_1.getLatestReviewerRequest)(this.db, user.id);
+        return { accessToken: this.jwt.sign({ sub: user.id }), refreshToken: tokenRecord.refreshToken, userId: user.id, user: mapUserRow(user, { credibility, roles, reviewerRequest }) };
     }
     async logout(refreshToken) {
         await this.revokeRefreshToken(refreshToken);

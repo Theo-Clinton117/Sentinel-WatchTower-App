@@ -7,6 +7,8 @@ export type PermissionStatusCard = {
   status: string;
 };
 
+export type PermissionKind = keyof AppPermissionSnapshot;
+
 export type AppPermissionSnapshot = {
   foregroundLocation: PermissionStatusCard;
   backgroundLocation: PermissionStatusCard;
@@ -37,18 +39,24 @@ export async function getAppPermissionSnapshot(): Promise<AppPermissionSnapshot>
 }
 
 export async function requestAppPermissions(): Promise<AppPermissionSnapshot> {
-  const foregroundLocation = await Location.requestForegroundPermissionsAsync();
-  let backgroundLocation = await Location.getBackgroundPermissionsAsync();
+  await requestPermission('foregroundLocation');
+  await requestPermission('notifications');
+  return getAppPermissionSnapshot();
+}
 
-  if (foregroundLocation.granted) {
-    backgroundLocation = await Location.requestBackgroundPermissionsAsync();
+// Request one capability at a time. Android cannot reliably present a background
+// location prompt immediately after the foreground prompt, so that capability is
+// intentionally requested from its own action after foreground access is granted.
+export async function requestPermission(kind: PermissionKind): Promise<AppPermissionSnapshot> {
+  const current = await getAppPermissionSnapshot();
+  const permission = current[kind];
+  if (permission.granted || !permission.canAskAgain) return current;
+
+  if (kind === 'foregroundLocation') await Location.requestForegroundPermissionsAsync();
+  if (kind === 'backgroundLocation') {
+    if (!current.foregroundLocation.granted) return getAppPermissionSnapshot();
+    await Location.requestBackgroundPermissionsAsync();
   }
-
-  const notifications = await Notifications.requestPermissionsAsync();
-
-  return {
-    foregroundLocation: normalizePermission(foregroundLocation),
-    backgroundLocation: normalizePermission(backgroundLocation),
-    notifications: normalizePermission(notifications),
-  };
+  if (kind === 'notifications') await Notifications.requestPermissionsAsync();
+  return getAppPermissionSnapshot();
 }

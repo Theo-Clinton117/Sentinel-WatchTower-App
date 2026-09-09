@@ -53,12 +53,9 @@ const MenuRow = ({
 const resolveDisplayName = (user?: AppUser | null) =>
   user?.name || user?.email || user?.phone || 'Sentinel member';
 
-const resolveProfileRating = (score?: number | null) => {
-  if (typeof score !== 'number') {
-    return '4.92';
-  }
-
-  return Math.max(4.1, Math.min(4.99, 4 + score / 100)).toFixed(2);
+const resolveProfileRating = (score?: number | null, reportCount = 0) => {
+  if (typeof score !== 'number' || reportCount === 0) return 'No rating yet';
+  return Math.max(1, Math.min(5, score / 20)).toFixed(2);
 };
 
 export const ProfileScreen = () => {
@@ -102,7 +99,7 @@ export const ProfileScreen = () => {
   }, [setUser]);
 
   const displayName = resolveDisplayName(user);
-  const profileRating = resolveProfileRating(user?.credibility?.score);
+  const profileRating = resolveProfileRating(user?.credibility?.score, user?.credibility?.totalReportsCount);
   const savedPlaceCount =
     Number(Boolean(savedPlaces.home?.addressLine)) + Number(Boolean(savedPlaces.work?.addressLine));
   const savedPlaceItems: Array<{ label: string; icon: ProfileGlyphName; screen: Screen }> = [

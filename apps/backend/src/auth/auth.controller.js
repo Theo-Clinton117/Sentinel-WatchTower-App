@@ -28,6 +28,9 @@ let AuthController = class AuthController {
     verifyOtp(dto) {
         return this.authService.verifyOtp(dto);
     }
+    password(dto) {
+        return this.authService.passwordAuth(dto);
+    }
     refresh(body) {
         return this.authService.refresh(body.refreshToken);
     }
@@ -52,6 +55,14 @@ __decorate([
     __metadata("design:paramtypes", [verify_otp_dto_1.VerifyOtpDto]),
     __metadata("design:returntype", void 0)
 ], AuthController.prototype, "verifyOtp", null);
+__decorate([
+    (0, common_1.Post)('password'),
+    (0, rate_limit_decorator_1.RateLimit)({ points: 8, duration: 60 }),
+    __param(0, (0, common_1.Body)()),
+    __metadata("design:type", Function),
+    __metadata("design:paramtypes", [Object]),
+    __metadata("design:returntype", void 0)
+], AuthController.prototype, "password", null);
 __decorate([
     (0, common_1.Post)('refresh'),
     (0, rate_limit_decorator_1.RateLimit)({ points: 30, duration: 60 }),

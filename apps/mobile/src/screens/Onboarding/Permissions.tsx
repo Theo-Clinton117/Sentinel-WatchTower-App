@@ -1,5 +1,5 @@
 import React, { useEffect, useMemo, useState } from 'react';
-import { ActivityIndicator, Linking, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { ActivityIndicator, AppState, Linking, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { AuthArtPanel } from '../../components/AuthArtPanel';
 import { FeedbackBanner } from '../../components/FeedbackBanner';
 import { MotionView } from '../../components/MotionView';
@@ -9,7 +9,8 @@ import { useAppStore } from '../../store/useAppStore';
 import {
   AppPermissionSnapshot,
   getAppPermissionSnapshot,
-  requestAppPermissions,
+  PermissionKind,
+  requestPermission,
 } from '../../services/permissions';
 import { useAppTheme } from '../../theme';
 
@@ -49,9 +50,13 @@ export const OnboardingPermissionsScreen = () => {
     };
 
     void loadPermissions();
+    const subscription = AppState.addEventListener('change', (state) => {
+      if (state === 'active') void loadPermissions();
+    });
 
     return () => {
       active = false;
+      subscription.remove();
     };
   }, []);
 
@@ -60,11 +65,11 @@ export const OnboardingPermissionsScreen = () => {
     [snapshot],
   );
 
-  const handleGrantPermissions = async () => {
+  const handlePermission = async (kind: PermissionKind) => {
     try {
       setRequesting(true);
       setError('');
-      const nextSnapshot = await requestAppPermissions();
+      const nextSnapshot = await requestPermission(kind);
       setSnapshot(nextSnapshot);
     } catch {
       setError('Permission request did not complete. You can try again or finish for now.');
@@ -73,15 +78,29 @@ export const OnboardingPermissionsScreen = () => {
     }
   };
 
-  const renderStatus = (label: string, value: { granted: boolean; status: string }, note: string) => (
+  const describeStatus = (value: { granted: boolean; canAskAgain: boolean; status: string }) => {
+    if (value.granted) return 'Granted';
+    if (!value.canAskAgain) return 'Requires system settings';
+    if (value.status === 'undetermined') return 'Not requested';
+    if (value.status === 'denied') return 'Denied';
+    return 'Unavailable';
+  };
+  const renderStatus = (kind: PermissionKind, label: string, value: { granted: boolean; canAskAgain: boolean; status: string }, note: string) => (
     <View style={styles.permissionCard}>
       <View>
         <Text style={styles.permissionTitle}>{label}</Text>
         <Text style={styles.permissionNote}>{note}</Text>
       </View>
       <View style={[styles.badge, value.granted ? styles.badgeGranted : styles.badgePending]}>
-        <Text style={styles.badgeText}>{value.granted ? 'Granted' : value.status}</Text>
+        <Text style={styles.badgeText}>{describeStatus(value)}</Text>
       </View>
+      <Pressable
+        style={styles.cardAction}
+        onPress={() => value.canAskAgain && !value.granted ? handlePermission(kind) : Linking.openSettings().catch(() => undefined)}
+        disabled={requesting}
+      >
+        <Text style={styles.cardActionText}>{value.granted ? 'Done' : value.canAskAgain ? 'Allow' : 'Settings'}</Text>
+      </Pressable>
     </View>
   );
 
@@ -108,17 +127,17 @@ export const OnboardingPermissionsScreen = () => {
 
       <MotionView delay={120} style={styles.permissionsWrap}>
         {renderStatus(
-          'Foreground location',
+          'foregroundLocation', 'Location while using Sentinel',
           snapshot.foregroundLocation,
           'Shows your current position while you are using Sentinel.',
         )}
         {renderStatus(
-          'Background location',
+          'backgroundLocation', 'Location during an active alert',
           snapshot.backgroundLocation,
           'Keeps location updates going if the screen changes during an alert.',
         )}
         {renderStatus(
-          'Notifications',
+          'notifications', 'Safety notifications',
           snapshot.notifications,
           'Lets Sentinel show important safety updates on your phone.',
         )}
@@ -145,17 +164,7 @@ export const OnboardingPermissionsScreen = () => {
         </View>
       ) : null}
 
-      <Pressable
-        style={[styles.button, requesting && styles.buttonDisabled]}
-        onPress={handleGrantPermissions}
-        disabled={requesting}
-      >
-        {requesting ? (
-          <ActivityIndicator color={theme.colors.text} />
-        ) : (
-          <Text style={styles.buttonText}>Grant Permissions</Text>
-        )}
-      </Pressable>
+      {requesting ? <ActivityIndicator color={theme.colors.blueGlow} /> : null}
       <Pressable
         style={styles.secondary}
         onPress={() => {
@@ -199,7 +208,8 @@ const createStyles = (theme: ReturnType<typeof useAppTheme>) => StyleSheet.creat
   permissionCard: {
     flexDirection: 'row',
     justifyContent: 'space-between',
-    alignItems: 'center',
+    alignItems: 'flex-start',
+    flexWrap: 'wrap',
     gap: 14,
     padding: 16,
     borderRadius: 8,
@@ -238,6 +248,8 @@ const createStyles = (theme: ReturnType<typeof useAppTheme>) => StyleSheet.creat
     fontSize: 12,
     fontWeight: '700',
   },
+  cardAction: { minHeight: 36, paddingHorizontal: 12, borderRadius: 10, backgroundColor: theme.colors.blue, justifyContent: 'center' },
+  cardActionText: { color: '#fff', fontSize: 12, fontWeight: '800' },
   loaderWrap: {
     minHeight: 24,
     justifyContent: 'center',
