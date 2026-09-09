@@ -39,7 +39,10 @@ let RateLimitGuard = class RateLimitGuard {
         // production (or the explicitly configured TRUST_PROXY_HOPS value).
         // req.ips ordering is proxy-dependent, so it must not be used as the
         // client identity here.
-        const identity = request.user?.sub || request.ip || 'unknown';
+        const identity = request.user?.sub
+    ? `user:${request.user.sub}`
+    : `ip:${request.ip || 'unknown'}`;
+    
 const route = request.route?.path || request.url?.split('?')[0] || 'unknown';
 
 console.log('[RATE LIMIT DEBUG]', {

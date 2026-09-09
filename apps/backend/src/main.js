@@ -21,7 +21,6 @@ async function bootstrap() {
     });
     app.useGlobalPipes(new common_1.ValidationPipe({ whitelist: true, transform: true }));
     app.useGlobalFilters(new http_exception_filter_1.HttpExceptionFilter());
-    app.useGlobalGuards(app.get(rate_limit_guard_1.RateLimitGuard));
     app.setGlobalPrefix('api');
     const port = process.env.PORT ? Number(process.env.PORT) : 4000;
     await app.listen(port);

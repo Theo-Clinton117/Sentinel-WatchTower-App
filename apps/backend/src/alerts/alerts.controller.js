@@ -1,3 +1,5 @@
+const rate_limit_guard_1 = require("../common/guards/rate-limit.guard");
+
 "use strict";
 var __decorate = (this && this.__decorate) || function (decorators, target, key, desc) {
     var c = arguments.length, r = c < 3 ? target : desc === null ? desc = Object.getOwnPropertyDescriptor(target, key) : desc, d;
@@ -15,6 +17,7 @@ Object.defineProperty(exports, "__esModule", { value: true });
 exports.AlertsController = void 0;
 const common_1 = require("@nestjs/common");
 const jwt_auth_guard_1 = require("../common/guards/jwt-auth.guard");
+const rate_limit_guard_1 = require("../common/guards/rate-limit.guard");
 const rate_limit_decorator_1 = require("../common/guards/rate-limit.decorator");
 const alerts_service_1 = require("./alerts.service");
 let AlertsController = class AlertsController {
@@ -63,7 +66,7 @@ __decorate([
 ], AlertsController.prototype, "cancel", null);
 exports.AlertsController = AlertsController = __decorate([
     (0, common_1.Controller)('alerts'),
-    (0, common_1.UseGuards)(jwt_auth_guard_1.JwtAuthGuard),
+    (0, common_1.UseGuards)(jwt_auth_guard_1.JwtAuthGuard, rate_limit_guard_1.RateLimitGuard),
     __metadata("design:paramtypes", [alerts_service_1.AlertsService])
 ], AlertsController);
 //# sourceMappingURL=alerts.controller.js.map
