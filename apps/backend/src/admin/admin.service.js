@@ -1,34 +1,5 @@
 "use strict";
 
-var __decorate = (this && this.__decorate) || function (decorators, target, key, desc) {
-    var c = arguments.length,
-        r = c < 3
-            ? target
-            : desc === null
-                ? desc = Object.getOwnPropertyDescriptor(target, key)
-                : desc,
-        d;
-
-    if (typeof Reflect === "object" && typeof Reflect.decorate === "function") {
-        r = Reflect.decorate(decorators, target, key, desc);
-    } else {
-        for (var i = decorators.length - 1; i >= 0; i--) {
-            if (d = decorators[i]) {
-                r = (c < 3
-                    ? d(r)
-                    : c > 3
-                        ? d(target, key, r)
-                        : d(target, key)) || r;
-            }
-        }
-    }
-
-    return c > 3 &&
-        r &&
-        Object.defineProperty(target, key, r),
-        r;
-};
-
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.AdminService = void 0;
 
@@ -53,7 +24,7 @@ function mapReviewerReportRow(row) {
         description: row.description,
         status: row.status,
         category: row.category || null,
-        severity: row.severity || 'medium',
+        severity: row.severity || "medium",
         createdAt: row.created_at,
         flagsCount: toNumber(row.flags_count, 0),
         confirmationsCount: toNumber(row.confirmations_count, 0),
@@ -70,23 +41,23 @@ function mapReviewerReportRow(row) {
             : null,
 
         distribution: {
-            status: row.distribution_status || 'queued',
+            status: row.distribution_status || "queued",
             reason: row.distribution_reason || null,
             visibilityScope:
-                row.visibility_scope || 'nearby_only',
+                row.visibility_scope || "nearby_only",
             requiresManualReview:
                 Boolean(row.requires_manual_review),
             throttledUntil:
                 row.throttled_until || null,
             restrictionApplied:
-                row.restriction_applied || 'none',
+                row.restriction_applied || "none",
         },
 
         classification: {
             status:
-                row.classification || 'inconclusive',
+                row.classification || "inconclusive",
             responseOutcome:
-                row.response_outcome || 'pending',
+                row.response_outcome || "pending",
             aiConfidence:
                 toNumber(row.ai_confidence, 0),
             qualityScore:
@@ -110,9 +81,9 @@ function mapReviewerReportRow(row) {
             score:
                 toNumber(row.reporter_score, 50),
             ratingTier:
-                row.reporter_rating_tier || 'mid',
+                row.reporter_rating_tier || "mid",
             restrictionLevel:
-                row.reporter_restriction_level || 'none',
+                row.reporter_restriction_level || "none",
         },
     };
 }
@@ -122,23 +93,23 @@ let AdminService = class AdminService {
         this.db = db;
     }
 
-    async reportsQueue(filter = 'pending') {
+    async reportsQueue(filter = "pending") {
         const normalizedFilter =
-            String(filter || 'pending')
+            String(filter || "pending")
                 .trim()
                 .toLowerCase();
 
         const whereClause =
-            normalizedFilter === 'reviewed'
+            normalizedFilter === "reviewed"
                 ? `where rc.reviewed_at is not null`
-                : normalizedFilter === 'flagged'
+                : normalizedFilter === "flagged"
                     ? `where coalesce(flag_stats.flags_count, 0) > 0`
-                    : normalizedFilter === 'all'
+                    : normalizedFilter === "all"
                         ? ``
                         : `where coalesce(r.requires_manual_review, false) = true
               or coalesce(flag_stats.flags_count, 0) > 0
               or coalesce(rc.response_outcome, 'pending') = 'pending'
-              or coalesce(rc.classification, 'inconclusive') = 'inconclusive`;
+              or coalesce(rc.classification, 'inconclusive') = 'inconclusive'`;
 
         const summaryResult = await this.db.query(`
       select
@@ -376,7 +347,7 @@ let AdminService = class AdminService {
                 row.session_status || null,
             startedAt: row.started_at,
             lastLocationAt:
-                row.last_location_at,
+                row.last_location_at || null,
 
             user: {
                 phone: row.phone_e164,
@@ -385,12 +356,6 @@ let AdminService = class AdminService {
         }));
     }
 
-    /*
-     * Historical emergency alerts.
-     *
-     * This deliberately reads from alerts/watch_sessions rather
-     * than reports. Emergency alerts are not reports.
-     */
     async alertHistory(limit = 40) {
         const safeLimit = Math.min(
             Math.max(
@@ -468,26 +433,13 @@ let AdminService = class AdminService {
 
         return result.rows.map((row) => ({
             id: row.id,
-
             userId: row.user_id,
-
-            type:
-                row.type || null,
-
-            severity:
-                row.severity || null,
-
-            message:
-                row.message || null,
-
-            status:
-                row.status || null,
-
-            triggerSource:
-                row.trigger_source || null,
-
-            stage:
-                row.stage || null,
+            type: row.type || null,
+            severity: row.severity || null,
+            message: row.message || null,
+            status: row.status || null,
+            triggerSource: row.trigger_source || null,
+            stage: row.stage || null,
 
             escalationLevel:
                 row.escalation_level == null
@@ -522,16 +474,12 @@ let AdminService = class AdminService {
             session: {
                 id:
                     row.session_id || null,
-
                 status:
                     row.session_status || null,
-
                 startedAt:
                     row.started_at || null,
-
                 endedAt:
                     row.ended_at || null,
-
                 lastLocationAt:
                     row.last_location_at || null,
             },
@@ -546,10 +494,8 @@ let AdminService = class AdminService {
             latestAudit: {
                 eventType:
                     row.latest_event_type || null,
-
                 source:
                     row.latest_event_source || null,
-
                 createdAt:
                     row.latest_event_at || null,
             },
@@ -572,7 +518,7 @@ let AdminService = class AdminService {
 
         if (!alert) {
             throw new common_1.NotFoundException(
-                'Alert not found',
+                "Alert not found",
             );
         }
 
@@ -591,8 +537,8 @@ let AdminService = class AdminService {
     `,
                 [
                     adminUserId,
-                    'flag_alert',
-                    'alert',
+                    "flag_alert",
+                    "alert",
                     id,
                     (0, privacy_1.sanitizeAuditMetadata)({
                         reason:
@@ -650,20 +596,20 @@ let AdminService = class AdminService {
         values ($1, $2, $3, $4, $5)
         returning id
       `, [
-                    adminUserId,
-                    'classify_report',
-                    'report',
-                    id,
-                    (0, privacy_1.sanitizeAuditMetadata)({
-                        classification:
-                            body?.classification,
-                        responseOutcome:
-                            body?.responseOutcome ??
-                            'pending',
-                        notes:
-                            body?.notes ?? null,
-                    }),
-                ]);
+                        adminUserId,
+                        "classify_report",
+                        "report",
+                        id,
+                        (0, privacy_1.sanitizeAuditMetadata)({
+                            classification:
+                                body?.classification,
+                            responseOutcome:
+                                body?.responseOutcome ??
+                                "pending",
+                            notes:
+                                body?.notes ?? null,
+                        }),
+                    ]);
 
                 return {
                     ...result,
