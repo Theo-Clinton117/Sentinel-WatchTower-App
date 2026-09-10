@@ -59,7 +59,7 @@ function sanitizeDetectionSummary(value) {
     }
 
     return value
-        .map((item) => typeof item === 'string' ? item.trim() : '')
+        .map((item) => typeof item === "string" ? item.trim() : "")
         .filter((item) => item.length > 0)
         .slice(0, 8);
 }
@@ -117,7 +117,7 @@ async function recordAlertAudit(
         sessionId || null,
         userId || null,
         eventType,
-        source || 'system',
+        source || "system",
         fromStage || null,
         toStage || null,
         JSON.stringify(
@@ -160,7 +160,8 @@ let AlertsService = class AlertsService {
         a.created_at
       from watch_sessions s
       join alerts a on a.id = s.alert_id
-      where s.user_id = $1 and s.status = 'active'
+      where s.user_id = $1
+        and s.status = 'active'
       order by s.started_at desc
       limit 1
     `, [userId]);
@@ -169,7 +170,7 @@ let AlertsService = class AlertsService {
     }
 
     async create(userId, body) {
-        console.log('[ALERT USER DEBUG]', {
+        console.log("[ALERT USER DEBUG]", {
             userId,
             userIdType: typeof userId,
         });
@@ -181,39 +182,31 @@ let AlertsService = class AlertsService {
         }
 
         const triggerSource =
-            typeof body?.triggerSource === 'string' &&
+            typeof body?.triggerSource === "string" &&
             body.triggerSource.trim()
                 ? body.triggerSource.trim().toLowerCase()
-                : 'panic';
-
-        let alertStage = (0, alert_stages_1.normalizeAlertStage)(
-            body?.stage ||
-            (triggerSource === 'panic'
-                ? 'high_alert'
-                : 'soft_alert'),
-        );
+                : "panic";
 
         /*
-         * Panic alerts must never start below High Alert.
-         * They can still escalate from High Alert to Critical.
+         * SOS/panic now starts as a Soft Alert.
+         *
+         * The alert exists immediately so Sentinel can:
+         * - establish the emergency session;
+         * - begin location tracking;
+         * - maintain the backend state;
+         * - allow the user to manually choose the response level.
+         *
+         * Panic is no longer forcibly converted to High Alert.
          */
-        if (
-            triggerSource === 'panic' &&
-            (0, alert_stages_1.compareAlertStages)(
-                alertStage,
-                'high_alert',
-            ) < 0
-        ) {
-            alertStage = 'high_alert';
-        }
+        const alertStage = (0, alert_stages_1.normalizeAlertStage)(
+            body?.stage || "soft_alert",
+        );
 
         const escalationLevel =
             (0, alert_stages_1.getEscalationLevel)(alertStage);
 
         /*
-         * Severity is derived from the stage rather than being
-         * hard-coded. This keeps severity and escalation level
-         * synchronized.
+         * Severity is derived from the selected stage.
          */
         const severity =
             (0, alert_stages_1.getAlertSeverity)(alertStage);
@@ -222,20 +215,28 @@ let AlertsService = class AlertsService {
 
         const riskSnapshot =
             body?.riskSnapshot &&
-            typeof body.riskSnapshot === 'object'
+            typeof body.riskSnapshot === "object"
                 ? body.riskSnapshot
                 : {};
 
         const detectionSummary =
             sanitizeDetectionSummary(body?.detectionSummary);
 
-        const cancelWindowMs =
-            alertStage === 'soft_alert'
-                ? Math.max(
-                    3000,
-                    Number(body?.cancelWindowSeconds || 10) * 1000,
-                )
-                : 0;
+        /*
+         * The semi-manual emergency flow does not use a short
+         * cancellation window.
+         *
+         * The user explicitly chooses:
+         * - Keep monitoring
+         * - Suspicious
+         * - High Alert
+         * - Critical
+         * - I'm Safe
+         *
+         * Automatic escalation is handled separately by the
+         * escalation plan, not by a 10-second cancellation timer.
+         */
+        const cancelWindowMs = 0;
 
         const created = await this.db.transaction(async (client) => {
             const alertResult = await client.query(`
@@ -265,39 +266,34 @@ let AlertsService = class AlertsService {
           $8,
           $9::jsonb,
           $10::jsonb,
-          case
-            when $11::int > 0
-              then now() + ($11::int * interval '1 millisecond')
-            else null
-          end
+          null
         )
         returning *
       `, [
                 userId,
                 triggerSource,
                 severity,
-                `Sentinel ${alertStage.replace('_', ' ')} alert`,
+                `Sentinel ${alertStage.replace("_", " ")} alert`,
                 triggerSource,
                 escalationLevel,
                 alertStage,
                 riskScore,
                 JSON.stringify(riskSnapshot),
                 JSON.stringify(detectionSummary),
-                cancelWindowMs,
             ]);
 
             const alert = alertResult.rows[0];
 
             const sessionResult = await client.query(`
-            insert into watch_sessions (
-              owner_id,
-              alert_id,
-              user_id,
-              status,
-              escalation_level
-            )
-            values ($2, $1, $2, 'active', $3)
-            returning *
+        insert into watch_sessions (
+          owner_id,
+          alert_id,
+          user_id,
+          status,
+          escalation_level
+        )
+        values ($2, $1, $2, 'active', $3)
+        returning *
       `, [
                 alert.id,
                 userId,
@@ -310,7 +306,7 @@ let AlertsService = class AlertsService {
                 alertId: alert.id,
                 sessionId: session.id,
                 userId,
-                eventType: 'alert_created',
+                eventType: "alert_created",
                 source: triggerSource,
                 toStage: alertStage,
                 metadata: {
@@ -342,6 +338,12 @@ let AlertsService = class AlertsService {
             `trigger=${triggerSource}`,
         );
 
+        /*
+         * Schedule only whatever escalation plan is actually
+         * defined for the current stage.
+         *
+         * Soft Alert should have no automatic escalation plan.
+         */
         await bestEffort(
             () => this.queues.scheduleEscalation({
                 alertId,
@@ -353,7 +355,7 @@ let AlertsService = class AlertsService {
                     `Alert escalation scheduling failed after create: ${
                         error instanceof Error
                             ? error.message
-                            : 'unknown error'
+                            : "unknown error"
                     }`,
                 );
             },
@@ -361,35 +363,40 @@ let AlertsService = class AlertsService {
 
         this.ws.emitSessionStatus(
             sessionId,
-            'active',
+            "active",
             alertStage,
         );
 
+        /*
+         * Soft Alert and Suspicious remain discreet.
+         *
+         * External emergency notifications begin once the user
+         * explicitly reaches High Alert or Critical.
+         */
         if (
             (0, alert_stages_1.compareAlertStages)(
                 alertStage,
-                'high_alert',
+                "high_alert",
             ) >= 0
         ) {
             this.queues.enqueueAlertNotifications({
                 userId,
                 alertId,
                 sessionId,
-                eventType: 'alert_started',
+                eventType: "alert_started",
                 stage: alertStage,
                 triggerSource,
                 riskScore,
-                cancelExpiresAt:
-                    created.alert.cancel_expires_at || null,
+                cancelExpiresAt: null,
                 detectionSummary,
             }).catch((error) => {
                 common_1.Logger.warn(
                     `Alert notification dispatch failed: ${
                         error instanceof Error
                             ? error.message
-                            : 'unknown error'
+                            : "unknown error"
                     }`,
-                    'AlertsService',
+                    "AlertsService",
                 );
             });
         }
@@ -408,7 +415,7 @@ let AlertsService = class AlertsService {
             (0, alert_stages_1.normalizeAlertStage)(
                 body?.stage ||
                 body?.targetStage ||
-                'high_alert',
+                "high_alert",
             );
 
         const result = await this.db.transaction(async (client) => {
@@ -444,10 +451,24 @@ let AlertsService = class AlertsService {
 
             if (!current) {
                 throw new common_1.NotFoundException(
-                    'Active alert not found',
+                    "Active alert not found",
                 );
             }
 
+            /*
+             * Escalation is one-way.
+             *
+             * The user can move:
+             * soft_alert -> suspicious
+             * soft_alert -> high_alert
+             * soft_alert -> critical
+             * suspicious -> high_alert
+             * suspicious -> critical
+             * high_alert -> critical
+             *
+             * Once a serious stage has been reached, it cannot
+             * be silently downgraded. "I'm Safe" uses cancel().
+             */
             if (
                 (0, alert_stages_1.compareAlertStages)(
                     requestedStage,
@@ -480,7 +501,7 @@ let AlertsService = class AlertsService {
 
             const riskSnapshot =
                 body?.riskSnapshot &&
-                typeof body.riskSnapshot === 'object'
+                typeof body.riskSnapshot === "object"
                     ? body.riskSnapshot
                     : current.risk_snapshot || {};
 
@@ -508,11 +529,7 @@ let AlertsService = class AlertsService {
           risk_score = $4,
           risk_snapshot = $5::jsonb,
           detection_summary = $6::jsonb,
-          cancel_expires_at = case
-            when $1 = 'soft_alert'
-              then now() + interval '10 seconds'
-            else null
-          end,
+          cancel_expires_at = null,
           escalated_at = now()
         where id = $7
           and user_id = $8
@@ -547,8 +564,8 @@ let AlertsService = class AlertsService {
                 alertId: alert.id,
                 sessionId: current.session_id,
                 userId,
-                eventType: 'alert_escalated',
-                source: body?.source || 'user',
+                eventType: "alert_escalated",
+                source: body?.source || "user",
                 fromStage: current.stage,
                 toStage: requestedStage,
                 metadata: {
@@ -599,7 +616,7 @@ let AlertsService = class AlertsService {
                         `Alert escalation scheduling failed after manual escalation: ${
                             error instanceof Error
                                 ? error.message
-                                : 'unknown error'
+                                : "unknown error"
                         }`,
                     );
                 },
@@ -607,26 +624,29 @@ let AlertsService = class AlertsService {
 
             this.ws.emitSessionStatus(
                 result.session_id,
-                'active',
+                "active",
                 result.stage,
             );
 
+            /*
+             * High Alert and Critical are the stages that notify
+             * the emergency response chain.
+             */
             if (
                 (0, alert_stages_1.compareAlertStages)(
                     result.stage,
-                    'high_alert',
+                    "high_alert",
                 ) >= 0
             ) {
                 this.queues.enqueueAlertNotifications({
                     userId,
                     alertId: result.alert_id,
                     sessionId: result.session_id,
-                    eventType: 'alert_escalated',
+                    eventType: "alert_escalated",
                     stage: result.stage,
                     triggerSource: result.trigger_source,
                     riskScore: result.risk_score,
-                    cancelExpiresAt:
-                        result.cancel_expires_at || null,
+                    cancelExpiresAt: null,
                     detectionSummary:
                         Array.isArray(result.detection_summary)
                             ? result.detection_summary
@@ -636,9 +656,9 @@ let AlertsService = class AlertsService {
                         `Alert escalation notification failed: ${
                             error instanceof Error
                                 ? error.message
-                                : 'unknown error'
+                                : "unknown error"
                         }`,
-                        'AlertsService',
+                        "AlertsService",
                     );
                 });
             }
@@ -667,7 +687,7 @@ let AlertsService = class AlertsService {
 
             if (!alert) {
                 throw new common_1.NotFoundException(
-                    'Active alert not found',
+                    "Active alert not found",
                 );
             }
 
@@ -692,10 +712,10 @@ let AlertsService = class AlertsService {
                 alertId: alert.id,
                 sessionId: session?.id || null,
                 userId,
-                eventType: 'alert_cancelled',
-                source: body?.source || 'user',
+                eventType: "alert_cancelled",
+                source: body?.source || "user",
                 fromStage: alert.stage,
-                toStage: 'cancelled',
+                toStage: "cancelled",
                 metadata: {
                     riskScore: alert.risk_score,
                     triggerSource:
@@ -718,15 +738,15 @@ let AlertsService = class AlertsService {
         this.logger.log(
             `alert_cancelled ` +
             `alertId=${id} ` +
-            `sessionId=${result.session?.id ?? 'none'} ` +
+            `sessionId=${result.session?.id ?? "none"} ` +
             `userId=${userId}`,
         );
 
         if (result.session?.id) {
             this.ws.emitSessionStatus(
                 result.session.id,
-                'cancelled',
-                'cancelled',
+                "cancelled",
+                "cancelled",
             );
         }
 
@@ -734,7 +754,7 @@ let AlertsService = class AlertsService {
             userId,
             alertId: id,
             sessionId: result.session?.id ?? null,
-            eventType: 'alert_cancelled',
+            eventType: "alert_cancelled",
             stage: result.alert.stage || null,
             triggerSource:
                 result.alert.trigger_source || null,
@@ -752,9 +772,9 @@ let AlertsService = class AlertsService {
                 `Alert cancellation notification failed: ${
                     error instanceof Error
                         ? error.message
-                        : 'unknown error'
+                        : "unknown error"
                 }`,
-                'AlertsService',
+                "AlertsService",
             );
         });
 
