@@ -47,14 +47,14 @@ __decorate([
 ], AdminController.prototype, "reportsQueue", null);
 __decorate([
     (0, common_1.Get)('active-alerts'),
-    (0, roles_decorator_1.Roles)('admin'),
+    (0, roles_decorator_1.Roles)('admin', 'reviewer'),
     __metadata("design:type", Function),
     __metadata("design:paramtypes", []),
     __metadata("design:returntype", void 0)
 ], AdminController.prototype, "activeAlerts", null);
 __decorate([
     (0, common_1.Post)('alerts/:id/flag'),
-    (0, roles_decorator_1.Roles)('admin'),
+    (0, roles_decorator_1.Roles)('admin', 'reviewer'),
     (0, rate_limit_decorator_1.RateLimit)({ points: 120, duration: 3600 }),
     __param(0, (0, common_1.Req)()),
     __param(1, (0, common_1.Param)('id')),
