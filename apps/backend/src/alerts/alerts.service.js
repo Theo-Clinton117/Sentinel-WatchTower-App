@@ -83,6 +83,51 @@ function mapAlertSessionRow(row) {
     };
 }
 
+function mapAlertHistoryRow(row) {
+    return {
+        id: row.id,
+        userId: row.user_id,
+        type: row.type,
+        severity: row.severity,
+        message: row.message,
+        status: row.status,
+        triggerSource: row.trigger_source,
+        stage: row.stage,
+        escalationLevel: row.escalation_level,
+        riskScore: row.risk_score == null
+            ? 0
+            : Number(row.risk_score),
+        riskSnapshot: row.risk_snapshot || {},
+        detectionSummary: Array.isArray(row.detection_summary)
+            ? row.detection_summary
+            : [],
+        createdAt: row.created_at || null,
+        resolvedAt: row.resolved_at || null,
+        cancelExpiresAt: row.cancel_expires_at || null,
+        escalatedAt: row.escalated_at || null,
+
+        session: row.session_id
+            ? {
+                id: row.session_id,
+                status: row.session_status || null,
+                startedAt: row.session_started_at || null,
+                endedAt: row.session_ended_at || null,
+                lastLocationAt:
+                    row.session_last_location_at || null,
+            }
+            : null,
+
+        latestAudit: row.latest_audit_event_type
+            ? {
+                eventType: row.latest_audit_event_type,
+                source: row.latest_audit_source || null,
+                createdAt:
+                    row.latest_audit_created_at || null,
+            }
+            : null,
+    };
+}
+
 async function recordAlertAudit(
     queryable,
     {
@@ -169,6 +214,93 @@ let AlertsService = class AlertsService {
         return activeResult.rows[0] || null;
     }
 
+    /*
+     * Return the authenticated user's emergency alert history.
+     *
+     * This is intentionally separate from the reviewer/admin
+     * history endpoint. The user can only retrieve alerts where
+     * alerts.user_id matches their authenticated user id.
+     *
+     * PostgreSQL is the source of truth. Zustand is no longer
+     * responsible for permanent emergency history.
+     */
+    async history(userId, limit = 40) {
+        const parsedLimit = Number.parseInt(limit, 10);
+
+        const safeLimit = Number.isFinite(parsedLimit)
+            ? Math.min(Math.max(parsedLimit, 1), 100)
+            : 40;
+
+        const result = await this.db.query(`
+      select
+        a.id,
+        a.user_id,
+        a.type,
+        a.severity,
+        a.message,
+        a.status,
+        a.trigger_source,
+        a.stage,
+        a.escalation_level,
+        a.risk_score,
+        a.risk_snapshot,
+        a.detection_summary,
+        a.created_at,
+        a.resolved_at,
+        a.cancel_expires_at,
+        a.escalated_at,
+
+        s.id as session_id,
+        s.status as session_status,
+        s.started_at as session_started_at,
+        s.ended_at as session_ended_at,
+        s.last_location_at as session_last_location_at,
+
+        audit.event_type as latest_audit_event_type,
+        audit.source as latest_audit_source,
+        audit.created_at as latest_audit_created_at
+
+      from alerts a
+
+      left join lateral (
+        select
+          ws.id,
+          ws.status,
+          ws.started_at,
+          ws.ended_at,
+          ws.last_location_at
+        from watch_sessions ws
+        where ws.alert_id = a.id
+          and ws.user_id = a.user_id
+        order by ws.started_at desc nulls last
+        limit 1
+      ) s on true
+
+      left join lateral (
+        select
+          ae.event_type,
+          ae.source,
+          ae.created_at
+        from alert_audit_events ae
+        where ae.alert_id = a.id
+          and ae.user_id = a.user_id
+        order by ae.created_at desc
+        limit 1
+      ) audit on true
+
+      where a.user_id = $1
+
+      order by a.created_at desc
+
+      limit $2
+    `, [
+            userId,
+            safeLimit,
+        ]);
+
+        return result.rows.map(mapAlertHistoryRow);
+    }
+
     async create(userId, body) {
         console.log("[ALERT USER DEBUG]", {
             userId,
@@ -188,15 +320,7 @@ let AlertsService = class AlertsService {
                 : "panic";
 
         /*
-         * SOS/panic now starts as a Soft Alert.
-         *
-         * The alert exists immediately so Sentinel can:
-         * - establish the emergency session;
-         * - begin location tracking;
-         * - maintain the backend state;
-         * - allow the user to manually choose the response level.
-         *
-         * Panic is no longer forcibly converted to High Alert.
+         * SOS/panic starts as Soft Alert.
          */
         const alertStage = (0, alert_stages_1.normalizeAlertStage)(
             body?.stage || "soft_alert",
@@ -205,9 +329,6 @@ let AlertsService = class AlertsService {
         const escalationLevel =
             (0, alert_stages_1.getEscalationLevel)(alertStage);
 
-        /*
-         * Severity is derived from the selected stage.
-         */
         const severity =
             (0, alert_stages_1.getAlertSeverity)(alertStage);
 
@@ -222,20 +343,6 @@ let AlertsService = class AlertsService {
         const detectionSummary =
             sanitizeDetectionSummary(body?.detectionSummary);
 
-        /*
-         * The semi-manual emergency flow does not use a short
-         * cancellation window.
-         *
-         * The user explicitly chooses:
-         * - Keep monitoring
-         * - Suspicious
-         * - High Alert
-         * - Critical
-         * - I'm Safe
-         *
-         * Automatic escalation is handled separately by the
-         * escalation plan, not by a 10-second cancellation timer.
-         */
         const cancelWindowMs = 0;
 
         const created = await this.db.transaction(async (client) => {
@@ -338,12 +445,6 @@ let AlertsService = class AlertsService {
             `trigger=${triggerSource}`,
         );
 
-        /*
-         * Schedule only whatever escalation plan is actually
-         * defined for the current stage.
-         *
-         * Soft Alert should have no automatic escalation plan.
-         */
         await bestEffort(
             () => this.queues.scheduleEscalation({
                 alertId,
@@ -367,12 +468,6 @@ let AlertsService = class AlertsService {
             alertStage,
         );
 
-        /*
-         * Soft Alert and Suspicious remain discreet.
-         *
-         * External emergency notifications begin once the user
-         * explicitly reaches High Alert or Critical.
-         */
         if (
             (0, alert_stages_1.compareAlertStages)(
                 alertStage,
@@ -455,20 +550,6 @@ let AlertsService = class AlertsService {
                 );
             }
 
-            /*
-             * Escalation is one-way.
-             *
-             * The user can move:
-             * soft_alert -> suspicious
-             * soft_alert -> high_alert
-             * soft_alert -> critical
-             * suspicious -> high_alert
-             * suspicious -> critical
-             * high_alert -> critical
-             *
-             * Once a serious stage has been reached, it cannot
-             * be silently downgraded. "I'm Safe" uses cancel().
-             */
             if (
                 (0, alert_stages_1.compareAlertStages)(
                     requestedStage,
@@ -628,10 +709,6 @@ let AlertsService = class AlertsService {
                 result.stage,
             );
 
-            /*
-             * High Alert and Critical are the stages that notify
-             * the emergency response chain.
-             */
             if (
                 (0, alert_stages_1.compareAlertStages)(
                     result.stage,
