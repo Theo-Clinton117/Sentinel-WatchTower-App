@@ -28,7 +28,7 @@ function normalizePhone(value?: string | null) {
   }
 
   if (compact.startsWith('+')) {
-    return `+${compact.slice(1).replace(/\D/g, '')}`;
+    return '+' + compact.slice(1).replace(/\D/g, '');
   }
 
   return compact.replace(/\D/g, '');

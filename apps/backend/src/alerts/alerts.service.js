@@ -1,37 +1,69 @@
 "use strict";
+
 var __decorate = (this && this.__decorate) || function (decorators, target, key, desc) {
-    var c = arguments.length, r = c < 3 ? target : desc === null ? desc = Object.getOwnPropertyDescriptor(target, key) : desc, d;
-    if (typeof Reflect === "object" && typeof Reflect.decorate === "function") r = Reflect.decorate(decorators, target, key, desc);
-    else for (var i = decorators.length - 1; i >= 0; i--) if (d = decorators[i]) r = (c < 3 ? d(r) : c > 3 ? d(target, key, r) : d(target, key)) || r;
-    return c > 3 && r && Object.defineProperty(target, key, r), r;
+    var c = arguments.length,
+        r = c < 3 ? target : desc === null
+            ? desc = Object.getOwnPropertyDescriptor(target, key)
+            : desc,
+        d;
+
+    if (typeof Reflect === "object" && typeof Reflect.decorate === "function") {
+        r = Reflect.decorate(decorators, target, key, desc);
+    } else {
+        for (var i = decorators.length - 1; i >= 0; i--) {
+            if (d = decorators[i]) {
+                r = (c < 3
+                    ? d(r)
+                    : c > 3
+                        ? d(target, key, r)
+                        : d(target, key)) || r;
+            }
+        }
+    }
+
+    return c > 3 &&
+        r &&
+        Object.defineProperty(target, key, r),
+        r;
 };
+
 var __metadata = (this && this.__metadata) || function (k, v) {
-    if (typeof Reflect === "object" && typeof Reflect.metadata === "function") return Reflect.metadata(k, v);
+    if (typeof Reflect === "object" && typeof Reflect.metadata === "function") {
+        return Reflect.metadata(k, v);
+    }
 };
+
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.AlertsService = void 0;
+
 const common_1 = require("@nestjs/common");
 const db_service_1 = require("../db/db.service");
 const queues_service_1 = require("../queues/queues.service");
 const ws_service_1 = require("../ws/ws.service");
 const privacy_1 = require("../common/privacy");
 const alert_stages_1 = require("./alert-stages");
+
 function clampRiskScore(value) {
     const parsed = Number(value);
+
     if (!Number.isFinite(parsed)) {
         return 0;
     }
+
     return Math.max(0, Math.min(100, Math.round(parsed)));
 }
+
 function sanitizeDetectionSummary(value) {
     if (!Array.isArray(value)) {
         return [];
     }
+
     return value
         .map((item) => typeof item === 'string' ? item.trim() : '')
         .filter((item) => item.length > 0)
         .slice(0, 8);
 }
+
 function mapAlertSessionRow(row) {
     return {
         alertId: row.alert_id,
@@ -45,13 +77,29 @@ function mapAlertSessionRow(row) {
         riskScore: row.risk_score == null ? 0 : Number(row.risk_score),
         cancelExpiresAt: row.cancel_expires_at || null,
         riskSnapshot: row.risk_snapshot || {},
-        detectionSummary: Array.isArray(row.detection_summary) ? row.detection_summary : [],
+        detectionSummary: Array.isArray(row.detection_summary)
+            ? row.detection_summary
+            : [],
     };
 }
-async function recordAlertAudit(queryable, { alertId, sessionId, userId, eventType, source, fromStage, toStage, metadata }) {
+
+async function recordAlertAudit(
+    queryable,
+    {
+        alertId,
+        sessionId,
+        userId,
+        eventType,
+        source,
+        fromStage,
+        toStage,
+        metadata,
+    },
+) {
     if (!alertId || !eventType) {
         return;
     }
+
     await queryable.query(`
       insert into alert_audit_events (
         alert_id,
@@ -72,9 +120,12 @@ async function recordAlertAudit(queryable, { alertId, sessionId, userId, eventTy
         source || 'system',
         fromStage || null,
         toStage || null,
-        JSON.stringify((0, privacy_1.sanitizeAuditMetadata)(metadata)),
+        JSON.stringify(
+            (0, privacy_1.sanitizeAuditMetadata)(metadata),
+        ),
     ]);
 }
+
 async function bestEffort(work, onError) {
     try {
         await work();
@@ -83,6 +134,7 @@ async function bestEffort(work, onError) {
         onError(error);
     }
 }
+
 let AlertsService = class AlertsService {
     constructor(db, queues, ws) {
         this.db = db;
@@ -90,6 +142,7 @@ let AlertsService = class AlertsService {
         this.ws = ws;
         this.logger = new common_1.Logger(AlertsService.name);
     }
+
     async findActiveAlert(userId) {
         const activeResult = await this.db.query(`
       select
@@ -111,88 +164,148 @@ let AlertsService = class AlertsService {
       order by s.started_at desc
       limit 1
     `, [userId]);
+
         return activeResult.rows[0] || null;
     }
-   async create(userId, body) {
-    console.log('[ALERT USER DEBUG]', {
-        userId,
-        userIdType: typeof userId,
-    });
+
+    async create(userId, body) {
+        console.log('[ALERT USER DEBUG]', {
+            userId,
+            userIdType: typeof userId,
+        });
+
         const active = await this.findActiveAlert(userId);
+
         if (active) {
             return mapAlertSessionRow(active);
         }
-        const triggerSource = typeof body?.triggerSource === 'string' && body.triggerSource.trim()
-            ? body.triggerSource.trim().toLowerCase()
-            : 'panic';
-        let alertStage = (0, alert_stages_1.normalizeAlertStage)(body?.stage || (triggerSource === 'panic' ? 'high_alert' : 'soft_alert'));
-        if (triggerSource === 'panic' && (0, alert_stages_1.compareAlertStages)(alertStage, 'high_alert') < 0) {
+
+        const triggerSource =
+            typeof body?.triggerSource === 'string' &&
+            body.triggerSource.trim()
+                ? body.triggerSource.trim().toLowerCase()
+                : 'panic';
+
+        let alertStage = (0, alert_stages_1.normalizeAlertStage)(
+            body?.stage ||
+            (triggerSource === 'panic'
+                ? 'high_alert'
+                : 'soft_alert'),
+        );
+
+        /*
+         * Panic alerts must never start below High Alert.
+         * They can still escalate from High Alert to Critical.
+         */
+        if (
+            triggerSource === 'panic' &&
+            (0, alert_stages_1.compareAlertStages)(
+                alertStage,
+                'high_alert',
+            ) < 0
+        ) {
             alertStage = 'high_alert';
         }
-        const escalationLevel = (0, alert_stages_1.getEscalationLevel)(alertStage);
+
+        const escalationLevel =
+            (0, alert_stages_1.getEscalationLevel)(alertStage);
+
+        /*
+         * Severity is derived from the stage rather than being
+         * hard-coded. This keeps severity and escalation level
+         * synchronized.
+         */
+        const severity =
+            (0, alert_stages_1.getAlertSeverity)(alertStage);
+
         const riskScore = clampRiskScore(body?.riskScore);
-        const riskSnapshot = body?.riskSnapshot && typeof body.riskSnapshot === 'object' ? body.riskSnapshot : {};
-        const detectionSummary = sanitizeDetectionSummary(body?.detectionSummary);
-        const cancelWindowMs = alertStage === 'soft_alert'
-            ? Math.max(3000, Number(body?.cancelWindowSeconds || 10) * 1000)
-            : 0;
+
+        const riskSnapshot =
+            body?.riskSnapshot &&
+            typeof body.riskSnapshot === 'object'
+                ? body.riskSnapshot
+                : {};
+
+        const detectionSummary =
+            sanitizeDetectionSummary(body?.detectionSummary);
+
+        const cancelWindowMs =
+            alertStage === 'soft_alert'
+                ? Math.max(
+                    3000,
+                    Number(body?.cancelWindowSeconds || 10) * 1000,
+                )
+                : 0;
+
         const created = await this.db.transaction(async (client) => {
             const alertResult = await client.query(`
         insert into alerts (
-  user_id,
-  type,
-  severity,
-  message,
-  status,
-  trigger_source,
-  escalation_level,
-  stage,
-  risk_score,
-  risk_snapshot,
-  detection_summary,
-  cancel_expires_at
-)
-values (
-  $1,
-  $2,
-  $3,
-  $4,
-  'active',
-  $5,
-  $6,
-  $7,
-  $8,
-  $9::jsonb,
-  $10::jsonb,
-  case when $11::int > 0 then now() + ($11::int * interval '1 millisecond') else null end
-)
+          user_id,
+          type,
+          severity,
+          message,
+          status,
+          trigger_source,
+          escalation_level,
+          stage,
+          risk_score,
+          risk_snapshot,
+          detection_summary,
+          cancel_expires_at
+        )
+        values (
+          $1,
+          $2,
+          $3,
+          $4,
+          'active',
+          $5,
+          $6,
+          $7,
+          $8,
+          $9::jsonb,
+          $10::jsonb,
+          case
+            when $11::int > 0
+              then now() + ($11::int * interval '1 millisecond')
+            else null
+          end
+        )
         returning *
       `, [
-    userId,
-    triggerSource,
-    'High',
-    `Sentinel ${alertStage.replace('_', ' ')} alert`,
-    triggerSource,
-    escalationLevel,
-    alertStage,
-    riskScore,
-    JSON.stringify(riskSnapshot),
-    JSON.stringify(detectionSummary),
-    cancelWindowMs,
-]);
+                userId,
+                triggerSource,
+                severity,
+                `Sentinel ${alertStage.replace('_', ' ')} alert`,
+                triggerSource,
+                escalationLevel,
+                alertStage,
+                riskScore,
+                JSON.stringify(riskSnapshot),
+                JSON.stringify(detectionSummary),
+                cancelWindowMs,
+            ]);
+
             const alert = alertResult.rows[0];
+
             const sessionResult = await client.query(`
             insert into watch_sessions (
-            owner_id,
-            alert_id,
-            user_id,
-            status,
-            escalation_level
+              owner_id,
+              alert_id,
+              user_id,
+              status,
+              escalation_level
             )
             values ($2, $1, $2, 'active', $3)
             returning *
-      `, [alert.id, userId, escalationLevel]);
+      `, [
+                alert.id,
+                userId,
+                escalationLevel,
+            ]);
+
             const session = sessionResult.rows[0];
+
             await recordAlertAudit(client, {
                 alertId: alert.id,
                 sessionId: session.id,
@@ -201,21 +314,63 @@ values (
                 source: triggerSource,
                 toStage: alertStage,
                 metadata: {
+                    severity,
+                    escalationLevel,
                     riskScore,
                     cancelWindowMs,
-                    detectionSummaryCount: detectionSummary.length,
+                    detectionSummaryCount:
+                        detectionSummary.length,
                 },
             });
-            return { alert, session };
+
+            return {
+                alert,
+                session,
+            };
         });
+
         const alertId = created.alert.id;
         const sessionId = created.session.id;
-        this.logger.log(`alert_created alertId=${alertId} sessionId=${sessionId} userId=${userId} stage=${alertStage} trigger=${triggerSource}`);
-        await bestEffort(() => this.queues.scheduleEscalation({ alertId, sessionId, stage: alertStage }), (error) => {
-            this.logger.error(`Alert escalation scheduling failed after create: ${error instanceof Error ? error.message : 'unknown error'}`);
-        });
-        this.ws.emitSessionStatus(sessionId, 'active', alertStage);
-        if ((0, alert_stages_1.compareAlertStages)(alertStage, 'high_alert') >= 0) {
+
+        this.logger.log(
+            `alert_created alertId=${alertId} ` +
+            `sessionId=${sessionId} ` +
+            `userId=${userId} ` +
+            `stage=${alertStage} ` +
+            `severity=${created.alert.severity} ` +
+            `escalationLevel=${created.alert.escalation_level} ` +
+            `trigger=${triggerSource}`,
+        );
+
+        await bestEffort(
+            () => this.queues.scheduleEscalation({
+                alertId,
+                sessionId,
+                stage: alertStage,
+            }),
+            (error) => {
+                this.logger.error(
+                    `Alert escalation scheduling failed after create: ${
+                        error instanceof Error
+                            ? error.message
+                            : 'unknown error'
+                    }`,
+                );
+            },
+        );
+
+        this.ws.emitSessionStatus(
+            sessionId,
+            'active',
+            alertStage,
+        );
+
+        if (
+            (0, alert_stages_1.compareAlertStages)(
+                alertStage,
+                'high_alert',
+            ) >= 0
+        ) {
             this.queues.enqueueAlertNotifications({
                 userId,
                 alertId,
@@ -224,12 +379,21 @@ values (
                 stage: alertStage,
                 triggerSource,
                 riskScore,
-                cancelExpiresAt: created.alert.cancel_expires_at || null,
+                cancelExpiresAt:
+                    created.alert.cancel_expires_at || null,
                 detectionSummary,
             }).catch((error) => {
-                common_1.Logger.warn(`Alert notification dispatch failed: ${error instanceof Error ? error.message : 'unknown error'}`, 'AlertsService');
+                common_1.Logger.warn(
+                    `Alert notification dispatch failed: ${
+                        error instanceof Error
+                            ? error.message
+                            : 'unknown error'
+                    }`,
+                    'AlertsService',
+                );
             });
         }
+
         return mapAlertSessionRow({
             ...created.alert,
             alert_id: alertId,
@@ -238,8 +402,15 @@ values (
             started_at: created.session.started_at,
         });
     }
+
     async escalate(userId, id, body) {
-        const requestedStage = (0, alert_stages_1.normalizeAlertStage)(body?.stage || body?.targetStage || 'high_alert');
+        const requestedStage =
+            (0, alert_stages_1.normalizeAlertStage)(
+                body?.stage ||
+                body?.targetStage ||
+                'high_alert',
+            );
+
         const result = await this.db.transaction(async (client) => {
             const currentResult = await client.query(`
         select
@@ -248,6 +419,7 @@ values (
           a.trigger_source,
           a.stage,
           a.escalation_level,
+          a.severity,
           a.risk_score,
           a.risk_snapshot,
           a.detection_summary,
@@ -256,61 +428,121 @@ values (
           s.id as session_id,
           s.started_at
         from alerts a
-        left join watch_sessions s on s.alert_id = a.id and s.status = 'active'
-        where a.id = $1 and a.user_id = $2 and a.status = 'active'
+        left join watch_sessions s
+          on s.alert_id = a.id
+          and s.status = 'active'
+        where a.id = $1
+          and a.user_id = $2
+          and a.status = 'active'
         limit 1
-      `, [id, userId]);
+      `, [
+                id,
+                userId,
+            ]);
+
             const current = currentResult.rows[0];
+
             if (!current) {
-                throw new common_1.NotFoundException('Active alert not found');
+                throw new common_1.NotFoundException(
+                    'Active alert not found',
+                );
             }
-            if ((0, alert_stages_1.compareAlertStages)(requestedStage, current.stage) <= 0) {
+
+            if (
+                (0, alert_stages_1.compareAlertStages)(
+                    requestedStage,
+                    current.stage,
+                ) <= 0
+            ) {
                 return {
                     ...current,
                     didEscalate: false,
                 };
             }
-            const escalationLevel = (0, alert_stages_1.getEscalationLevel)(requestedStage);
-            const riskScore = body?.riskScore == null
-                ? current.risk_score
-                : Math.max(clampRiskScore(current.risk_score), clampRiskScore(body?.riskScore));
-            const riskSnapshot = body?.riskSnapshot && typeof body.riskSnapshot === 'object'
-                ? body.riskSnapshot
-                : current.risk_snapshot || {};
+
+            const escalationLevel =
+                (0, alert_stages_1.getEscalationLevel)(
+                    requestedStage,
+                );
+
+            const severity =
+                (0, alert_stages_1.getAlertSeverity)(
+                    requestedStage,
+                );
+
+            const riskScore =
+                body?.riskScore == null
+                    ? current.risk_score
+                    : Math.max(
+                        clampRiskScore(current.risk_score),
+                        clampRiskScore(body?.riskScore),
+                    );
+
+            const riskSnapshot =
+                body?.riskSnapshot &&
+                typeof body.riskSnapshot === 'object'
+                    ? body.riskSnapshot
+                    : current.risk_snapshot || {};
+
             const detectionSummary = (() => {
-                const requested = sanitizeDetectionSummary(body?.detectionSummary);
+                const requested =
+                    sanitizeDetectionSummary(
+                        body?.detectionSummary,
+                    );
+
                 if (requested.length > 0) {
                     return requested;
                 }
-                return Array.isArray(current.detection_summary) ? current.detection_summary : [];
+
+                return Array.isArray(current.detection_summary)
+                    ? current.detection_summary
+                    : [];
             })();
+
             const alertResult = await client.query(`
         update alerts
         set
           stage = $1,
           escalation_level = $2,
-          risk_score = $3,
-          risk_snapshot = $4::jsonb,
-          detection_summary = $5::jsonb,
-          cancel_expires_at = case when $1 = 'soft_alert' then now() + interval '10 seconds' else null end,
+          severity = $3,
+          risk_score = $4,
+          risk_snapshot = $5::jsonb,
+          detection_summary = $6::jsonb,
+          cancel_expires_at = case
+            when $1 = 'soft_alert'
+              then now() + interval '10 seconds'
+            else null
+          end,
           escalated_at = now()
-        where id = $6 and user_id = $7 and status = 'active'
+        where id = $7
+          and user_id = $8
+          and status = 'active'
         returning *
       `, [
                 requestedStage,
                 escalationLevel,
+                severity,
                 riskScore,
                 JSON.stringify(riskSnapshot),
                 JSON.stringify(detectionSummary),
                 id,
                 userId,
             ]);
+
             const alert = alertResult.rows[0];
+
             await client.query(`
         update watch_sessions
         set escalation_level = $1
-        where alert_id = $2 and user_id = $3 and status = 'active'
-      `, [escalationLevel, id, userId]);
+        where alert_id = $2
+          and user_id = $3
+          and status = 'active'
+      `, [
+                escalationLevel,
+                id,
+                userId,
+            ]);
+
             await recordAlertAudit(client, {
                 alertId: alert.id,
                 sessionId: current.session_id,
@@ -320,11 +552,18 @@ values (
                 fromStage: current.stage,
                 toStage: requestedStage,
                 metadata: {
+                    severity,
+                    escalationLevel,
                     riskScore,
-                    detectionSummaryCount: detectionSummary.length,
-                    previousRiskScore: current.risk_score,
+                    detectionSummaryCount:
+                        detectionSummary.length,
+                    previousRiskScore:
+                        current.risk_score,
+                    previousSeverity:
+                        current.severity || null,
                 },
             });
+
             return {
                 ...alert,
                 alert_id: alert.id,
@@ -334,17 +573,50 @@ values (
                 didEscalate: true,
             };
         });
-        if (result.session_id && result.didEscalate) {
-            this.logger.warn(`alert_escalated alertId=${result.alert_id} sessionId=${result.session_id} userId=${userId} stage=${result.stage}`);
-            await bestEffort(() => this.queues.scheduleEscalation({
-                alertId: result.alert_id,
-                sessionId: result.session_id,
-                stage: result.stage,
-            }), (error) => {
-                this.logger.error(`Alert escalation scheduling failed after manual escalation: ${error instanceof Error ? error.message : 'unknown error'}`);
-            });
-            this.ws.emitSessionStatus(result.session_id, 'active', result.stage);
-            if ((0, alert_stages_1.compareAlertStages)(result.stage, 'high_alert') >= 0) {
+
+        if (
+            result.session_id &&
+            result.didEscalate
+        ) {
+            this.logger.warn(
+                `alert_escalated ` +
+                `alertId=${result.alert_id} ` +
+                `sessionId=${result.session_id} ` +
+                `userId=${userId} ` +
+                `stage=${result.stage} ` +
+                `severity=${result.severity} ` +
+                `escalationLevel=${result.escalation_level}`,
+            );
+
+            await bestEffort(
+                () => this.queues.scheduleEscalation({
+                    alertId: result.alert_id,
+                    sessionId: result.session_id,
+                    stage: result.stage,
+                }),
+                (error) => {
+                    this.logger.error(
+                        `Alert escalation scheduling failed after manual escalation: ${
+                            error instanceof Error
+                                ? error.message
+                                : 'unknown error'
+                        }`,
+                    );
+                },
+            );
+
+            this.ws.emitSessionStatus(
+                result.session_id,
+                'active',
+                result.stage,
+            );
+
+            if (
+                (0, alert_stages_1.compareAlertStages)(
+                    result.stage,
+                    'high_alert',
+                ) >= 0
+            ) {
                 this.queues.enqueueAlertNotifications({
                     userId,
                     alertId: result.alert_id,
@@ -353,34 +625,69 @@ values (
                     stage: result.stage,
                     triggerSource: result.trigger_source,
                     riskScore: result.risk_score,
-                    cancelExpiresAt: result.cancel_expires_at || null,
-                    detectionSummary: Array.isArray(result.detection_summary) ? result.detection_summary : [],
+                    cancelExpiresAt:
+                        result.cancel_expires_at || null,
+                    detectionSummary:
+                        Array.isArray(result.detection_summary)
+                            ? result.detection_summary
+                            : [],
                 }).catch((error) => {
-                    common_1.Logger.warn(`Alert escalation notification dispatch failed: ${error instanceof Error ? error.message : 'unknown error'}`, 'AlertsService');
+                    common_1.Logger.warn(
+                        `Alert escalation notification failed: ${
+                            error instanceof Error
+                                ? error.message
+                                : 'unknown error'
+                        }`,
+                        'AlertsService',
+                    );
                 });
             }
         }
+
         return mapAlertSessionRow(result);
     }
+
     async cancel(userId, id, body = {}) {
         const result = await this.db.transaction(async (client) => {
             const alertResult = await client.query(`
         update alerts
-        set status = 'cancelled', resolved_at = now()
-        where id = $1 and user_id = $2 and status = 'active'
+        set
+          status = 'cancelled',
+          resolved_at = now()
+        where id = $1
+          and user_id = $2
+          and status = 'active'
         returning *
-      `, [id, userId]);
+      `, [
+                id,
+                userId,
+            ]);
+
             const alert = alertResult.rows[0];
+
             if (!alert) {
-                throw new common_1.NotFoundException('Active alert not found');
+                throw new common_1.NotFoundException(
+                    'Active alert not found',
+                );
             }
+
             const sessionResult = await client.query(`
         update watch_sessions
-        set status = 'cancelled', ended_at = now()
-        where alert_id = $1 and user_id = $2 and status = 'active'
+        set
+          status = 'cancelled',
+          ended_at = now()
+        where alert_id = $1
+          and user_id = $2
+          and status = 'active'
         returning id
-      `, [id, userId]);
-            const session = sessionResult.rows[0] || null;
+      `, [
+                id,
+                userId,
+            ]);
+
+            const session =
+                sessionResult.rows[0] || null;
+
             await recordAlertAudit(client, {
                 alertId: alert.id,
                 sessionId: session?.id || null,
@@ -391,35 +698,87 @@ values (
                 toStage: 'cancelled',
                 metadata: {
                     riskScore: alert.risk_score,
-                    triggerSource: alert.trigger_source,
+                    triggerSource:
+                        alert.trigger_source,
+                    severity:
+                        alert.severity || null,
+                    escalationLevel:
+                        alert.escalation_level ?? null,
                 },
             });
-            return { alert, session };
+
+            return {
+                alert,
+                session,
+            };
         });
+
         await this.queues.cancelEscalation(id);
-        this.logger.log(`alert_cancelled alertId=${id} sessionId=${result.session?.id ?? 'none'} userId=${userId}`);
+
+        this.logger.log(
+            `alert_cancelled ` +
+            `alertId=${id} ` +
+            `sessionId=${result.session?.id ?? 'none'} ` +
+            `userId=${userId}`,
+        );
+
         if (result.session?.id) {
-            this.ws.emitSessionStatus(result.session.id, 'cancelled', 'cancelled');
+            this.ws.emitSessionStatus(
+                result.session.id,
+                'cancelled',
+                'cancelled',
+            );
         }
+
         this.queues.enqueueAlertNotifications({
             userId,
             alertId: id,
             sessionId: result.session?.id ?? null,
             eventType: 'alert_cancelled',
             stage: result.alert.stage || null,
-            triggerSource: result.alert.trigger_source || null,
-            riskScore: result.alert.risk_score ?? null,
+            triggerSource:
+                result.alert.trigger_source || null,
+            riskScore:
+                result.alert.risk_score ?? null,
             cancelExpiresAt: null,
-            detectionSummary: Array.isArray(result.alert.detection_summary) ? result.alert.detection_summary : [],
+            detectionSummary:
+                Array.isArray(
+                    result.alert.detection_summary,
+                )
+                    ? result.alert.detection_summary
+                    : [],
         }).catch((error) => {
-            common_1.Logger.warn(`Alert cancellation notification dispatch failed: ${error instanceof Error ? error.message : 'unknown error'}`, 'AlertsService');
+            common_1.Logger.warn(
+                `Alert cancellation notification failed: ${
+                    error instanceof Error
+                        ? error.message
+                        : 'unknown error'
+                }`,
+                'AlertsService',
+            );
         });
-        return { id, status: result.alert.status, sessionId: result.session?.id ?? null };
+
+        return {
+            id,
+            status: result.alert.status,
+            sessionId:
+                result.session?.id ?? null,
+        };
     }
 };
+
 exports.AlertsService = AlertsService;
+
 exports.AlertsService = AlertsService = __decorate([
     (0, common_1.Injectable)(),
-    __metadata("design:paramtypes", [db_service_1.DbService, queues_service_1.QueuesService, ws_service_1.WsService])
+    __metadata(
+        "design:paramtypes",
+        [
+            db_service_1.DbService,
+            queues_service_1.QueuesService,
+            ws_service_1.WsService,
+        ],
+    ),
 ], AlertsService);
+
 //# sourceMappingURL=alerts.service.js.map

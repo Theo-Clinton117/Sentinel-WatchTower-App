@@ -47,6 +47,7 @@ module.exports = ({ config }) => {
         googleMapsApiKey: readEnv('EXPO_PUBLIC_GOOGLE_MAPS_API_KEY_IOS'),
       },
       infoPlist: {
+        ITSAppUsesNonExemptEncryption: false,
         NSLocationWhenInUseUsageDescription:
           'Sentinel uses your location to show where you are during alerts and watch sessions.',
         NSLocationAlwaysAndWhenInUseUsageDescription:
