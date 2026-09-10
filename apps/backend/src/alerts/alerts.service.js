@@ -112,8 +112,6 @@ function mapAlertHistoryRow(row) {
                 status: row.session_status || null,
                 startedAt: row.session_started_at || null,
                 endedAt: row.session_ended_at || null,
-                lastLocationAt:
-                    row.session_last_location_at || null,
             }
             : null,
 
@@ -121,8 +119,7 @@ function mapAlertHistoryRow(row) {
             ? {
                 eventType: row.latest_audit_event_type,
                 source: row.latest_audit_source || null,
-                createdAt:
-                    row.latest_audit_created_at || null,
+                createdAt: row.latest_audit_created_at || null,
             }
             : null,
     };
@@ -217,12 +214,12 @@ let AlertsService = class AlertsService {
     /*
      * Return the authenticated user's emergency alert history.
      *
-     * This is intentionally separate from the reviewer/admin
-     * history endpoint. The user can only retrieve alerts where
-     * alerts.user_id matches their authenticated user id.
+     * PostgreSQL is the source of truth.
+     * The user can only retrieve alerts belonging to their
+     * authenticated user id.
      *
-     * PostgreSQL is the source of truth. Zustand is no longer
-     * responsible for permanent emergency history.
+     * This query intentionally uses only columns confirmed
+     * to exist in the production watch_sessions schema.
      */
     async history(userId, limit = 40) {
         const parsedLimit = Number.parseInt(limit, 10);
@@ -254,7 +251,6 @@ let AlertsService = class AlertsService {
         s.status as session_status,
         s.started_at as session_started_at,
         s.ended_at as session_ended_at,
-        s.last_location_at as session_last_location_at,
 
         audit.event_type as latest_audit_event_type,
         audit.source as latest_audit_source,
@@ -267,8 +263,7 @@ let AlertsService = class AlertsService {
           ws.id,
           ws.status,
           ws.started_at,
-          ws.ended_at,
-          ws.last_location_at
+          ws.ended_at
         from watch_sessions ws
         where ws.alert_id = a.id
           and ws.user_id = a.user_id
