@@ -1,6 +1,13 @@
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
-import { ActivityIndicator, Animated, Pressable, StyleSheet, Text, View } from 'react-native';
-import { LinearGradient } from 'expo-linear-gradient';
+import {
+  ActivityIndicator,
+  Animated,
+  Pressable,
+  ScrollView,
+  StyleSheet,
+  Text,
+  View,
+} from 'react-native';
 import { DismissibleNoticeCard } from '../components/DismissibleNoticeCard';
 import { LiveMap } from '../components/LiveMap';
 import { MotionView } from '../components/MotionView';
@@ -15,26 +22,74 @@ import {
   stopBackgroundTracking,
 } from '../services/location';
 import { getActiveSession, listSessionLocations } from '../services/sessions';
-import { connectSessionSocket, disconnectSessionSocket } from '../services/websocket';
+import {
+  connectSessionSocket,
+  disconnectSessionSocket,
+} from '../services/websocket';
 import { shallow } from 'zustand/shallow';
 
+const STAGES = [
+  {
+    id: 'soft_alert',
+    title: 'Keep monitoring',
+    description: 'Nothing has happened yet. Keep Sentinel watching.',
+  },
+  {
+    id: 'suspicious',
+    title: 'Something feels wrong',
+    description: 'The situation is concerning but not yet an emergency.',
+  },
+  {
+    id: 'high_alert',
+    title: 'I need help',
+    description: 'Send this as a serious emergency.',
+  },
+  {
+    id: 'critical',
+    title: 'Immediate danger',
+    description: 'Escalate immediately to the highest response level.',
+  },
+] as const;
+
 const SessionTimer = React.memo(
-  ({ startedAt, style }: { startedAt?: string | null; style: { color: string; fontSize: number; fontWeight: '800'; marginTop: number } }) => {
+  ({
+    startedAt,
+    style,
+  }: {
+    startedAt?: string | null;
+    style: {
+      color: string;
+      fontSize: number;
+      fontWeight: '800';
+      marginTop: number;
+    };
+  }) => {
     const [duration, setDuration] = useState('00:00');
 
     useEffect(() => {
       const updateDuration = () => {
-        const start = startedAt ? new Date(startedAt).getTime() : Date.now();
-        const seconds = Math.max(0, Math.floor((Date.now() - start) / 1000));
+        const start = startedAt
+          ? new Date(startedAt).getTime()
+          : Date.now();
+
+        const seconds = Math.max(
+          0,
+          Math.floor((Date.now() - start) / 1000),
+        );
+
         const minutes = Math.floor(seconds / 60)
           .toString()
           .padStart(2, '0');
+
         const secs = (seconds % 60).toString().padStart(2, '0');
+
         setDuration(`${minutes}:${secs}`);
       };
 
       updateDuration();
+
       const timer = setInterval(updateDuration, 1000);
+
       return () => clearInterval(timer);
     }, [startedAt]);
 
@@ -45,6 +100,7 @@ const SessionTimer = React.memo(
 export const ActiveEmergencyScreen = () => {
   const theme = useAppTheme();
   const styles = useMemo(() => createStyles(theme), [theme]);
+
   const {
     activeSession,
     emergencyLocations,
@@ -65,33 +121,36 @@ export const ActiveEmergencyScreen = () => {
     }),
     shallow,
   );
+
   const [error, setError] = useState('');
   const [cancelling, setCancelling] = useState(false);
   const [escalating, setEscalating] = useState(false);
   const [syncing, setSyncing] = useState(true);
-  const [countdown, setCountdown] = useState('');
   const [socketDegraded, setSocketDegraded] = useState(false);
-  const alertPulse = React.useRef(new Animated.Value(0)).current;
+  const [showDetails, setShowDetails] = useState(false);
+
+  const pulse = React.useRef(new Animated.Value(0)).current;
 
   useEffect(() => {
     const loop = Animated.loop(
       Animated.sequence([
-        Animated.timing(alertPulse, {
+        Animated.timing(pulse, {
           toValue: 1,
-          duration: 1300,
+          duration: 1000,
           useNativeDriver: true,
         }),
-        Animated.timing(alertPulse, {
+        Animated.timing(pulse, {
           toValue: 0,
-          duration: 1300,
+          duration: 1000,
           useNativeDriver: true,
         }),
       ]),
     );
 
     loop.start();
+
     return () => loop.stop();
-  }, [alertPulse]);
+  }, [pulse]);
 
   useEffect(() => {
     if (!activeSession?.sessionId) {
@@ -105,6 +164,7 @@ export const ActiveEmergencyScreen = () => {
     const bootstrapSession = async () => {
       try {
         setError('');
+
         const [storedLocations, currentLocation] = await Promise.all([
           listSessionLocations(activeSession.sessionId),
           getCurrentLocation().catch(() => null),
@@ -121,13 +181,15 @@ export const ActiveEmergencyScreen = () => {
         }
 
         foregroundSubscription = await startForegroundTracking();
+
         await startBackgroundTracking().catch(() => undefined);
       } catch (loadError) {
         if (mounted) {
           const message =
             loadError instanceof ApiError
               ? loadError.message
-              : 'Live session sync is degraded. We will keep trying to update your emergency state.';
+              : 'Emergency session sync is degraded. Sentinel will keep trying to update your state.';
+
           setError(message);
         }
       } finally {
@@ -144,19 +206,29 @@ export const ActiveEmergencyScreen = () => {
           setError('');
         }
       },
+
       onDisconnected: () => {
         if (mounted) {
           setSocketDegraded(true);
-          setError('Live connection interrupted. Location capture is still running and will retry in the background.');
+          setError(
+            'Live connection interrupted. Location capture is still running and will retry.',
+          );
         }
       },
+
       onConnectionError: () => {
         if (mounted) {
           setSocketDegraded(true);
-          setError('Live connection could not be restored yet. Keep this screen open while Sentinel retries.');
+          setError(
+            'Live connection could not be restored yet. Sentinel will keep retrying.',
+          );
         }
       },
-      onLocationUpdate: (locations) => appendEmergencyLocations(locations),
+
+      onLocationUpdate: (locations) => {
+        appendEmergencyLocations(locations);
+      },
+
       onStatus: ({ status, stage }) => {
         if (status && status !== 'active') {
           clearEmergencySession();
@@ -168,7 +240,6 @@ export const ActiveEmergencyScreen = () => {
             status,
             alertStatus: status,
             alertStage: stage,
-            cancelExpiresAt: stage === 'soft_alert' ? activeSession.cancelExpiresAt : null,
           });
         }
       },
@@ -178,8 +249,11 @@ export const ActiveEmergencyScreen = () => {
 
     return () => {
       mounted = false;
+
       foregroundSubscription?.remove?.();
+
       void stopBackgroundTracking().catch(() => undefined);
+
       disconnectSessionSocket();
     };
   }, [
@@ -218,12 +292,15 @@ export const ActiveEmergencyScreen = () => {
         updateActiveSession(session);
       } catch {
         if (mounted) {
-          setError('Live fallback polling is delayed. Location capture will keep retrying.');
+          setError(
+            'Live fallback polling is delayed. Location capture will continue retrying.',
+          );
         }
       }
     };
 
     void pollSession();
+
     const interval = setInterval(pollSession, 8000);
 
     return () => {
@@ -238,92 +315,53 @@ export const ActiveEmergencyScreen = () => {
     updateActiveSession,
   ]);
 
-  useEffect(() => {
-    if (activeSession?.alertStage !== 'soft_alert' || !activeSession?.cancelExpiresAt) {
-      setCountdown('');
-      return;
-    }
-
-    let completed = false;
-    const updateCountdown = () => {
-      const remainingMs = new Date(activeSession.cancelExpiresAt || Date.now()).getTime() - Date.now();
-      if (remainingMs <= 0) {
-        setCountdown('00:00');
-        if (!completed) {
-          completed = true;
-          void handleEscalate('high_alert');
-        }
+  const handleEscalate = useCallback(
+    async (stage: string) => {
+      if (!activeSession?.alertId || escalating) {
         return;
       }
 
-      const totalSeconds = Math.ceil(remainingMs / 1000);
-      const minutes = Math.floor(totalSeconds / 60)
-        .toString()
-        .padStart(2, '0');
-      const seconds = (totalSeconds % 60).toString().padStart(2, '0');
-      setCountdown(`${minutes}:${seconds}`);
-    };
+      try {
+        setEscalating(true);
+        setError('');
 
-    updateCountdown();
-    const interval = setInterval(updateCountdown, 500);
-    return () => clearInterval(interval);
-  }, [activeSession?.alertStage, activeSession?.cancelExpiresAt]);
+        const alert = await escalateAlert(activeSession.alertId, {
+          stage,
+          riskScore: activeSession.riskScore ?? undefined,
+          riskSnapshot: activeSession.riskSnapshot ?? {},
+          detectionSummary: activeSession.detectionSummary ?? [],
+        });
 
-  const latestLocation = lastKnownLocation || (emergencyLocations.length > 0 ? emergencyLocations[emergencyLocations.length - 1] : null);
-  const locationCount = emergencyLocations.length;
-  const formattedAccuracy =
-    typeof latestLocation?.accuracyM === 'number' ? `${Math.round(latestLocation.accuracyM)}m` : 'Unknown';
+        updateActiveSession({
+          status: alert.status,
+          triggerSource: alert.triggerSource,
+          alertStage: alert.alertStage,
+          escalationLevel: alert.escalationLevel,
+          alertStatus: alert.alertStatus,
+          riskScore: alert.riskScore ?? activeSession.riskScore,
+          cancelExpiresAt: alert.cancelExpiresAt,
+          riskSnapshot:
+            alert.riskSnapshot ?? activeSession.riskSnapshot ?? {},
+          detectionSummary:
+            alert.detectionSummary ??
+            activeSession.detectionSummary ??
+            [],
+        });
 
-  const pulseStyle = {
-    transform: [
-      {
-        scale: alertPulse.interpolate({
-          inputRange: [0, 1],
-          outputRange: [1, 1.12],
-        }),
-      },
-    ],
-    opacity: alertPulse.interpolate({
-      inputRange: [0, 1],
-      outputRange: [0.36, 0.08],
-    }),
-  };
+        setShowDetails(false);
+      } catch (escalateError) {
+        const message =
+          escalateError instanceof ApiError
+            ? escalateError.message
+            : 'Could not update the alert right now.';
 
-  const handleEscalate = useCallback(async (stage: string) => {
-    if (!activeSession?.alertId || escalating) {
-      return;
-    }
-
-    try {
-      setEscalating(true);
-      setError('');
-      const alert = await escalateAlert(activeSession.alertId, {
-        stage,
-        riskScore: activeSession.riskScore ?? undefined,
-        riskSnapshot: activeSession.riskSnapshot ?? {},
-        detectionSummary: activeSession.detectionSummary ?? [],
-      });
-      updateActiveSession({
-        status: alert.status,
-        triggerSource: alert.triggerSource,
-        alertStage: alert.alertStage,
-        escalationLevel: alert.escalationLevel,
-        alertStatus: alert.alertStatus,
-        riskScore: alert.riskScore ?? activeSession.riskScore,
-        cancelExpiresAt: alert.cancelExpiresAt,
-        riskSnapshot: alert.riskSnapshot ?? activeSession.riskSnapshot ?? {},
-        detectionSummary: alert.detectionSummary ?? activeSession.detectionSummary ?? [],
-      });
-    } catch (escalateError) {
-      const message =
-        escalateError instanceof ApiError
-          ? escalateError.message
-          : 'Could not escalate the alert right now.';
-      setError(message);
-    } finally {
-      setEscalating(false);
-    }
-  }, [activeSession, escalating, updateActiveSession]);
+        setError(message);
+      } finally {
+        setEscalating(false);
+      }
+    },
+    [activeSession, escalating, updateActiveSession],
+  );
 
   const handleCancel = useCallback(async () => {
     if (!activeSession?.alertId) {
@@ -334,13 +372,16 @@ export const ActiveEmergencyScreen = () => {
     try {
       setCancelling(true);
       setError('');
+
       await cancelAlert(activeSession.alertId);
+
       clearEmergencySession();
     } catch (cancelError) {
       const message =
         cancelError instanceof ApiError
           ? cancelError.message
           : 'Could not cancel the alert right now.';
+
       setError(message);
     } finally {
       setCancelling(false);
@@ -349,91 +390,146 @@ export const ActiveEmergencyScreen = () => {
 
   if (!activeSession?.sessionId) {
     return (
-      <View style={styles.container}>
-        <Text style={styles.title}>Emergency Active</Text>
-        <Text style={styles.note}>No live session is loaded yet.</Text>
+      <View style={styles.emptyState}>
+        <Text style={styles.emptyTitle}>Emergency Active</Text>
+        <Text style={styles.emptyText}>
+          No live emergency session is loaded.
+        </Text>
       </View>
     );
   }
 
-  const isSoftAlert = activeSession.alertStage === 'soft_alert';
-  const stageLabel = (activeSession.alertStage || 'high_alert').replace('_', ' ').toUpperCase();
-  const triggerLabel = activeSession.triggerSource || 'panic';
-  const headerTitle = isSoftAlert ? 'Safety Check' : 'Emergency Active';
-  const headerBadge = isSoftAlert ? 'CHECKING RISK' : 'SOS ACTIVE';
-  const routeDetail = isSoftAlert
-    ? syncing
-      ? 'Checking your situation before alerting more people'
-      : 'If you do nothing, this can become a full emergency alert'
-    : syncing
-      ? 'Updating your emergency details'
-      : 'Your trusted contacts can use this route to check on you';
+  const stage = activeSession.alertStage || 'soft_alert';
+
+  const currentStage =
+    STAGES.find((item) => item.id === stage) || STAGES[0];
+
+  const latestLocation =
+    lastKnownLocation ||
+    (emergencyLocations.length
+      ? emergencyLocations[emergencyLocations.length - 1]
+      : null);
+
+  const locationCount = emergencyLocations.length;
+
+  const formattedAccuracy =
+    typeof latestLocation?.accuracyM === 'number'
+      ? `${Math.round(latestLocation.accuracyM)}m`
+      : 'Unknown';
+
+  const pulseOpacity = pulse.interpolate({
+    inputRange: [0, 1],
+    outputRange: [0.35, 0.05],
+  });
+
+  const pulseScale = pulse.interpolate({
+    inputRange: [0, 1],
+    outputRange: [1, 1.45],
+  });
 
   return (
-    <View style={styles.container}>
-      <MotionView delay={40} style={[styles.headerWrap, theme.shadow.card]}>
-        <LinearGradient colors={theme.gradients.emergency} style={styles.headerCard}>
-          <View style={styles.headerRow}>
-            <View style={styles.headerCopy}>
-              <View style={styles.alertBadgeRow}>
-                <View style={styles.alertBadgeWrap}>
-                  <Animated.View style={[styles.alertBadgePulse, pulseStyle]} />
-                  <View style={styles.alertBadgeCore} />
-                </View>
-                <Text style={styles.alertBadgeText}>{headerBadge}</Text>
-              </View>
-              <Text style={styles.title}>{headerTitle}</Text>
-              <Text style={styles.subTitle}>Session {activeSession.sessionId.slice(0, 8)}</Text>
+    <ScrollView
+      style={styles.screen}
+      contentContainerStyle={styles.content}
+      showsVerticalScrollIndicator={false}
+    >
+      <MotionView delay={40}>
+        <View style={styles.discreetHeader}>
+          <View style={styles.statusGroup}>
+            <View style={styles.statusIndicator}>
+              <Animated.View
+                style={[
+                  styles.statusPulse,
+                  {
+                    opacity: pulseOpacity,
+                    transform: [{ scale: pulseScale }],
+                  },
+                ]}
+              />
+
+              <View style={styles.statusDot} />
             </View>
-            <View style={styles.statusPill}>
-              <Text style={styles.statusPillText}>{stageLabel}</Text>
+
+            <View>
+              <Text style={styles.statusTitle}>Sentinel active</Text>
+              <Text style={styles.statusSubtitle}>
+                {currentStage.title}
+              </Text>
             </View>
           </View>
 
-          {isSoftAlert ? (
-            <>
-              <Text style={styles.softAlertTitle}>Cancel window</Text>
-              <Text style={styles.timer}>{countdown || '00:10'}</Text>
-              <Text style={styles.softAlertText}>
-                Started by {triggerLabel.replace('_', ' ')}. If you do nothing, Sentinel will treat this as a real emergency.
+          <View style={styles.stageBadge}>
+            <Text style={styles.stageBadgeText}>
+              {stage.replace('_', ' ')}
+            </Text>
+          </View>
+        </View>
+      </MotionView>
+
+      <MotionView delay={100}>
+        <View style={styles.controlCard}>
+          <Text style={styles.controlTitle}>
+            What is happening?
+          </Text>
+
+          <Text style={styles.controlDescription}>
+            Sentinel is already tracking this emergency. Choose the
+            response level that matches your situation.
+          </Text>
+
+          <View style={styles.stageList}>
+            {STAGES.map((item) => {
+              const selected = item.id === stage;
+
+              return (
+                <Pressable
+                  key={item.id}
+                  onPress={() => handleEscalate(item.id)}
+                  disabled={selected || escalating || cancelling}
+                  style={[
+                    styles.stageOption,
+                    selected && styles.stageOptionSelected,
+                  ]}
+                >
+                  <View style={styles.stageOptionCopy}>
+                    <Text style={styles.stageOptionTitle}>
+                      {item.title}
+                    </Text>
+
+                    <Text style={styles.stageOptionDescription}>
+                      {item.description}
+                    </Text>
+                  </View>
+
+                  {selected ? (
+                    <View style={styles.selectedIndicator}>
+                      <Text style={styles.selectedIndicatorText}>
+                        ACTIVE
+                      </Text>
+                    </View>
+                  ) : escalating ? (
+                    <ActivityIndicator color={theme.colors.text} />
+                  ) : null}
+                </Pressable>
+              );
+            })}
+          </View>
+
+          <Pressable
+            style={styles.safeButton}
+            onPress={handleCancel}
+            disabled={cancelling || escalating}
+          >
+            {cancelling ? (
+              <ActivityIndicator color={theme.colors.text} />
+            ) : (
+              <Text style={styles.safeButtonText}>
+                I'm Safe — End Alert
               </Text>
-            </>
-          ) : (
-            <SessionTimer startedAt={activeSession.startedAt} style={styles.timer} />
-          )}
-        </LinearGradient>
-      </MotionView>
-
-      <MotionView delay={120} style={styles.metricsRow}>
-        <View style={[styles.metricCard, theme.shadow.card]}>
-          <Text style={styles.metricLabel}>Location samples</Text>
-          <Text style={styles.metricValue}>{locationCount}</Text>
-        </View>
-        <View style={[styles.metricCard, theme.shadow.card]}>
-          <Text style={styles.metricLabel}>Latest accuracy</Text>
-          <Text style={styles.metricValue}>{formattedAccuracy}</Text>
+            )}
+          </Pressable>
         </View>
       </MotionView>
-
-      <MotionView delay={180} style={[styles.mapWrap, theme.shadow.card]}>
-        <LiveMap
-          locations={emergencyLocations}
-          statusLabel="Live location"
-          detailLabel={routeDetail}
-        />
-      </MotionView>
-
-      <Text style={styles.note}>
-        {isSoftAlert
-          ? `Risk level ${activeSession.riskScore ?? 0}/100. ${activeSession.detectionSummary?.[0] || 'Sentinel is checking your location and recent activity before escalating.'}`
-          : syncing
-          ? 'Updating emergency status and location...'
-          : latestLocation
-            ? `Latest update at ${new Date(
-                latestLocation.recordedAt || latestLocation.createdAt || Date.now(),
-              ).toLocaleTimeString()}`
-            : 'Waiting for the first location update.'}
-      </Text>
 
       <DismissibleNoticeCard
         visible={Boolean(error)}
@@ -442,210 +538,394 @@ export const ActiveEmergencyScreen = () => {
         onDismiss={() => setError('')}
       />
 
-      {isSoftAlert ? (
-        <View style={styles.actionsRow}>
-          <Pressable
-            style={[styles.secondaryAction, (escalating || cancelling) && styles.cancelDisabled]}
-            onPress={() => handleEscalate('high_alert')}
-            disabled={escalating || cancelling}
-          >
-            {escalating ? <ActivityIndicator color={theme.colors.text} /> : <Text style={styles.secondaryActionText}>Escalate Now</Text>}
-          </Pressable>
-          <Pressable
-            style={[styles.cancel, styles.rowAction, cancelling && styles.cancelDisabled]}
-            onPress={handleCancel}
-            disabled={cancelling || escalating}
-          >
-            {cancelling ? <ActivityIndicator color={theme.colors.text} /> : <Text style={styles.cancelText}>I'm Safe</Text>}
-          </Pressable>
-        </View>
-      ) : (
-        <Pressable style={[styles.cancel, cancelling && styles.cancelDisabled]} onPress={handleCancel} disabled={cancelling}>
-          {cancelling ? <ActivityIndicator color={theme.colors.text} /> : <Text style={styles.cancelText}>Cancel Alert</Text>}
+      <MotionView delay={160}>
+        <Pressable
+          style={styles.detailsToggle}
+          onPress={() => setShowDetails((value) => !value)}
+        >
+          <Text style={styles.detailsToggleText}>
+            {showDetails
+              ? 'Hide emergency details'
+              : 'View emergency details'}
+          </Text>
         </Pressable>
+      </MotionView>
+
+      {showDetails && (
+        <MotionView delay={20}>
+          <View style={styles.detailsCard}>
+            <View style={styles.metricsRow}>
+              <View style={styles.metric}>
+                <Text style={styles.metricLabel}>
+                  Session
+                </Text>
+
+                <Text style={styles.metricValue}>
+                  {activeSession.sessionId.slice(0, 8)}
+                </Text>
+              </View>
+
+              <View style={styles.metric}>
+                <Text style={styles.metricLabel}>
+                  Location samples
+                </Text>
+
+                <Text style={styles.metricValue}>
+                  {locationCount}
+                </Text>
+              </View>
+
+              <View style={styles.metric}>
+                <Text style={styles.metricLabel}>
+                  Accuracy
+                </Text>
+
+                <Text style={styles.metricValue}>
+                  {formattedAccuracy}
+                </Text>
+              </View>
+            </View>
+
+            <View style={styles.timerBlock}>
+              <Text style={styles.metricLabel}>
+                Emergency duration
+              </Text>
+
+              <SessionTimer
+                startedAt={activeSession.startedAt}
+                style={styles.timer}
+              />
+            </View>
+
+            <View style={styles.mapWrap}>
+              <LiveMap
+                locations={emergencyLocations}
+                statusLabel="Live location"
+                detailLabel={
+                  syncing
+                    ? 'Updating your emergency location'
+                    : 'Location tracking is active'
+                }
+              />
+            </View>
+
+            <Text style={styles.detailsNote}>
+              {syncing
+                ? 'Synchronising emergency status and location...'
+                : latestLocation
+                  ? `Last location update: ${new Date(
+                      latestLocation.recordedAt ||
+                        latestLocation.createdAt ||
+                        Date.now(),
+                    ).toLocaleTimeString()}`
+                  : 'Waiting for the first location update.'}
+            </Text>
+
+            {activeSession.detectionSummary?.length ? (
+              <Text style={styles.detailsNote}>
+                {activeSession.detectionSummary[0]}
+              </Text>
+            ) : null}
+          </View>
+        </MotionView>
       )}
-    </View>
+
+      <View style={styles.backgroundStatus}>
+        <View style={styles.backgroundStatusDot} />
+
+        <Text style={styles.backgroundStatusText}>
+          Sentinel will continue emergency tracking while you use
+          your phone.
+        </Text>
+      </View>
+    </ScrollView>
   );
 };
 
 const createStyles = (theme: ReturnType<typeof useAppTheme>) =>
   StyleSheet.create({
-    container: {
+    screen: {
       flex: 1,
-      padding: 20,
       backgroundColor: 'transparent',
     },
-    headerWrap: {
-      borderRadius: 8,
-      overflow: 'hidden',
-      marginBottom: 12,
+
+    content: {
+      padding: 16,
+      paddingBottom: 32,
     },
-    headerCard: {
-      padding: 18,
-      borderRadius: 8,
+
+    emptyState: {
+      flex: 1,
+      padding: 24,
+      justifyContent: 'center',
+      backgroundColor: 'transparent',
+    },
+
+    emptyTitle: {
+      color: theme.colors.text,
+      fontSize: 22,
+      fontWeight: '800',
+      marginBottom: 8,
+    },
+
+    emptyText: {
+      color: theme.colors.muted,
+      lineHeight: 20,
+    },
+
+    discreetHeader: {
+      minHeight: 66,
+      paddingHorizontal: 14,
+      paddingVertical: 12,
+      borderRadius: 12,
       borderWidth: 1,
       borderColor: theme.colors.border,
-    },
-    alertBadgeRow: {
+      backgroundColor: theme.colors.surface,
       flexDirection: 'row',
       alignItems: 'center',
-      gap: 10,
-      marginBottom: 10,
+      justifyContent: 'space-between',
+      marginBottom: 12,
     },
-    alertBadgeWrap: {
-      width: 18,
-      height: 18,
+
+    statusGroup: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      flex: 1,
+    },
+
+    statusIndicator: {
+      width: 28,
+      height: 28,
       alignItems: 'center',
       justifyContent: 'center',
+      marginRight: 10,
     },
-    alertBadgePulse: {
+
+    statusPulse: {
       position: 'absolute',
       width: 18,
       height: 18,
       borderRadius: 9,
       backgroundColor: theme.colors.red,
     },
-    alertBadgeCore: {
-      width: 8,
-      height: 8,
-      borderRadius: 4,
+
+    statusDot: {
+      width: 9,
+      height: 9,
+      borderRadius: 5,
       backgroundColor: theme.colors.red,
     },
-    alertBadgeText: {
-      color: theme.colors.red,
-      fontSize: 11,
-      fontWeight: '800',
-      letterSpacing: 1.2,
-    },
-    title: {
+
+    statusTitle: {
       color: theme.colors.text,
-      fontSize: 24,
+      fontSize: 15,
       fontWeight: '800',
     },
-    headerRow: {
-      flexDirection: 'row',
-      justifyContent: 'space-between',
-      alignItems: 'flex-start',
-      gap: 12,
-    },
-    headerCopy: {
-      flex: 1,
-      minWidth: 0,
-    },
-    subTitle: {
+
+    statusSubtitle: {
       color: theme.colors.muted,
-      marginTop: 4,
-    },
-    statusPill: {
-      paddingHorizontal: 12,
-      paddingVertical: 8,
-      borderRadius: 8,
-      borderWidth: 1,
-      borderColor: theme.colors.red,
-      backgroundColor: theme.gradients.emergency[0],
-      maxWidth: '46%',
-    },
-    statusPillText: {
-      color: theme.colors.text,
       fontSize: 12,
-      fontWeight: '700',
+      marginTop: 2,
+    },
+
+    stageBadge: {
+      paddingHorizontal: 9,
+      paddingVertical: 6,
+      borderRadius: 7,
+      borderWidth: 1,
+      borderColor: theme.colors.borderStrong,
+      maxWidth: 110,
+    },
+
+    stageBadgeText: {
+      color: theme.colors.text,
+      fontSize: 10,
+      fontWeight: '800',
       textTransform: 'uppercase',
-      lineHeight: 16,
       textAlign: 'center',
     },
-    softAlertTitle: {
-      color: theme.colors.muted,
-      marginTop: 16,
-      fontSize: 12,
-      textTransform: 'uppercase',
-      letterSpacing: 0.8,
-      fontWeight: '700',
-    },
-    softAlertText: {
-      color: theme.colors.text,
-      marginTop: 8,
-      lineHeight: 18,
-    },
-    timer: {
-      color: theme.colors.red,
-      fontSize: 42,
-      fontWeight: '800',
-      marginTop: 16,
-    },
-    metricsRow: {
-      flexDirection: 'row',
-      gap: 12,
-      marginBottom: 12,
-    },
-    metricCard: {
-      flex: 1,
-      padding: 14,
-      borderRadius: 8,
+
+    controlCard: {
+      borderRadius: 12,
       borderWidth: 1,
       borderColor: theme.colors.border,
       backgroundColor: theme.colors.surface,
+      padding: 16,
+      marginBottom: 12,
     },
-    metricLabel: {
-      color: theme.colors.muted,
-      fontSize: 12,
-      marginBottom: 8,
-    },
-    metricValue: {
+
+    controlTitle: {
       color: theme.colors.text,
       fontSize: 20,
-      fontWeight: '700',
+      fontWeight: '800',
     },
-    mapWrap: {
-      flex: 1,
-      marginBottom: 16,
-      borderRadius: 8,
-      overflow: 'hidden',
-    },
-    note: {
+
+    controlDescription: {
       color: theme.colors.muted,
-      marginBottom: 12,
+      marginTop: 6,
       lineHeight: 19,
+      marginBottom: 16,
     },
-    error: {
-      color: theme.colors.red,
-      marginBottom: 12,
-      lineHeight: 18,
+
+    stageList: {
+      gap: 8,
     },
-    cancel: {
-      backgroundColor: theme.colors.red,
-      padding: 16,
-      borderRadius: 8,
-      alignItems: 'center',
-      minHeight: 56,
-      justifyContent: 'center',
-      ...theme.shadow.glow,
-    },
-    cancelDisabled: {
-      opacity: 0.7,
-    },
-    rowAction: {
-      flex: 1,
-    },
-    cancelText: {
-      color: theme.colors.text,
-      fontWeight: '700',
-    },
-    actionsRow: {
+
+    stageOption: {
+      minHeight: 68,
+      borderRadius: 10,
+      borderWidth: 1,
+      borderColor: theme.colors.border,
+      backgroundColor: theme.colors.background,
+      paddingHorizontal: 13,
+      paddingVertical: 11,
       flexDirection: 'row',
-      gap: 12,
+      alignItems: 'center',
     },
-    secondaryAction: {
+
+    stageOptionSelected: {
+      borderColor: theme.colors.red,
+      backgroundColor: theme.gradients.emergency[0],
+    },
+
+    stageOptionCopy: {
       flex: 1,
-      minHeight: 56,
-      borderRadius: 8,
+      paddingRight: 8,
+    },
+
+    stageOptionTitle: {
+      color: theme.colors.text,
+      fontSize: 14,
+      fontWeight: '800',
+    },
+
+    stageOptionDescription: {
+      color: theme.colors.muted,
+      fontSize: 12,
+      lineHeight: 17,
+      marginTop: 3,
+    },
+
+    selectedIndicator: {
+      paddingHorizontal: 7,
+      paddingVertical: 4,
+      borderRadius: 5,
+      borderWidth: 1,
+      borderColor: theme.colors.red,
+    },
+
+    selectedIndicatorText: {
+      color: theme.colors.red,
+      fontSize: 9,
+      fontWeight: '800',
+    },
+
+    safeButton: {
+      minHeight: 52,
+      borderRadius: 9,
       alignItems: 'center',
       justifyContent: 'center',
       borderWidth: 1,
       borderColor: theme.colors.borderStrong,
-      backgroundColor: theme.colors.surface,
+      backgroundColor: theme.colors.background,
+      marginTop: 12,
     },
-    secondaryActionText: {
+
+    safeButtonText: {
       color: theme.colors.text,
       fontWeight: '700',
+    },
+
+    detailsToggle: {
+      minHeight: 48,
+      alignItems: 'center',
+      justifyContent: 'center',
+      marginBottom: 10,
+    },
+
+    detailsToggleText: {
+      color: theme.colors.muted,
+      fontSize: 13,
+      fontWeight: '700',
+    },
+
+    detailsCard: {
+      borderRadius: 12,
+      borderWidth: 1,
+      borderColor: theme.colors.border,
+      backgroundColor: theme.colors.surface,
+      padding: 14,
+      marginBottom: 12,
+    },
+
+    metricsRow: {
+      flexDirection: 'row',
+      gap: 8,
+    },
+
+    metric: {
+      flex: 1,
+      minWidth: 0,
+    },
+
+    metricLabel: {
+      color: theme.colors.muted,
+      fontSize: 10,
+      marginBottom: 5,
+      textTransform: 'uppercase',
+      letterSpacing: 0.5,
+    },
+
+    metricValue: {
+      color: theme.colors.text,
+      fontSize: 15,
+      fontWeight: '800',
+    },
+
+    timerBlock: {
+      marginTop: 18,
+    },
+
+    timer: {
+      color: theme.colors.red,
+      fontSize: 28,
+      fontWeight: '800',
+      marginTop: 4,
+    },
+
+    mapWrap: {
+      height: 260,
+      borderRadius: 10,
+      overflow: 'hidden',
+      marginTop: 16,
+    },
+
+    detailsNote: {
+      color: theme.colors.muted,
+      fontSize: 12,
+      lineHeight: 18,
+      marginTop: 10,
+    },
+
+    backgroundStatus: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      paddingHorizontal: 4,
+      marginTop: 4,
+    },
+
+    backgroundStatusDot: {
+      width: 7,
+      height: 7,
+      borderRadius: 4,
+      backgroundColor: theme.colors.red,
+      marginRight: 8,
+    },
+
+    backgroundStatusText: {
+      flex: 1,
+      color: theme.colors.muted,
+      fontSize: 11,
+      lineHeight: 16,
     },
   });

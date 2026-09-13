@@ -79,6 +79,12 @@ function hashEmailOtp(email, code) {
         .update(`${email}:${code}`, 'utf8')
         .digest('hex');
 }
+function hashPasswordResetCode(userId, code) {
+    return crypto
+        .createHmac('sha256', getOtpHashSecret())
+        .update(`password-reset:${userId}:${code}`, 'utf8')
+        .digest('hex');
+}
 function hashRefreshTokenId(tokenId) {
     return crypto
         .createHmac('sha256', getRefreshTokenHashSecret())
@@ -129,6 +135,7 @@ function mapUserRow(user, extras) {
         phone: user.phone_e164 || null,
         name: user.name,
         email: user.email,
+        emailVerified: Boolean(user.email_verified),
         status: user.status,
         phoneVerified: Boolean(user.phone_verified),
         credibility: extras?.credibility || null,
@@ -408,8 +415,8 @@ let AuthService = class AuthService {
             }
             if (!row) {
                 const createdUser = await client.query(
-                    "insert into users (email, name, phone_e164, phone_verified, status) values ($1, $2, $3, $4, 'active') returning *",
-                    [email || null, verifiedName || null, phone || null, Boolean(phone)],
+                    "insert into users (email, name, phone_e164, phone_verified, email_verified, status) values ($1, $2, $3, $4, $5, 'active') returning *",
+                    [email || null, verifiedName || null, phone || null, Boolean(phone), Boolean(email)],
                 );
                 row = createdUser.rows[0];
             }
@@ -468,7 +475,9 @@ let AuthService = class AuthService {
         if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email) || password.length < 12 || password.length > 256) {
             throw new common_1.BadRequestException('Enter a valid email and a password of at least 12 characters.');
         }
-        if (mode === 'signup' && name.length < 2) throw new common_1.BadRequestException('Name is required for signup.');
+        if (mode === 'signup') {
+            throw new common_1.BadRequestException('Verify your email with a one-time code before creating a password.');
+        }
         const user = await this.db.transaction(async (client) => {
             const found = await client.query('select * from users where lower(email) = $1 limit 1 for update', [email]);
             let row = found.rows[0];
@@ -512,6 +521,51 @@ let AuthService = class AuthService {
                 throw new common_1.ConflictException('A password is already set for this account.');
             }
             await client.query('update users set password_hash = $2, updated_at = now() where id = $1', [userId, hashPassword(password)]);
+            return { success: true };
+        });
+    }
+    async requestPasswordReset(body) {
+        const email = normalizeEmail(body?.email);
+        if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
+            throw new common_1.BadRequestException('Enter a valid email address.');
+        }
+        const genericResponse = { success: true, message: 'If an account matches this email, a recovery code has been sent.' };
+        const result = await this.db.query('select id, name, email from users where lower(email) = $1 limit 1', [email]);
+        const user = result.rows[0];
+        if (!user) return genericResponse;
+        const recent = await this.db.query(`select id from password_reset_challenges where user_id = $1 and created_at > now() - interval '60 seconds' order by created_at desc limit 1`, [user.id]);
+        if (recent.rows[0]) return genericResponse;
+        const code = generateEmailOtpCode();
+        const ttlMinutes = Math.max(1, Number.parseInt(String(process.env.PASSWORD_RESET_TTL_MINUTES || '10'), 10) || 10);
+        await this.db.query(`insert into password_reset_challenges (user_id, code_hash, expires_at) values ($1, $2, now() + ($3::int * interval '1 minute'))`, [user.id, hashPasswordResetCode(user.id, code), ttlMinutes]);
+        try {
+            await this.sendPasswordResetEmail({ email: user.email, name: user.name, code });
+        }
+        catch (error) {
+            this.logger.error(`Password reset email failed: ${error instanceof Error ? error.message : String(error)}`);
+        }
+        return genericResponse;
+    }
+    async resetPassword(body) {
+        const email = normalizeEmail(body?.email);
+        const code = String(body?.code || '').trim();
+        const password = validatePassword(body?.password);
+        if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email) || !/^[0-9]{6}$/.test(code)) {
+            throw new common_1.BadRequestException('Enter a valid email and recovery code.');
+        }
+        return this.db.transaction(async (client) => {
+            const userResult = await client.query('select id from users where lower(email) = $1 limit 1 for update', [email]);
+            const user = userResult.rows[0];
+            if (!user) throw new common_1.BadRequestException('Invalid or expired recovery code.');
+            const challengeResult = await client.query(`select id, code_hash from password_reset_challenges where user_id = $1 and consumed_at is null and expires_at > now() and attempts < 5 order by created_at desc limit 1 for update`, [user.id]);
+            const challenge = challengeResult.rows[0];
+            if (!challenge || !safeEqualHex(challenge.code_hash, hashPasswordResetCode(user.id, code))) {
+                if (challenge) await client.query('update password_reset_challenges set attempts = attempts + 1 where id = $1', [challenge.id]);
+                throw new common_1.BadRequestException('Invalid or expired recovery code.');
+            }
+            await client.query('update password_reset_challenges set consumed_at = now() where id = $1', [challenge.id]);
+            await client.query('update users set password_hash = $2, updated_at = now() where id = $1', [user.id, hashPassword(password)]);
+            await client.query('update auth_refresh_sessions set revoked_at = now(), updated_at = now() where user_id = $1 and revoked_at is null', [user.id]);
             return { success: true };
         });
     }
@@ -634,6 +688,20 @@ let AuthService = class AuthService {
             const errorBody = await response.text();
             throw new Error(`Resend rejected OTP email (${response.status}): ${errorBody || response.statusText}`);
         }
+    }
+    async sendPasswordResetEmail({ email, name, code }) {
+        const response = await fetch('https://api.resend.com/emails', {
+            method: 'POST',
+            headers: { Authorization: `Bearer ${process.env.RESEND_API_KEY}`, 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+                from: process.env.OTP_EMAIL_FROM,
+                to: [email],
+                subject: 'Reset your Sentinel password',
+                text: `Hello ${name || 'there'}, your Sentinel password recovery code is ${code}. It expires in 10 minutes.`,
+                html: `<p>Hello ${name || 'there'},</p><p>Your Sentinel password recovery code is <strong>${code}</strong>.</p><p>It expires in 10 minutes. If you did not request this, you can ignore this email.</p>`,
+            }),
+        });
+        if (!response.ok) throw new Error(`Resend rejected password reset email (${response.status})`);
     }
 };
 exports.AuthService = AuthService;

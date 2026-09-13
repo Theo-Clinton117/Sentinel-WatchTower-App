@@ -27,6 +27,8 @@ import {
 import { useAppStore } from '../store/useAppStore';
 import { useAppTheme } from '../theme';
 
+const MAX_VISIBLE_HISTORY = 20;
+
 export const RiskLogScreen = () => {
   const theme = useAppTheme();
   const styles = createStyles(theme);
@@ -60,11 +62,16 @@ export const RiskLogScreen = () => {
 
         setHistoryError(null);
 
-        const history = await getAlertHistory(40);
+        const history = await getAlertHistory(
+          MAX_VISIBLE_HISTORY,
+        );
 
         setAlertHistory(
           Array.isArray(history)
-            ? history
+            ? history.slice(
+                0,
+                MAX_VISIBLE_HISTORY,
+              )
             : [],
         );
       } catch (error) {
@@ -168,7 +175,7 @@ export const RiskLogScreen = () => {
     return (
       <View
         key={alert.id}
-        style={styles.timelineRow}
+        style={styles.alertItem}
       >
         <View style={styles.alertHeader}>
           <View style={styles.alertIcon}>
@@ -191,34 +198,38 @@ export const RiskLogScreen = () => {
           </View>
         </View>
 
-        <Text style={styles.timelineMeta}>
-          Started {formatDate(startedAt)}
-        </Text>
-
-        {endedAt ? (
+        <View style={styles.details}>
           <Text style={styles.timelineMeta}>
-            Ended {formatDate(endedAt)}
+            Started {formatDate(startedAt)}
           </Text>
-        ) : null}
 
-        {alert.stage ? (
-          <Text style={styles.timelineMeta}>
-            Highest stage{' '}
-            {formatLabel(alert.stage)}
-          </Text>
-        ) : null}
+          {endedAt ? (
+            <Text style={styles.timelineMeta}>
+              Ended {formatDate(endedAt)}
+            </Text>
+          ) : null}
 
-        {alert.status ? (
-          <Text style={styles.timelineMeta}>
-            Status{' '}
-            {formatLabel(alert.status)}
-          </Text>
-        ) : null}
+          {alert.stage ? (
+            <Text style={styles.timelineMeta}>
+              Highest stage{' '}
+              {formatLabel(alert.stage)}
+            </Text>
+          ) : null}
+
+          {alert.status ? (
+            <Text style={styles.timelineMeta}>
+              Status{' '}
+              {formatLabel(alert.status)}
+            </Text>
+          ) : null}
+        </View>
 
         {alert.detectionSummary?.length ? (
-          <Text style={styles.timelineNote}>
-            {alert.detectionSummary.join(' • ')}
-          </Text>
+          <View style={styles.noteBox}>
+            <Text style={styles.timelineNote}>
+              {alert.detectionSummary.join(' • ')}
+            </Text>
+          </View>
         ) : null}
 
         {alert.latestAudit ? (
@@ -237,6 +248,12 @@ export const RiskLogScreen = () => {
     );
   };
 
+  const visibleWatchSessions =
+    watchSessionHistory.slice(
+      0,
+      MAX_VISIBLE_HISTORY,
+    );
+
   return (
     <ScrollView
       style={styles.container}
@@ -246,6 +263,11 @@ export const RiskLogScreen = () => {
           refreshing={refreshing}
           onRefresh={() =>
             void loadAlertHistory(true)
+          }
+          tintColor={theme.colors.text}
+          colors={[theme.colors.text]}
+          progressBackgroundColor={
+            theme.colors.surface
           }
         />
       }
@@ -269,14 +291,32 @@ export const RiskLogScreen = () => {
           theme.shadow.card,
         ]}
       >
-        <Text style={styles.sectionTitle}>
-          Watch sessions
-        </Text>
+        <View style={styles.sectionHeader}>
+          <View style={styles.sectionHeaderText}>
+            <Text style={styles.sectionTitle}>
+              Watch sessions
+            </Text>
+
+            <Text style={styles.sourceText}>
+              Recent sessions
+            </Text>
+          </View>
+        </View>
 
         {activeWatchSession ? (
-          <View style={styles.timelineRow}>
+          <View style={styles.sessionItem}>
+            <View style={styles.activeRow}>
+              <View
+                style={styles.activeIndicator}
+              />
+
+              <Text style={styles.activeLabel}>
+                Active watch
+              </Text>
+            </View>
+
             <Text style={styles.timelineTitle}>
-              Active watch with{' '}
+              Watching with{' '}
               {activeWatchSession.contactName}
             </Text>
 
@@ -295,7 +335,7 @@ export const RiskLogScreen = () => {
           </View>
         ) : null}
 
-        {watchSessionHistory.length === 0 &&
+        {visibleWatchSessions.length === 0 &&
         !activeWatchSession ? (
           <EmptyState
             icon={Clock3}
@@ -304,11 +344,11 @@ export const RiskLogScreen = () => {
           />
         ) : null}
 
-        {watchSessionHistory.map(
+        {visibleWatchSessions.map(
           (session) => (
             <View
               key={session.id}
-              style={styles.timelineRow}
+              style={styles.sessionItem}
             >
               <Text style={styles.timelineTitle}>
                 {session.contactName}
@@ -316,22 +356,28 @@ export const RiskLogScreen = () => {
 
               <Text style={styles.timelineMeta}>
                 {session.durationMinutes}{' '}
-                minutes - ended{' '}
+                minutes · ended{' '}
                 {new Date(
                   session.endsAt,
                 ).toLocaleString()}
               </Text>
 
               {session.note ? (
-                <Text
-                  style={styles.timelineNote}
-                >
+                <Text style={styles.timelineNote}>
                   {session.note}
                 </Text>
               ) : null}
             </View>
           ),
         )}
+
+        {watchSessionHistory.length >
+        MAX_VISIBLE_HISTORY ? (
+          <Text style={styles.limitText}>
+            Showing the {MAX_VISIBLE_HISTORY}{' '}
+            most recent watch sessions.
+          </Text>
+        ) : null}
       </MotionView>
 
       <MotionView
@@ -348,7 +394,8 @@ export const RiskLogScreen = () => {
             </Text>
 
             <Text style={styles.sourceText}>
-              Synced from Sentinel
+              Showing the {MAX_VISIBLE_HISTORY}{' '}
+              most recent alerts
             </Text>
           </View>
 
@@ -359,10 +406,19 @@ export const RiskLogScreen = () => {
               void loadAlertHistory(true)
             }
             disabled={refreshing}
-            style={styles.refreshButton}
+            activeOpacity={0.7}
+            style={[
+              styles.refreshButton,
+              refreshing &&
+                styles.refreshButtonDisabled,
+            ]}
           >
-            <Text style={styles.refreshButtonText}>
-              Refresh
+            <Text
+              style={styles.refreshButtonText}
+            >
+              {refreshing
+                ? 'Refreshing'
+                : 'Refresh'}
             </Text>
           </TouchableOpacity>
         </View>
@@ -381,9 +437,11 @@ export const RiskLogScreen = () => {
 
             <TouchableOpacity
               accessibilityRole="button"
+              accessibilityLabel="Retry loading emergency history"
               onPress={() =>
                 void loadAlertHistory()
               }
+              activeOpacity={0.7}
               style={styles.retryButton}
             >
               <Text style={styles.retryButtonText}>
@@ -442,6 +500,10 @@ const createStyles = (theme: any) =>
         theme.colors.surface,
       borderRadius: 18,
       padding: 18,
+      borderWidth:
+        StyleSheet.hairlineWidth,
+      borderColor:
+        theme.colors.border,
     },
 
     sectionHeader: {
@@ -464,16 +526,27 @@ const createStyles = (theme: any) =>
 
     sourceText: {
       fontSize: 12,
+      lineHeight: 17,
       color: theme.colors.textMuted,
     },
 
     refreshButton: {
+      minHeight: 36,
       paddingHorizontal: 12,
       paddingVertical: 8,
       borderRadius: 10,
+      alignItems: 'center',
+      justifyContent: 'center',
+      backgroundColor:
+        theme.colors.background,
       borderWidth:
         StyleSheet.hairlineWidth,
-      borderColor: theme.colors.border,
+      borderColor:
+        theme.colors.border,
+    },
+
+    refreshButtonDisabled: {
+      opacity: 0.55,
     },
 
     refreshButtonText: {
@@ -482,7 +555,7 @@ const createStyles = (theme: any) =>
       color: theme.colors.text,
     },
 
-    timelineRow: {
+    sessionItem: {
       borderTopWidth:
         StyleSheet.hairlineWidth,
       borderTopColor:
@@ -491,8 +564,43 @@ const createStyles = (theme: any) =>
       marginTop: 14,
     },
 
+    alertItem: {
+      borderTopWidth:
+        StyleSheet.hairlineWidth,
+      borderTopColor:
+        theme.colors.border,
+      paddingTop: 16,
+      marginTop: 16,
+    },
+
+    alertHeader: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      marginBottom: 10,
+    },
+
+    alertIcon: {
+      width: 38,
+      height: 38,
+      borderRadius: 19,
+      alignItems: 'center',
+      justifyContent: 'center',
+      backgroundColor:
+        theme.colors.background,
+      borderWidth:
+        StyleSheet.hairlineWidth,
+      borderColor:
+        theme.colors.border,
+      marginRight: 11,
+    },
+
+    alertHeaderText: {
+      flex: 1,
+    },
+
     timelineTitle: {
       fontSize: 16,
+      lineHeight: 21,
       fontWeight: '700',
       color: theme.colors.text,
       marginBottom: 5,
@@ -509,43 +617,66 @@ const createStyles = (theme: any) =>
       fontSize: 13,
       lineHeight: 19,
       color: theme.colors.text,
-      marginTop: 6,
+    },
+
+    details: {
+      marginTop: 2,
+    },
+
+    noteBox: {
+      marginTop: 10,
+      padding: 10,
+      borderRadius: 10,
+      backgroundColor:
+        theme.colors.background,
+      borderWidth:
+        StyleSheet.hairlineWidth,
+      borderColor:
+        theme.colors.border,
     },
 
     auditMeta: {
       fontSize: 12,
       lineHeight: 18,
       color: theme.colors.textMuted,
-      marginTop: 8,
+      marginTop: 10,
     },
 
-    alertHeader: {
+    activeRow: {
       flexDirection: 'row',
       alignItems: 'center',
       marginBottom: 8,
     },
 
-    alertIcon: {
-      width: 34,
-      height: 34,
-      borderRadius: 17,
-      alignItems: 'center',
-      justifyContent: 'center',
+    activeIndicator: {
+      width: 8,
+      height: 8,
+      borderRadius: 4,
       backgroundColor:
-        theme.colors.background,
-      marginRight: 10,
+        theme.colors.text,
+      marginRight: 7,
     },
 
-    alertHeaderText: {
-      flex: 1,
+    activeLabel: {
+      fontSize: 12,
+      fontWeight: '700',
+      color: theme.colors.text,
+    },
+
+    limitText: {
+      fontSize: 12,
+      lineHeight: 18,
+      color: theme.colors.textMuted,
+      marginTop: 16,
+      textAlign: 'center',
     },
 
     loadingState: {
-      paddingTop: 10,
+      paddingTop: 16,
     },
 
     errorState: {
-      paddingTop: 10,
+      paddingTop: 16,
     },
 
     errorText: {
@@ -560,9 +691,12 @@ const createStyles = (theme: any) =>
       paddingHorizontal: 14,
       paddingVertical: 9,
       borderRadius: 10,
+      backgroundColor:
+        theme.colors.background,
       borderWidth:
         StyleSheet.hairlineWidth,
-      borderColor: theme.colors.border,
+      borderColor:
+        theme.colors.border,
     },
 
     retryButtonText: {

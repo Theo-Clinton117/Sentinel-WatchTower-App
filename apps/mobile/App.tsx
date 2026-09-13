@@ -130,7 +130,7 @@ const ScreenRouter = ({ paymentReference }: { paymentReference: string | null })
     return currentScreen === 'otp' ? <OtpScreen /> : <AuthEntryScreen />;
   }
 
-  if (user?.hasPassword === false || currentScreen === 'set-password') {
+  if (currentScreen === 'set-password') {
     return <SetPasswordScreen />;
   }
 

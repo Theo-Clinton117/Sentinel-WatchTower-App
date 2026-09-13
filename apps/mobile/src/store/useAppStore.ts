@@ -9,6 +9,7 @@ export type Screen =
   | 'home'
   | 'auth'
   | 'otp'
+  | 'password-recovery'
   | 'set-password'
   | 'onboarding-contacts'
   | 'onboarding-permissions'
@@ -41,6 +42,7 @@ export type AppUser = {
   phone?: string | null;
   name?: string | null;
   email?: string | null;
+  emailVerified?: boolean;
   status?: string | null;
   phoneVerified?: boolean;
   hasPassword?: boolean;

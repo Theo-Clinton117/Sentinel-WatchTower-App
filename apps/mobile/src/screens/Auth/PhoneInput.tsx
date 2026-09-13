@@ -78,7 +78,7 @@ export const AuthEntryScreen = () => {
       return;
     }
 
-    if (isEmail && password.length < 12) {
+    if (isEmail && !isSignup && password.length < 12) {
       setError('Use a password with at least 12 characters.');
       return;
     }
@@ -91,7 +91,7 @@ export const AuthEntryScreen = () => {
     try {
       setLoading(true);
       setError('');
-      if (isEmail) {
+      if (isEmail && !isSignup) {
         const result = await authenticateWithPassword(
           { email: normalizedEmail, password, name: isSignup ? trimmedName : undefined, mode },
           deviceId,
@@ -260,7 +260,7 @@ export const AuthEntryScreen = () => {
               </View>
             )}
 
-            {contactMethod === 'email' ? (
+            {contactMethod === 'email' && !isSignup ? (
               <View style={styles.fieldBlock}>
                 <Text style={styles.label}>Password</Text>
                 <TextInput
@@ -275,8 +275,12 @@ export const AuthEntryScreen = () => {
                   textContentType={isSignup ? 'newPassword' : 'password'}
                   onChangeText={(value) => { setPassword(value); if (error) setError(''); }}
                 />
-                <Text style={styles.passwordHint}>Your password signs in on this device. Phone sign-in continues with a one-time code.</Text>
+                <Text style={styles.passwordHint}>Email login uses your password. Phone authentication uses a one-time code.</Text>
               </View>
+            ) : contactMethod === 'email' ? (
+              <Text style={styles.passwordHint}>
+                We will verify your email first, then help you create a secure password.
+              </Text>
             ) : null}
 
             <DismissibleNoticeCard

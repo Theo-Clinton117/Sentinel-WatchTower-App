@@ -35,6 +35,12 @@ let AuthController = class AuthController {
     setPassword(req, body) {
         return this.authService.setInitialPassword(req.user.sub, body);
     }
+    forgotPassword(body) {
+        return this.authService.requestPasswordReset(body);
+    }
+    resetPassword(body) {
+        return this.authService.resetPassword(body);
+    }
     refresh(body) {
         return this.authService.refresh(body.refreshToken);
     }
@@ -77,6 +83,22 @@ __decorate([
     __metadata("design:paramtypes", [Object, Object]),
     __metadata("design:returntype", void 0)
 ], AuthController.prototype, "setPassword", null);
+__decorate([
+    (0, common_1.Post)('password/forgot'),
+    (0, rate_limit_decorator_1.RateLimit)({ points: 5, duration: 900 }),
+    __param(0, (0, common_1.Body)()),
+    __metadata("design:type", Function),
+    __metadata("design:paramtypes", [Object]),
+    __metadata("design:returntype", void 0)
+], AuthController.prototype, "forgotPassword", null);
+__decorate([
+    (0, common_1.Post)('password/reset'),
+    (0, rate_limit_decorator_1.RateLimit)({ points: 5, duration: 900 }),
+    __param(0, (0, common_1.Body)()),
+    __metadata("design:type", Function),
+    __metadata("design:paramtypes", [Object]),
+    __metadata("design:returntype", void 0)
+], AuthController.prototype, "resetPassword", null);
 __decorate([
     (0, common_1.Post)('refresh'),
     (0, rate_limit_decorator_1.RateLimit)({ points: 30, duration: 60 }),

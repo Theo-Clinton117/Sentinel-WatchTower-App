@@ -111,7 +111,13 @@ export const OtpScreen = () => {
         refreshToken: result.refreshToken,
         user: result.user,
       });
-      resetNavigation(result.user.hasPassword ? (onboardingComplete ? 'home' : 'onboarding-contacts') : 'set-password');
+      const nextScreen =
+        authFlow === 'signup' && pendingEmail && !result.user.hasPassword
+          ? 'set-password'
+          : onboardingComplete
+            ? 'home'
+            : 'onboarding-contacts';
+      resetNavigation(nextScreen);
     } catch (verifyError) {
       const message =
         verifyError instanceof ApiError

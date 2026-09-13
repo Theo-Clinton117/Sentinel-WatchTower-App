@@ -8,6 +8,7 @@ export type AuthUser = {
   phone?: string | null;
   name?: string | null;
   email?: string | null;
+  emailVerified?: boolean;
   status?: string | null;
   phoneVerified?: boolean;
   hasPassword?: boolean;
@@ -179,6 +180,20 @@ export async function authenticateWithPassword(
 
 export async function setInitialPassword(password: string) {
   return apiPost<{ success: boolean }>('/auth/password/set', { password }, { auth: true });
+}
+
+export async function requestPasswordReset(email: string) {
+  return apiPost<{ success: boolean; message: string }>('/auth/password/forgot', {
+    email: normalizeEmailInput(email),
+  });
+}
+
+export async function resetPassword(email: string, code: string, password: string) {
+  return apiPost<{ success: boolean }>('/auth/password/reset', {
+    email: normalizeEmailInput(email),
+    code: code.trim(),
+    password,
+  });
 }
 
 export async function logout(refreshToken: string) {
