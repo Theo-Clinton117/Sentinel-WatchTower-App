@@ -28,17 +28,17 @@ const db_service_1 = require("../db/db.service");
 const ws_service_1 = require("../ws/ws.service");
 
 const LOCATION_COLUMNS =
-    "id, session_id, user_id, latitude, longitude, accuracy, recorded_at";
+    "id, session_id, user_id, lat, lng, accuracy_m, source, recorded_at";
 
 function mapLocationRow(row) {
     return {
         id: row.id,
         sessionId: row.session_id,
         userId: row.user_id,
-        lat: Number(row.latitude),
-        lng: Number(row.longitude),
-        accuracyM: row.accuracy == null ? null : Number(row.accuracy),
-        source: "mobile",
+        lat: Number(row.lat),
+        lng: Number(row.lng),
+        accuracyM: row.accuracy_m == null ? null : Number(row.accuracy_m),
+        source: row.source || "mobile",
         recordedAt: row.recorded_at,
     };
 }
@@ -95,6 +95,9 @@ function normalizeLocationInput(item) {
             Number.isFinite(parsedAccuracy) && parsedAccuracy >= 0
                 ? parsedAccuracy
                 : null,
+        source: typeof item?.source === "string" && item.source.trim()
+            ? item.source.trim().slice(0, 40)
+            : "mobile",
         recordedAt: new Date(recordedAt).toISOString(),
     };
 }
@@ -106,14 +109,18 @@ let LocationsService = class LocationsService {
     }
 
     async ingest(userId, sessionId, body) {
+        if (!Array.isArray(body?.locations) || body.locations.length === 0) {
+            throw new common_1.BadRequestException("No locations provided");
+        }
+        if (body.locations.length > 100) {
+            throw new common_1.BadRequestException("A maximum of 100 locations can be submitted at once");
+        }
+        const normalized = body.locations.map(normalizeLocationInput).filter(Boolean);
+        if (normalized.length === 0) {
+            throw new common_1.BadRequestException("No valid locations provided");
+        }
         const sessionResult = await this.db.query(
-            `
-            select id
-            from watch_sessions
-            where id = $1
-              and user_id = $2
-            limit 1
-            `,
+            "select id from watch_sessions where id = $1 and user_id = $2 limit 1",
             [sessionId, userId]
         );
 
@@ -121,36 +128,11 @@ let LocationsService = class LocationsService {
             throw new common_1.NotFoundException("Session not found");
         }
 
-        if (
-            !Array.isArray(body?.locations) ||
-            body.locations.length === 0
-        ) {
-            throw new common_1.BadRequestException(
-                "No locations provided"
-            );
-        }
-
-        if (body.locations.length > 100) {
-            throw new common_1.BadRequestException(
-                "A maximum of 100 locations can be submitted at once"
-            );
-        }
-
-        const normalized = body.locations
-            .map(normalizeLocationInput)
-            .filter(Boolean);
-
-        if (normalized.length === 0) {
-            throw new common_1.BadRequestException(
-                "No valid locations provided"
-            );
-        }
-
         const inserted = await this.db.transaction(async (client) => {
             const values = [];
 
             const placeholders = normalized.map((location, index) => {
-                const offset = index * 6;
+                const offset = index * 7;
 
                 values.push(
                     sessionId,
@@ -158,6 +140,7 @@ let LocationsService = class LocationsService {
                     location.lat,
                     location.lng,
                     location.accuracyM,
+                    location.source,
                     location.recordedAt
                 );
 
@@ -167,7 +150,8 @@ let LocationsService = class LocationsService {
                     $${offset + 3},
                     $${offset + 4},
                     $${offset + 5},
-                    $${offset + 6}
+                    $${offset + 6},
+                    $${offset + 7}
                 )`;
             });
 
@@ -176,9 +160,10 @@ let LocationsService = class LocationsService {
                 insert into location_logs (
                     session_id,
                     user_id,
-                    latitude,
-                    longitude,
-                    accuracy,
+                    lat,
+                    lng,
+                    accuracy_m,
+                    source,
                     recorded_at
                 )
                 values ${placeholders.join(", ")}
@@ -231,6 +216,36 @@ let LocationsService = class LocationsService {
         return {
             sessionId,
             locations: result.rows.map(mapLocationRow),
+        };
+    }
+    // This is intentionally separate from session ownership. A Circle member
+    // needs an active, non-expired grant to read another person's coordinates.
+    async latestSharedLocation(requesterUserId, subjectUserId) {
+        const grant = await this.db.query(`
+            select id, purpose, expires_at
+            from location_access_grants
+            where subject_user_id = $1 and grantee_user_id = $2
+              and status = 'active' and expires_at > now()
+            order by expires_at desc limit 1
+        `, [subjectUserId, requesterUserId]);
+        const activeGrant = grant.rows[0];
+        if (!activeGrant) {
+            await this.db.query("insert into location_access_audit_events (subject_user_id, requester_user_id, action, outcome, reason) values ($1, $2, 'read_latest_location', 'denied', 'no_active_grant')", [subjectUserId, requesterUserId]);
+            throw new common_1.ForbiddenException("This person has not shared their location with you.");
+        }
+        const location = await this.db.query(`
+            select id, session_id, user_id, lat, lng, accuracy_m, source, recorded_at
+            from location_logs where user_id = $1 order by recorded_at desc limit 1
+        `, [subjectUserId]);
+        await this.db.query("insert into location_access_audit_events (subject_user_id, requester_user_id, grant_id, action, outcome, reason) values ($1, $2, $3, 'read_latest_location', 'allowed', $4)", [subjectUserId, requesterUserId, activeGrant.id, activeGrant.purpose]);
+        const row = location.rows[0];
+        if (!row) return { status: 'unavailable', location: null };
+        const mapped = mapLocationRow(row);
+        const ageMs = Date.now() - new Date(mapped.recordedAt).getTime();
+        return {
+            status: ageMs <= 10 * 60 * 1000 ? 'current' : 'last_confirmed',
+            location: mapped,
+            grantExpiresAt: activeGrant.expires_at,
         };
     }
 };

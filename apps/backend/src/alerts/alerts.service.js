@@ -315,10 +315,12 @@ let AlertsService = class AlertsService {
                 : "panic";
 
         /*
-         * SOS/panic starts as Soft Alert.
+         * Preserve the established SOS contract: a manual panic alert is a
+         * high-priority emergency unless a caller explicitly starts a softer
+         * safety check stage.
          */
         const alertStage = (0, alert_stages_1.normalizeAlertStage)(
-            body?.stage || "soft_alert",
+            body?.stage || "high_alert",
         );
 
         const escalationLevel =
@@ -338,7 +340,7 @@ let AlertsService = class AlertsService {
         const detectionSummary =
             sanitizeDetectionSummary(body?.detectionSummary);
 
-        const cancelWindowMs = 0;
+        const cancelWindowMs = (0, alert_stages_1.getCancelWindowMs)(alertStage);
 
         const created = await this.db.transaction(async (client) => {
             const alertResult = await client.query(`

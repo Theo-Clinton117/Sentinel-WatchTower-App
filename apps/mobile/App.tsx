@@ -57,8 +57,10 @@ import { SettingsScreen } from './src/screens/Settings';
 import { AuthEntryScreen } from './src/screens/Auth/PhoneInput';
 import { OtpScreen } from './src/screens/Auth/Otp';
 import { SetPasswordScreen } from './src/screens/Auth/SetPassword';
+import { PasswordRecoveryScreen } from './src/screens/Auth/PasswordRecovery';
 import { OnboardingContactsScreen } from './src/screens/Onboarding/Contacts';
 import { OnboardingPermissionsScreen } from './src/screens/Onboarding/Permissions';
+import { AroundScreen, CircleScreen, SafeArrivalScreen } from './src/screens/SafetyNetwork';
 
 const queryClient = new QueryClient();
 const MAX_DRAWER_WIDTH = 304;
@@ -127,7 +129,9 @@ const ScreenRouter = ({ paymentReference }: { paymentReference: string | null })
   }
 
   if (authStatus === 'unauthenticated') {
-    return currentScreen === 'otp' ? <OtpScreen /> : <AuthEntryScreen />;
+    if (currentScreen === 'otp') return <OtpScreen />;
+    if (currentScreen === 'password-recovery') return <PasswordRecoveryScreen />;
+    return <AuthEntryScreen />;
   }
 
   if (currentScreen === 'set-password') {
@@ -143,6 +147,14 @@ const ScreenRouter = ({ paymentReference }: { paymentReference: string | null })
   }
 
   switch (currentScreen) {
+    case 'around':
+      return <AroundScreen />;
+    case 'circle':
+      return <CircleScreen />;
+    case 'activity':
+      return <RiskLogScreen />;
+    case 'safe-arrival':
+      return <SafeArrivalScreen />;
     case 'contacts':
       return <ContactsScreen />;
     case 'risk-log':

@@ -1,6 +1,6 @@
 import React from 'react';
-import { Modal, Pressable, StyleSheet, Text, View } from 'react-native';
-import { X } from 'lucide-react-native';
+import { Modal, Pressable, SafeAreaView, StyleSheet, Text, View } from 'react-native';
+import { AlertTriangle, X } from 'lucide-react-native';
 import { useAppTheme } from '../theme';
 
 type NoticeTone = 'info' | 'error' | 'success' | 'warning';
@@ -32,18 +32,14 @@ export const DismissibleNoticeCard = ({
   }
 
   const semanticTone = tone === 'error' ? 'danger' : tone;
-  const accent = theme.semantic[semanticTone].solid;
 
   return (
     <Modal visible transparent animationType="fade" statusBarTranslucent onRequestClose={onDismiss}>
-      <Pressable style={styles.backdrop} onPress={onDismiss} accessibilityRole="button">
-        <Pressable
-          onPress={(event) => event.stopPropagation()}
-          style={({ pressed }) => [styles.card, pressed && styles.cardPressed]}
-        >
+      <SafeAreaView pointerEvents="box-none" style={styles.backdrop}>
+        <View style={styles.card}>
           <View style={styles.headerRow}>
             <View style={styles.iconRail}>
-              <View style={[styles.dot, { backgroundColor: accent }]} />
+              <AlertTriangle color="#EAB308" size={16} strokeWidth={2.5} />
             </View>
             <View style={styles.headerCopy}>
               <Text style={styles.title}>{title}</Text>
@@ -70,36 +66,31 @@ export const DismissibleNoticeCard = ({
               </Pressable>
             </View>
           ) : null}
-        </Pressable>
-      </Pressable>
+        </View>
+      </SafeAreaView>
     </Modal>
   );
 };
 
 const createStyles = (theme: ReturnType<typeof useAppTheme>, tone: NoticeTone) => {
   const semanticTone = tone === 'error' ? 'danger' : tone;
-  const accent = theme.semantic[semanticTone].solid;
-
   return StyleSheet.create({
     backdrop: {
       flex: 1,
-      justifyContent: 'center',
-      alignItems: 'center',
-      padding: 20,
-      backgroundColor: theme.colors.overlay,
+      justifyContent: 'flex-end',
+      paddingHorizontal: 16,
+      paddingBottom: 12,
     },
     card: {
       width: '100%',
       maxWidth: 420,
+      alignSelf: 'center',
       borderRadius: 26,
       backgroundColor: theme.isDark ? 'rgba(10, 19, 34, 0.98)' : 'rgba(255,255,255,0.98)',
       borderWidth: 1,
       borderColor: theme.semantic[semanticTone].border,
       padding: 16,
       ...theme.shadow.card,
-    },
-    cardPressed: {
-      transform: [{ scale: 0.995 }],
     },
     headerRow: {
       flexDirection: 'row',
@@ -116,11 +107,6 @@ const createStyles = (theme: ReturnType<typeof useAppTheme>, tone: NoticeTone) =
       borderWidth: 1,
       borderColor: theme.semantic[semanticTone].border,
       marginTop: 2,
-    },
-    dot: {
-      width: 10,
-      height: 10,
-      borderRadius: 5,
     },
     headerCopy: {
       flex: 1,

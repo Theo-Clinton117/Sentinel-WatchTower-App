@@ -20,7 +20,10 @@ function mapContactRow(row) {
         contactEmail: (0, field_encryption_1.decryptField)(row.contact_email),
         status: row.status,
         priority: row.priority,
-        canViewLocation: row.can_view_location ?? true,
+        // Trust/contact membership is not location consent. Historical rows
+        // retain their explicit preference, but new or incomplete rows default
+        // to private until a time-bound sharing grant is created.
+        canViewLocation: row.can_view_location ?? false,
         canViewHistory: row.can_view_history ?? false,
         canSms: row.can_sms ?? true,
         canCall: row.can_call ?? true,
@@ -101,7 +104,7 @@ let ContactsService = class ContactsService {
       `, [
                 userId,
                 contact.id,
-                body?.canViewLocation ?? true,
+                body?.canViewLocation ?? false,
                 body?.canViewHistory ?? false,
                 body?.canSms ?? true,
                 body?.canCall ?? true,
@@ -231,7 +234,7 @@ let ContactsService = class ContactsService {
           `, [
                         userId,
                         id,
-                        body?.canViewLocation ?? true,
+                        body?.canViewLocation ?? false,
                         body?.canViewHistory ?? false,
                         body?.canSms ?? true,
                         body?.canCall ?? true,

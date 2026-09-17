@@ -14,6 +14,8 @@ const config_1 = require("@nestjs/config");
 const auth_module_1 = require("./auth/auth.module");
 const users_module_1 = require("./users/users.module");
 const contacts_module_1 = require("./contacts/contacts.module");
+const circles_module_1 = require("./circles/circles.module");
+const journeys_module_1 = require("./journeys/journeys.module");
 const alerts_module_1 = require("./alerts/alerts.module");
 const sessions_module_1 = require("./sessions/sessions.module");
 const locations_module_1 = require("./locations/locations.module");
@@ -47,6 +49,8 @@ exports.AppModule = AppModule = __decorate([
             auth_module_1.AuthModule,
             users_module_1.UsersModule,
             contacts_module_1.ContactsModule,
+            circles_module_1.CirclesModule,
+            journeys_module_1.JourneysModule,
             alerts_module_1.AlertsModule,
             sessions_module_1.SessionsModule,
             locations_module_1.LocationsModule,

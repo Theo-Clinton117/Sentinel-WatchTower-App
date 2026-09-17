@@ -1,0 +1,1 @@
+"use strict";const {Module}=require('@nestjs/common'),{JourneysController}=require('./journeys.controller'),{JourneysService}=require('./journeys.service');let JourneysModule=class JourneysModule{};JourneysModule=Module({controllers:[JourneysController],providers:[JourneysService]})(JourneysModule)||JourneysModule;exports.JourneysModule=JourneysModule;

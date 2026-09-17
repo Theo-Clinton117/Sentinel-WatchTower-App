@@ -313,6 +313,12 @@ export const AuthEntryScreen = () => {
               </Text>
             </Pressable>
 
+            {!isSignup && contactMethod === 'email' ? (
+              <Pressable onPress={() => pushScreen('password-recovery')} style={styles.secondaryAction}>
+                <Text style={styles.secondaryText}>Forgot password?</Text>
+              </Pressable>
+            ) : null}
+
             {__DEV__ &&
             process.env.EXPO_PUBLIC_APP_ENV !== 'production' &&
             process.env.EXPO_PUBLIC_ENABLE_DEV_TEST_SESSION !== 'false' ? (

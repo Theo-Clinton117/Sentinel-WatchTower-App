@@ -175,19 +175,20 @@ exports.getAlertStageLabel = getAlertStageLabel;
  *
  * IMPORTANT:
  *
- * Soft Alert does NOT automatically escalate.
- *
- * Suspicious does NOT automatically escalate.
- *
- * This allows the user to make a semi-manual decision after
- * pressing SOS rather than Sentinel immediately turning the
- * alert into a High Alert.
+ * A Soft Alert has a short, visible cancellation window before it
+ * escalates. This preserves the existing emergency contract while keeping
+ * accidental triggers reversible.
  *
  * High Alert DOES automatically escalate to Critical after
  * three minutes if it remains active.
  */
 function getNextEscalationPlan(stage) {
     switch (normalizeAlertStage(stage)) {
+        case "soft_alert":
+            return {
+                targetStage: "high_alert",
+                delayMs: 10 * 1000,
+            };
         case "high_alert":
             return {
                 targetStage: "critical",
@@ -217,7 +218,7 @@ exports.getNextEscalationPlan = getNextEscalationPlan;
  * AlertsService.cancel() flow.
  */
 function getCancelWindowMs(stage) {
-    return 0;
+    return normalizeAlertStage(stage) === "soft_alert" ? 10 * 1000 : 0;
 }
 
 exports.getCancelWindowMs = getCancelWindowMs;

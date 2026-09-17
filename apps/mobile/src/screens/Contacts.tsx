@@ -84,7 +84,7 @@ export const ContactsScreen = () => {
   const [contactName, setContactName] = useState('');
   const [contactPhone, setContactPhone] = useState('');
   const [contactEmail, setContactEmail] = useState('');
-  const [canViewLocation, setCanViewLocation] = useState(true);
+  const [canViewLocation, setCanViewLocation] = useState(false);
   const [deviceContacts, setDeviceContacts] = useState<DeviceContactCandidate[]>([]);
   const [loadingDeviceContacts, setLoadingDeviceContacts] = useState(false);
   const [emailSearchQuery, setEmailSearchQuery] = useState('');
@@ -200,7 +200,9 @@ export const ContactsScreen = () => {
         contactUserId: payload.contactUserId || undefined,
         status: payload.contactUserId ? 'active' : undefined,
         priority: contacts.length,
-        canViewLocation: true,
+        // A trusted relationship never grants location visibility by default.
+        // Journey and emergency sharing are explicit, time-bound choices.
+        canViewLocation: false,
         canCall: true,
         canSms: true,
         canViewHistory: true,
@@ -218,7 +220,7 @@ export const ContactsScreen = () => {
     setContactName('');
     setContactPhone('');
     setContactEmail('');
-    setCanViewLocation(true);
+    setCanViewLocation(false);
     setEditingContactId(null);
     setShowForm(false);
   };
@@ -712,8 +714,8 @@ export const ContactsScreen = () => {
           />
           <View style={styles.toggleRow}>
             <View style={styles.toggleCopy}>
-              <Text style={styles.toggleTitle}>Allow live tracking</Text>
-            <Text style={styles.toggleNote}>Turn this on if this person can see your route during an alert or watch session.</Text>
+            <Text style={styles.toggleTitle}>Share live location</Text>
+            <Text style={styles.toggleNote}>Off by default. Turn this on only when you want this person to see your location during a specific shared safety feature.</Text>
             </View>
             <Switch
               value={canViewLocation}

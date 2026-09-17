@@ -1,0 +1,12 @@
+import { apiGet, apiPost } from './api';
+export type Circle = { id:string; name:string; kind:string; ownerUserId:string; role:'owner'|'member'; memberCount:number; createdAt:string };
+export type CircleMember = { id:string; userId:string; name?:string|null; email?:string|null; role:'owner'|'member'; status:string; emergencyRecipient:boolean };
+export const listCircles=()=>apiGet<Circle[]>('/circles',{auth:true});
+export const createCircle=(body:{name:string;kind:string})=>apiPost<Circle>('/circles',body,{auth:true});
+export const listCircleMembers=(id:string)=>apiGet<CircleMember[]>(`/circles/${id}/members`,{auth:true});
+export const inviteToCircle=(id:string,body:{email?:string;userId?:string})=>apiPost(`/circles/${id}/invitations`,body,{auth:true});
+export const leaveCircle=(id:string)=>apiPost(`/circles/${id}/leave`,undefined,{auth:true});
+export type CircleInvitation={id:string;circleId:string;circleName:string;invitedByName?:string|null;status:string;expiresAt:string;createdAt:string};
+export const listMyCircleInvitations=()=>apiGet<CircleInvitation[]>('/circles/invitations/mine',{auth:true});
+export const acceptCircleInvitation=(id:string)=>apiPost(`/circles/invitations/${id}/accept`,undefined,{auth:true});
+export const declineCircleInvitation=(id:string)=>apiPost(`/circles/invitations/${id}/decline`,undefined,{auth:true});

@@ -19,7 +19,10 @@ type IconName =
   | 'watch'
   | 'layers'
   | 'settings'
-  | 'location';
+  | 'location'
+  | 'around'
+  | 'circle'
+  | 'activity';
 
 type Props = {
   name: IconName;
@@ -36,6 +39,9 @@ const iconMap: Record<IconName, LucideIcon> = {
   layers: Layers3,
   settings: Settings2,
   location: MapPin,
+  around: MapPin,
+  circle: Users,
+  activity: Logs,
 };
 
 export const AppIcon = ({ name, color, active = false }: Props) => {

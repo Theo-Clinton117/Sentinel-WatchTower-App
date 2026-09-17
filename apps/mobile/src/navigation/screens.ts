@@ -1,6 +1,6 @@
 import type { Screen } from '../store/useAppStore';
 
-export const rootScreens = ['home', 'risk-log', 'contacts', 'profile'] as const satisfies readonly Screen[];
+export const rootScreens = ['home', 'around', 'circle', 'activity', 'profile'] as const satisfies readonly Screen[];
 
 export const tabScreens = rootScreens;
 

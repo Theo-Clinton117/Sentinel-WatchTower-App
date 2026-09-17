@@ -132,9 +132,9 @@ export const OnboardingPermissionsScreen = () => {
           'Shows your current position while you are using Sentinel.',
         )}
         {renderStatus(
-          'backgroundLocation', 'Location during an active alert',
+          'backgroundLocation', 'Location for approved safety features',
           snapshot.backgroundLocation,
-          'Keeps location updates going if the screen changes during an alert.',
+          'Sentinel can use your location in the background for safety features you approve. This does not automatically mean your Circle can see where you are.',
         )}
         {renderStatus(
           'notifications', 'Safety notifications',

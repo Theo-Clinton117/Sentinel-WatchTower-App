@@ -16,9 +16,11 @@ let RiskZonesService = class RiskZonesService {
     async list() {
   const result = await this.db.query(`
     select
-      zone_key,
+      id,
+      name,
       center_lat,
       center_lng,
+      radius_m,
       risk_level,
       status,
       created_at,
@@ -35,18 +37,16 @@ let RiskZonesService = class RiskZonesService {
   `);
 
   return result.rows.map((row) => ({
-    id: row.zone_key,
-    name: row.zone_key,
+    id: row.id,
+    name: row.name,
     lat: Number(row.center_lat),
     lng: Number(row.center_lng),
-    radiusM: null,
+    radiusM: row.radius_m == null ? null : Number(row.radius_m),
     riskLevel: row.risk_level,
     status: row.status || 'active',
     createdAt: row.created_at,
     updatedAt: row.updated_at || null,
     resolvedAt: row.resolved_at || null,
-    operationalZoneId: row.operational_zone_id || null,
-    responseGridId: row.response_grid_id || null,
   }));
 }
     async geography() {

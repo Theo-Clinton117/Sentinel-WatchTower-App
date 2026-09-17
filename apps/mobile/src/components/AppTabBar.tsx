@@ -10,13 +10,7 @@ import { tabScreens } from '../navigation/screens';
 const tabs: Array<{ key: Screen; label: string }> = tabScreens.map((key) => ({
   key,
   label:
-    key === 'home'
-      ? 'Location'
-      : key === 'risk-log'
-        ? 'History'
-        : key === 'contacts'
-          ? 'Contacts'
-          : 'Account',
+    key === 'home' ? 'Home' : key === 'around' ? 'Around' : key === 'circle' ? 'Circle' : key === 'activity' ? 'Activity' : 'Profile',
 }));
 
 export const AppTabBar = () => {
@@ -46,7 +40,7 @@ export const AppTabBar = () => {
           >
             <View style={[styles.iconWrap, active && styles.iconWrapActive]}>
               <AppIcon
-                name={tab.key === 'home' ? 'location' : (tab.key as 'risk-log' | 'contacts' | 'profile')}
+                name={(tab.key === 'home' ? 'home' : tab.key) as 'home' | 'around' | 'circle' | 'activity' | 'profile'}
                 color={active ? styles.activeTint.color : styles.inactiveTint.color}
                 active={active}
               />

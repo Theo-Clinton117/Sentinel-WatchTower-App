@@ -9,6 +9,7 @@ Object.defineProperty(exports, "__esModule", { value: true });
 exports.LocationsModule = void 0;
 const common_1 = require("@nestjs/common");
 const locations_controller_1 = require("./locations.controller");
+const location_access_controller_1 = require("./location-access.controller");
 const locations_service_1 = require("./locations.service");
 const ws_module_1 = require("../ws/ws.module");
 let LocationsModule = class LocationsModule {
@@ -17,7 +18,7 @@ exports.LocationsModule = LocationsModule;
 exports.LocationsModule = LocationsModule = __decorate([
     (0, common_1.Module)({
         imports: [ws_module_1.WsModule],
-        controllers: [locations_controller_1.LocationsController],
+        controllers: [locations_controller_1.LocationsController, location_access_controller_1.LocationAccessController],
         providers: [locations_service_1.LocationsService],
     })
 ], LocationsModule);

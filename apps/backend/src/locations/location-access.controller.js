@@ -1,0 +1,11 @@
+"use strict";
+var __decorate = (this && this.__decorate) || function (decorators, target, key, desc) { var c = arguments.length, r = c < 3 ? target : desc === null ? desc = Object.getOwnPropertyDescriptor(target, key) : desc, d; for (var i = decorators.length - 1; i >= 0; i--) if (d = decorators[i]) r = (c < 3 ? d(r) : c > 3 ? d(target, key, r) : d(target, key)) || r; return c > 3 && r && Object.defineProperty(target, key, r), r; };
+var __metadata = (this && this.__metadata) || function (k, v) { if (typeof Reflect === 'object' && typeof Reflect.metadata === 'function') return Reflect.metadata(k, v); };
+var __param = (this && this.__param) || function (paramIndex, decorator) { return function (target, key) { decorator(target, key, paramIndex); }; };
+const common = require('@nestjs/common');
+const { JwtAuthGuard } = require('../common/guards/jwt-auth.guard');
+const { LocationsService } = require('./locations.service');
+let LocationAccessController = class LocationAccessController { constructor(service) { this.service = service; } latest(req, subjectUserId) { return this.service.latestSharedLocation(req.user.sub, subjectUserId); } };
+__decorate([common.Get(':subjectUserId/latest'), __param(0, common.Req()), __param(1, common.Param('subjectUserId')), __metadata('design:paramtypes',[Object, String])], LocationAccessController.prototype, 'latest', null);
+LocationAccessController = __decorate([common.Controller('location-access'), common.UseGuards(JwtAuthGuard), __metadata('design:paramtypes',[LocationsService])], LocationAccessController);
+exports.LocationAccessController = LocationAccessController;

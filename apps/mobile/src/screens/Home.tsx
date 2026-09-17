@@ -96,6 +96,16 @@ export const HomeScreen = () => {
 
     const beginLiveTracking = async () => {
       try {
+        // Home must not turn a normal app launch into a location-permission
+        // request. Permission is requested only in a feature that explains
+        // its value (Safe Arrival, emergency, or the permission screen).
+        const permissions = await getAppPermissionSnapshot();
+        if (!permissions.foregroundLocation.granted) {
+          if (active) {
+            setLocationPermissionDenied(true);
+          }
+          return;
+        }
         setLocationPermissionDenied(false);
         const currentLocation = await getCurrentLocation();
         if (!active) {
@@ -423,20 +433,20 @@ export const HomeScreen = () => {
   }>>(
     () => [
       {
-        key: 'contacts',
-        label: 'Watch',
+        key: 'safe-arrival',
+        label: 'Arrival',
         meta: activeWatchSession ? 'Active' : 'Start',
         icon: 'watch',
       },
       {
-        key: 'contacts',
+        key: 'circle',
         label: 'Circle',
         meta: 'People',
         icon: 'contacts',
       },
       {
-        key: 'risk-log',
-        label: 'History',
+        key: 'activity',
+        label: 'Activity',
         meta: 'Review',
         icon: 'layers',
       },
