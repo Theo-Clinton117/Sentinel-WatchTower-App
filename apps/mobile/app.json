@@ -19,8 +19,8 @@
       [
         "expo-location",
         {
-          "locationAlwaysAndWhenInUsePermission": "Allow Sentinel to access your location for emergency tracking.",
-          "locationAlwaysPermission": "Allow Sentinel to access your location in the background for emergency tracking."
+          "locationAlwaysAndWhenInUsePermission": "Allow Sentinel to use your location for emergency response and Safe Arrival journeys you start.",
+          "locationAlwaysPermission": "Allow Sentinel to use your location in the background only while an emergency or Safe Arrival journey is active. Your Circle cannot automatically see where you are."
         }
       ],
       "expo-secure-store"

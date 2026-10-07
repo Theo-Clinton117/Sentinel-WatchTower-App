@@ -1,9 +1,12 @@
 import * as Location from 'expo-location';
 import * as TaskManager from 'expo-task-manager';
 import { ingestSessionLocations } from './sessions';
+import { syncJourneyLocation } from './journey-sync';
+import { clearBackgroundJourney, loadBackgroundJourney } from './background-journey';
 import { useAppStore, type EmergencyLocation } from '../store/useAppStore';
 
 export const LOCATION_TASK_NAME = 'sentinel-location-task';
+export const JOURNEY_GEOFENCE_TASK_NAME = 'sentinel-journey-geofence-task';
 
 type CoordinateLike = Pick<EmergencyLocation, 'lat' | 'lng'>;
 type PreciseCoordinateLike = Pick<EmergencyLocation, 'lat' | 'lng' | 'accuracyM'>;
@@ -25,6 +28,11 @@ const BACKGROUND_TRACKING_OPTIONS: Location.LocationTaskOptions = {
   deferredUpdatesInterval: 45000,
   deferredUpdatesDistance: 50,
   pausesUpdatesAutomatically: true,
+  foregroundService: {
+    notificationTitle: 'Safe Arrival is active',
+    notificationBody: 'Sentinel is checking for your arrival. Your Circle cannot see your live location.',
+    notificationColor: '#1D67FF',
+  },
 };
 
 const MIN_DISTANCE_METERS = 15;
@@ -65,7 +73,41 @@ TaskManager.defineTask<LocationTaskData>(
 
     const state = useAppStore.getState();
     state.appendEmergencyLocations(payload);
-    queueLocationUpload(payload, true);
+    if (state.activeSession?.sessionId) {
+      queueLocationUpload(payload, true);
+    }
+    const journey = state.activeJourney ?? await loadBackgroundJourney();
+    const latest = payload[payload.length - 1];
+    if (journey && latest) {
+      try {
+        const result = await syncJourneyLocation(journey.id, latest);
+        if (result && (result.automaticallyArrived || result.status !== 'active')) {
+          state.setActiveJourney(null);
+          await clearBackgroundJourney();
+        }
+      } catch {
+        // A lost connection is not an emergency; a later location callback retries.
+      }
+    }
+  },
+);
+
+TaskManager.defineTask<{ eventType?: Location.GeofencingEventType }>(
+  JOURNEY_GEOFENCE_TASK_NAME,
+  async ({ data, error }) => {
+    if (error || data?.eventType !== Location.GeofencingEventType.Enter) return;
+    const journey = await loadBackgroundJourney();
+    if (!journey) return;
+    try {
+      const current = await Location.getCurrentPositionAsync({ accuracy: Location.Accuracy.High });
+      const result = await syncJourneyLocation(journey.id, mapLocationObject(current));
+      if (result && (result.automaticallyArrived || result.status !== 'active')) {
+        useAppStore.getState().setActiveJourney(null);
+        await clearBackgroundJourney();
+      }
+    } catch {
+      // The regular location task or an explicit check-in can safely recover.
+    }
   },
 );
 
@@ -416,6 +458,18 @@ export async function startForegroundTracking() {
 
       state.setLastKnownLocation(payload);
 
+      const journey = state.activeJourney;
+      if (journey && shouldCaptureLocation(payload, true)) {
+        void syncJourneyLocation(journey.id, payload)
+          .then((result) => {
+            if (result && (result.automaticallyArrived || result.status !== 'active')) {
+              useAppStore.getState().setActiveJourney(null);
+              void clearBackgroundJourney();
+            }
+          })
+          .catch(() => undefined);
+      }
+
       if (!state.activeSession?.sessionId) {
         return;
       }
@@ -448,6 +502,20 @@ export async function startBackgroundTracking() {
   return Location.startLocationUpdatesAsync(LOCATION_TASK_NAME, BACKGROUND_TRACKING_OPTIONS);
 }
 
+export async function startJourneyGeofence(destination: { lat: number; lng: number }) {
+  const granted = await ensureBackgroundPermission();
+  if (!granted) return;
+  const region: Location.LocationRegion = {
+    identifier: 'sentinel-safe-arrival-destination',
+    latitude: destination.lat,
+    longitude: destination.lng,
+    radius: 150,
+    notifyOnEnter: true,
+    notifyOnExit: false,
+  };
+  await Location.startGeofencingAsync(JOURNEY_GEOFENCE_TASK_NAME, [region]);
+}
+
 export async function stopBackgroundTracking() {
   if (flushTimeout) {
     clearTimeout(flushTimeout);
@@ -461,5 +529,10 @@ export async function stopBackgroundTracking() {
   const alreadyStarted = await Location.hasStartedLocationUpdatesAsync(LOCATION_TASK_NAME);
   if (alreadyStarted) {
     await Location.stopLocationUpdatesAsync(LOCATION_TASK_NAME);
+  }
+
+  const geofenceStarted = await Location.hasStartedGeofencingAsync(JOURNEY_GEOFENCE_TASK_NAME);
+  if (geofenceStarted) {
+    await Location.stopGeofencingAsync(JOURNEY_GEOFENCE_TASK_NAME);
   }
 }

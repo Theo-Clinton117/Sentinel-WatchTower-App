@@ -3,7 +3,9 @@ import * as SecureStore from 'expo-secure-store';
 const SESSION_KEY = 'sentinel-secure-session';
 
 const SECURE_OPTIONS = {
-  keychainAccessible: SecureStore.WHEN_UNLOCKED_THIS_DEVICE_ONLY,
+  // Background safety work may run after the user has unlocked the device at
+  // least once, but while the app itself is not in memory.
+  keychainAccessible: SecureStore.AFTER_FIRST_UNLOCK_THIS_DEVICE_ONLY,
 };
 
 type SecureSessionPayload = {

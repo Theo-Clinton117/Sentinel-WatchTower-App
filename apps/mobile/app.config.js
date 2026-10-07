@@ -49,11 +49,11 @@ module.exports = ({ config }) => {
       infoPlist: {
         ITSAppUsesNonExemptEncryption: false,
         NSLocationWhenInUseUsageDescription:
-          'Sentinel uses your location to show where you are during alerts and watch sessions.',
+          'Sentinel uses your location for emergency response and Safe Arrival journeys you start.',
         NSLocationAlwaysAndWhenInUseUsageDescription:
-          'Sentinel uses background location to keep emergency sessions active if you leave the screen.',
+          'Sentinel uses background location only during emergency response or a Safe Arrival journey you start. Your Circle cannot automatically see where you are.',
         NSLocationAlwaysUsageDescription:
-          'Sentinel uses background location to keep emergency sessions active if you leave the screen.',
+          'Sentinel uses background location only during emergency response or a Safe Arrival journey you start.',
         NSContactsUsageDescription:
           'Sentinel can help you choose trusted contacts from your address book.',
         NSUserNotificationsUsageDescription:

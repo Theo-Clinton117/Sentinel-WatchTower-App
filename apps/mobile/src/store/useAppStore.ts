@@ -127,6 +127,12 @@ export type WatchSession = {
   status: 'active' | 'ended';
 };
 
+export type ActiveJourney = {
+  id: string;
+  destinationLabel: string;
+  status: 'active' | 'paused' | 'location_unavailable';
+};
+
 export type SavedPlaceKey = 'home' | 'work';
 
 export type SavedPlace = {
@@ -156,6 +162,7 @@ type AppState = {
   user: AppUser | null;
   activeSession: EmergencySession | null;
   activeWatchSession: WatchSession | null;
+  activeJourney: ActiveJourney | null;
   sidebarOpen: boolean;
   emergencyLocations: EmergencyLocation[];
   lastKnownLocation: EmergencyLocation | null;
@@ -197,6 +204,7 @@ type AppState = {
     note?: string | null;
   }) => WatchSession;
   endWatchSession: () => void;
+  setActiveJourney: (journey: ActiveJourney | null) => void;
   setSidebarOpen: (value: boolean) => void;
   openSidebar: () => void;
   closeSidebar: () => void;
@@ -330,6 +338,7 @@ export const useAppStore = createWithEqualityFn<AppState>()(
       user: null,
       activeSession: null,
       activeWatchSession: null,
+      activeJourney: null,
       sidebarOpen: false,
       emergencyLocations: [],
       lastKnownLocation: null,
@@ -471,6 +480,7 @@ export const useAppStore = createWithEqualityFn<AppState>()(
               ].slice(0, 20)
             : state.watchSessionHistory,
         })),
+      setActiveJourney: (journey) => set({ activeJourney: journey }),
       setSidebarOpen: (value) => set({ sidebarOpen: value }),
       openSidebar: () => set({ sidebarOpen: true }),
       closeSidebar: () => set({ sidebarOpen: false }),
@@ -545,6 +555,7 @@ export const useAppStore = createWithEqualityFn<AppState>()(
           sessionStatus: 'idle',
           activeSession: null,
           activeWatchSession: null,
+          activeJourney: null,
           sidebarOpen: false,
           emergencyLocations: [],
           lastKnownLocation: null,
@@ -581,6 +592,7 @@ export const useAppStore = createWithEqualityFn<AppState>()(
         themePreference: state.themePreference,
         nearbySafetyMeshEnabled: state.nearbySafetyMeshEnabled,
         deviceId: state.deviceId,
+        activeJourney: state.activeJourney,
         devTestModeExited: state.devTestModeExited,
       }),
       onRehydrateStorage: () => (state) => {

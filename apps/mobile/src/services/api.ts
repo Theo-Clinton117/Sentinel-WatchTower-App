@@ -1,5 +1,6 @@
 import { useAppStore } from '../store/useAppStore';
 import { resolveDevBackendUrl } from './runtime-host';
+import { loadSecureSession, saveSecureSession } from './secure-session';
 
 const baseUrl = resolveDevBackendUrl(process.env.EXPO_PUBLIC_API_BASE_URL);
 
@@ -15,6 +16,7 @@ type RequestOptions = {
 };
 
 const DEFAULT_REQUEST_TIMEOUT_MS = 20000;
+let refreshInFlight: Promise<string | null> | null = null;
 
 export class ApiError extends Error {
   status: number;
@@ -45,7 +47,7 @@ async function request<T>(
   }
 
   if (options?.auth) {
-    const token = useAppStore.getState().accessToken;
+    const token = await getUsableAccessToken();
     if (token) {
       headers.set('Authorization', `Bearer ${token}`);
     }
@@ -64,6 +66,13 @@ async function request<T>(
       headers,
       signal: controller.signal,
     });
+    if (res.status === 401 && options?.auth) {
+      const refreshed = await refreshSecureAccessToken();
+      if (refreshed) {
+        headers.set('Authorization', `Bearer ${refreshed}`);
+        res = await fetch(requestUrl, { ...init, headers, signal: controller.signal });
+      }
+    }
   } catch (error) {
     const aborted = error instanceof Error && error.name === 'AbortError';
     throw new ApiError(
@@ -93,6 +102,44 @@ async function request<T>(
   }
 
   return data as T;
+}
+
+async function getUsableAccessToken() {
+  const inMemory = useAppStore.getState().accessToken;
+  if (inMemory) return inMemory;
+  const session = await loadSecureSession();
+  if (!session?.accessToken) return null;
+  useAppStore.getState().restoreSecureAuth(session);
+  return session.accessToken;
+}
+
+async function refreshSecureAccessToken(): Promise<string | null> {
+  if (refreshInFlight) return refreshInFlight;
+  refreshInFlight = (async () => {
+    const session = await loadSecureSession();
+    if (!session?.refreshToken) return null;
+    try {
+      const response = await fetch(`${baseUrl}/api/auth/refresh`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ refreshToken: session.refreshToken }),
+      });
+      if (!response.ok) return null;
+      const data = (await response.json()) as { accessToken?: string; refreshToken?: string };
+      if (!data.accessToken || !data.refreshToken) return null;
+      const next = { accessToken: data.accessToken, refreshToken: data.refreshToken };
+      await saveSecureSession(next);
+      useAppStore.getState().restoreSecureAuth(next);
+      return next.accessToken;
+    } catch {
+      return null;
+    }
+  })();
+  try {
+    return await refreshInFlight;
+  } finally {
+    refreshInFlight = null;
+  }
 }
 
 function tryParseJson(value: string) {
