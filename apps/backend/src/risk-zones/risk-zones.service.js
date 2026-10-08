@@ -16,11 +16,9 @@ let RiskZonesService = class RiskZonesService {
     async list() {
   const result = await this.db.query(`
     select
-      id,
-      name,
+      zone_key,
       center_lat,
       center_lng,
-      radius_m,
       risk_level,
       status,
       created_at,
@@ -37,11 +35,13 @@ let RiskZonesService = class RiskZonesService {
   `);
 
   return result.rows.map((row) => ({
-    id: row.id,
-    name: row.name,
+    // Production's pre-migration risk_zones table uses zone_key as its stable
+    // identifier. Keep the mobile API contract stable without changing data.
+    id: row.zone_key,
+    name: row.zone_key,
     lat: Number(row.center_lat),
     lng: Number(row.center_lng),
-    radiusM: row.radius_m == null ? null : Number(row.radius_m),
+    radiusM: null,
     riskLevel: row.risk_level,
     status: row.status || 'active',
     createdAt: row.created_at,

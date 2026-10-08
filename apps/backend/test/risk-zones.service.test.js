@@ -11,11 +11,9 @@ test("risk zones list returns active zones with stable mapped fields", async () 
             queries.push(sql);
             return {
                 rows: [{
-                    id: "zone-1",
-                    name: "Market corridor",
+                    zone_key: "market-corridor",
                     center_lat: "6.5244",
                     center_lng: "3.3792",
-                    radius_m: 250,
                     risk_level: "high",
                     status: "active",
                     created_at: "2026-06-09T10:00:00.000Z",
@@ -28,13 +26,15 @@ test("risk zones list returns active zones with stable mapped fields", async () 
 
     const zones = await service.list();
 
+    assert.equal(queries[0].includes("zone_key"), true);
     assert.equal(queries[0].includes("where coalesce(status, 'active') = 'active'"), true);
+    assert.equal(/\n\s*id,/.test(queries[0]), false);
     assert.deepEqual(zones, [{
-        id: "zone-1",
-        name: "Market corridor",
+        id: "market-corridor",
+        name: "market-corridor",
         lat: 6.5244,
         lng: 3.3792,
-        radiusM: 250,
+        radiusM: null,
         riskLevel: "high",
         status: "active",
         createdAt: "2026-06-09T10:00:00.000Z",
