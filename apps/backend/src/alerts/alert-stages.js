@@ -23,14 +23,13 @@ exports.getCancelWindowMs =
  *     ↓
  * high_alert
  *     ↓
- * critical
+ * high_alert
  */
 const ALERT_STAGE_ORDER = [
     "monitoring",
     "suspicious",
     "soft_alert",
     "high_alert",
-    "critical",
 ];
 
 exports.ALERT_STAGE_ORDER = ALERT_STAGE_ORDER;
@@ -38,7 +37,8 @@ exports.ALERT_STAGE_ORDER = ALERT_STAGE_ORDER;
 /**
  * Normalize an incoming stage to one of the supported stages.
  *
- * Unknown or invalid values default to high_alert so that
+ * The former `critical` value is retained as an input alias for existing
+ * records, but Level 4 (high_alert) is the highest active escalation.
  * malformed escalation requests cannot accidentally create
  * an undefined or unsafe stage.
  */
@@ -49,9 +49,10 @@ function normalizeAlertStage(value) {
 
     const normalized = value.trim().toLowerCase();
 
-    return ALERT_STAGE_ORDER.includes(normalized)
-        ? normalized
-        : "high_alert";
+    if (normalized === "critical") {
+        return "high_alert";
+    }
+    return ALERT_STAGE_ORDER.includes(normalized) ? normalized : "high_alert";
 }
 
 exports.normalizeAlertStage = normalizeAlertStage;
@@ -80,31 +81,24 @@ exports.compareAlertStages = compareAlertStages;
 /**
  * Convert an alert stage into its numeric escalation level.
  *
- * 0 = Monitoring
- * 1 = Suspicious
- * 2 = Soft Alert
- * 3 = High Alert
- * 4 = Critical
+ * 1 = Monitoring, 2 = Concern, 3 = Help Needed, 4 = Immediate Danger.
  */
 function getEscalationLevel(stage) {
     switch (normalizeAlertStage(stage)) {
         case "monitoring":
-            return 0;
-
-        case "suspicious":
             return 1;
 
-        case "soft_alert":
+        case "suspicious":
             return 2;
 
-        case "high_alert":
+        case "soft_alert":
             return 3;
 
-        case "critical":
+        case "high_alert":
             return 4;
 
         default:
-            return 3;
+            return 4;
     }
 }
 
@@ -114,24 +108,20 @@ exports.getEscalationLevel = getEscalationLevel;
  * Severity is derived directly from the escalation stage.
  *
  * monitoring  -> Low
- * suspicious  -> Low
- * soft_alert  -> Moderate
- * high_alert  -> High
- * critical    -> Critical
+ * suspicious  -> Moderate
+ * soft_alert  -> High
+ * high_alert  -> Critical
  */
 function getAlertSeverity(stage) {
     switch (normalizeAlertStage(stage)) {
         case "monitoring":
         case "suspicious":
-            return "Low";
-
-        case "soft_alert":
             return "Moderate";
 
-        case "high_alert":
+        case "soft_alert":
             return "High";
 
-        case "critical":
+        case "high_alert":
             return "Critical";
 
         default:
@@ -151,16 +141,13 @@ function getAlertStageLabel(stage) {
             return "Monitoring";
 
         case "suspicious":
-            return "Suspicious";
+            return "Concern";
 
         case "soft_alert":
-            return "Soft Alert";
+            return "Help Needed";
 
         case "high_alert":
-            return "High Alert";
-
-        case "critical":
-            return "Critical";
+            return "Immediate Danger";
 
         default:
             return "High Alert";
@@ -175,30 +162,10 @@ exports.getAlertStageLabel = getAlertStageLabel;
  *
  * IMPORTANT:
  *
- * A Soft Alert has a short, visible cancellation window before it
- * escalates. This preserves the existing emergency contract while keeping
- * accidental triggers reversible.
- *
- * High Alert DOES automatically escalate to Critical after
- * three minutes if it remains active.
+ * Escalation is always an explicit user decision. Sentinel must not convert a
+ * private safety check into a wider emergency on a timer.
  */
-function getNextEscalationPlan(stage) {
-    switch (normalizeAlertStage(stage)) {
-        case "soft_alert":
-            return {
-                targetStage: "high_alert",
-                delayMs: 10 * 1000,
-            };
-        case "high_alert":
-            return {
-                targetStage: "critical",
-                delayMs: 3 * 60 * 1000,
-            };
-
-        default:
-            return null;
-    }
-}
+function getNextEscalationPlan() { return null; }
 
 exports.getNextEscalationPlan = getNextEscalationPlan;
 
@@ -209,16 +176,12 @@ exports.getNextEscalationPlan = getNextEscalationPlan;
  * the emergency UI:
  *
  * - Keep monitoring
- * - Escalate to Suspicious
- * - Escalate to High Alert
- * - Escalate to Critical
+ * - Escalate to Concern, Help Needed, or Immediate Danger
  * - I'm Safe / End Alert
  *
  * Cancellation is therefore handled explicitly by the
  * AlertsService.cancel() flow.
  */
-function getCancelWindowMs(stage) {
-    return normalizeAlertStage(stage) === "soft_alert" ? 10 * 1000 : 0;
-}
+function getCancelWindowMs() { return 0; }
 
 exports.getCancelWindowMs = getCancelWindowMs;

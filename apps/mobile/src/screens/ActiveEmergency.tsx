@@ -30,24 +30,24 @@ import { shallow } from 'zustand/shallow';
 
 const STAGES = [
   {
-    id: 'soft_alert',
-    title: 'Keep monitoring',
-    description: 'Nothing has happened yet. Keep Sentinel watching.',
+    id: 'monitoring', level: 1, title: 'Monitoring',
+    description: 'Something may be developing; keep a private record for yourself.',
+    examples: 'Suspicious situation, uncomfortable environment, unusual activity.',
   },
   {
-    id: 'suspicious',
-    title: 'Something feels wrong',
-    description: 'The situation is concerning but not yet an emergency.',
+    id: 'suspicious', level: 2, title: 'Concern',
+    description: 'Tell your trusted Circle that you feel unsafe.',
+    examples: 'Being followed, suspicious activity, escalating confrontation.',
   },
   {
-    id: 'high_alert',
-    title: 'I need help',
-    description: 'Send this as a serious emergency.',
+    id: 'soft_alert', level: 3, title: 'Help needed',
+    description: 'Ask your Circle for assistance through Sentinel.',
+    examples: 'Stranded, harassment, minor accident, medical assistance.',
   },
   {
-    id: 'critical',
-    title: 'Immediate danger',
-    description: 'Escalate immediately to the highest response level.',
+    id: 'high_alert', level: 4, title: 'Immediate danger',
+    description: 'Use for an urgent threat to life or serious harm.',
+    examples: 'Violent attack, armed threat, kidnapping attempt, serious medical emergency.',
   },
 ] as const;
 
@@ -399,7 +399,7 @@ export const ActiveEmergencyScreen = () => {
     );
   }
 
-  const stage = activeSession.alertStage || 'soft_alert';
+  const stage = activeSession.alertStage || 'monitoring';
 
   const currentStage =
     STAGES.find((item) => item.id === stage) || STAGES[0];
@@ -480,12 +480,13 @@ export const ActiveEmergencyScreen = () => {
           <View style={styles.stageList}>
             {STAGES.map((item) => {
               const selected = item.id === stage;
+              const isEscalation = item.level > currentStage.level;
 
               return (
                 <Pressable
                   key={item.id}
                   onPress={() => handleEscalate(item.id)}
-                  disabled={selected || escalating || cancelling}
+                  disabled={selected || !isEscalation || escalating || cancelling}
                   style={[
                     styles.stageOption,
                     selected && styles.stageOptionSelected,
@@ -493,12 +494,13 @@ export const ActiveEmergencyScreen = () => {
                 >
                   <View style={styles.stageOptionCopy}>
                     <Text style={styles.stageOptionTitle}>
-                      {item.title}
+                      Level {item.level} · {item.title}
                     </Text>
 
                     <Text style={styles.stageOptionDescription}>
                       {item.description}
                     </Text>
+                    <Text style={styles.stageOptionDescription}>{item.examples}</Text>
                   </View>
 
                   {selected ? (

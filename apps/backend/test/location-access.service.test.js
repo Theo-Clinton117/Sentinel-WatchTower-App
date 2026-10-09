@@ -21,7 +21,10 @@ test('an authorized stale coordinate is labelled last confirmed, never current',
   const service = new LocationsService({
     async query(sql) {
       if (sql.includes('from location_access_grants')) return { rows: [{ id: 'grant-1', purpose: 'emergency', expires_at: '2030-01-01T00:00:00.000Z' }] };
-      if (sql.includes('from location_logs')) return { rows: [{ id: 'location-1', session_id: 'session-1', user_id: 'subject', lat: 6.5, lng: 3.3, accuracy_m: 12, source: 'gps', recorded_at: '2020-01-01T00:00:00.000Z' }] };
+      if (sql.includes('from location_logs')) {
+        assert.equal(sql.includes('latitude, longitude, accuracy'), true);
+        return { rows: [{ id: 'location-1', session_id: 'session-1', user_id: 'subject', latitude: 6.5, longitude: 3.3, accuracy: 12, recorded_at: '2020-01-01T00:00:00.000Z' }] };
+      }
       if (sql.includes('location_access_audit_events')) return { rows: [] };
       throw new Error(`Unexpected query: ${sql}`);
     },

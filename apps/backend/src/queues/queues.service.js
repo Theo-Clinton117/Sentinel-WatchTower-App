@@ -190,50 +190,8 @@ let QueuesService = class QueuesService {
         };
     }
     async processDueEscalations() {
-        if (this.escalationSweepInFlight) {
-            return;
-        }
-        this.escalationSweepInFlight = true;
-        try {
-            const result = await this.db.query(`
-      select
-        a.id as alert_id,
-        a.stage,
-        s.id as session_id,
-        case
-          when a.stage = 'soft_alert' then 'high_alert'
-          when a.stage = 'high_alert' then 'critical'
-          else null
-        end as target_stage
-      from alerts a
-      join watch_sessions s on s.alert_id = a.id and s.status = 'active'
-      where a.status = 'active'
-        and (
-          (a.stage = 'soft_alert' and coalesce(a.cancel_expires_at, a.created_at + interval '10 seconds') <= now())
-          or
-          (a.stage = 'high_alert' and coalesce(a.escalated_at, a.created_at) + interval '3 minutes' <= now())
-        )
-      order by a.created_at asc
-      limit 25
-    `);
-            for (const row of result.rows) {
-                if (!row.target_stage) {
-                    continue;
-                }
-                await this.processEscalationJob({
-                    id: `sweep-${row.alert_id}`,
-                    data: {
-                        alertId: row.alert_id,
-                        sessionId: row.session_id,
-                        stage: row.stage,
-                        targetStage: row.target_stage,
-                    },
-                });
-            }
-        }
-        finally {
-            this.escalationSweepInFlight = false;
-        }
+        // Escalation is user-directed; retained as a no-op for queue API compatibility.
+        return;
     }
     async scheduleEscalation(payload) {
         const currentStage = (0, alert_stages_1.normalizeAlertStage)(payload?.stage);

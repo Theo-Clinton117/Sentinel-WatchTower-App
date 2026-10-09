@@ -164,6 +164,19 @@ export async function verifyOtp(
   return apiPost<VerifyOtpResponse>('/auth/otp/verify', body);
 }
 
+export function requestPhoneLink(phone: string) {
+  return apiPost<{ success: boolean; phone: string; devCode?: string }>('/auth/phone/request', {
+    phone: normalizePhoneInput(phone),
+  }, { auth: true });
+}
+
+export function verifyPhoneLink(phone: string, code: string) {
+  return apiPost<AuthUser>('/auth/phone/verify', {
+    phone: normalizePhoneInput(phone),
+    code: code.trim(),
+  }, { auth: true });
+}
+
 export async function authenticateWithPassword(
   payload: PasswordAuthPayload,
   deviceId = defaultDeviceId,

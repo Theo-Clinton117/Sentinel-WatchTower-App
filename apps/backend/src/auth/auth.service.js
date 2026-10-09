@@ -360,6 +360,46 @@ let AuthService = class AuthService {
         }
         return response;
     }
+    async requestPhoneLink(userId, body) {
+        const phone = normalizePhone(body?.phone);
+        if (!isPhoneValid(phone)) {
+            throw new common_1.BadRequestException('Invalid phone number format.');
+        }
+        const existing = await this.db.query('select id from users where phone_e164 = $1 and id <> $2 limit 1', [phone, userId]);
+        if (existing.rows[0]) {
+            throw new common_1.ConflictException('This phone number is already linked to another account.');
+        }
+        const code = generatePhoneOtpCode();
+        await this.createPhoneChallenge(phone, code);
+        await this.sendPhoneVerification(phone, code);
+        const response = { success: true, phone };
+        if (process.env.NODE_ENV !== 'production') response.devCode = process.env.DEV_OTP_CODE || '123456';
+        return response;
+    }
+    async verifyPhoneLink(userId, body) {
+        const phone = normalizePhone(body?.phone);
+        const code = String(body?.code || '').trim();
+        if (!isPhoneValid(phone)) throw new common_1.BadRequestException('Invalid phone number format.');
+        if (!/^[0-9]{4,8}$/.test(code)) throw new common_1.UnauthorizedException('Invalid verification code');
+        return this.db.transaction(async (client) => {
+            const duplicate = await client.query('select id from users where phone_e164 = $1 and id <> $2 limit 1 for update', [phone, userId]);
+            if (duplicate.rows[0]) throw new common_1.ConflictException('This phone number is already linked to another account.');
+            const result = await client.query(`
+                select id, code_hash, attempts from phone_otp_challenges
+                where phone_e164 = $1 and consumed_at is null and expires_at > now() and attempts < 5
+                order by created_at desc limit 1 for update
+            `, [phone]);
+            const challenge = result.rows[0];
+            if (!challenge || !safeEqualHex(challenge.code_hash, hashPhoneOtp(phone, code))) {
+                if (challenge) await client.query('update phone_otp_challenges set attempts = attempts + 1 where id = $1', [challenge.id]);
+                throw new common_1.UnauthorizedException('Invalid verification code');
+            }
+            await client.query('update phone_otp_challenges set consumed_at = now() where id = $1', [challenge.id]);
+            const user = await client.query('update users set phone_e164 = $2, phone_verified = true, updated_at = now() where id = $1 returning *', [userId, phone]);
+            if (!user.rows[0]) throw new common_1.UnauthorizedException('Invalid session.');
+            return mapUserRow(user.rows[0]);
+        });
+    }
     async verifyOtp(dto) {
         const email = normalizeEmail(dto.email);
         const phone = normalizePhone(dto.phone);

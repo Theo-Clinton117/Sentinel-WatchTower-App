@@ -6,15 +6,12 @@
     "version": "0.1.0",
     "orientation": "portrait",
     "userInterfaceStyle": "automatic",
-    "icon": "./assets/icons/android-icon.png",
     "platforms": [
       "ios",
       "android",
       "web"
     ],
-    "ios": {
-      "icon": "./assets/icons/ios-icon-liquid-glass.png"
-    },
+    "ios": {},
     "plugins": [
       [
         "expo-location",
@@ -26,8 +23,7 @@
       "expo-secure-store"
     ],
     "android": {
-      "package": "com.sentinel.watchtower",
-      "icon": "./assets/icons/android-icon.png"
+      "package": "com.sentinel.watchtower"
     }
   }
 }

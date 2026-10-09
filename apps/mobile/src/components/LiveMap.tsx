@@ -72,10 +72,7 @@ const LiveMapBase = ({
   const latestLocation = validLocations.length > 0 ? validLocations[validLocations.length - 1] : null;
   const latitude = latestLocation?.lat ?? (Number.isFinite(lat) && Math.abs(lat) <= 90 ? lat : 6.5244);
   const longitude = latestLocation?.lng ?? (Number.isFinite(lng) && Math.abs(lng) <= 180 ? lng : 3.3792);
-  const googleMapsKey =
-  Platform.OS === 'ios'
-    ? String(process.env.EXPO_PUBLIC_GOOGLE_MAPS_API_KEY_IOS || '').trim()
-    : String(process.env.EXPO_PUBLIC_GOOGLE_MAPS_API_KEY_ANDROID || '').trim();
+  const googleMapsKey = String(process.env.EXPO_PUBLIC_GOOGLE_MAPS_API_KEY_ANDROID || '').trim();
   const markerCoordinate = useMemo(() => ({ latitude, longitude }), [latitude, longitude]);
 
   useEffect(() => {
@@ -89,6 +86,7 @@ const LiveMapBase = ({
     if (__DEV__) {
       console.info('[Sentinel] map diagnostics', {
         platform: Platform.OS,
+        provider: Platform.OS === 'android' ? 'google' : 'apple',
         hasGoogleMapsKey: Boolean(googleMapsKey),
         latitudeValid: Number.isFinite(latitude),
         longitudeValid: Number.isFinite(longitude),
@@ -184,7 +182,10 @@ const LiveMapBase = ({
         onMapReady={() => { setMapReady(true); setMapTimedOut(false); }}
         style={StyleSheet.absoluteFill}
         initialRegion={mapRegion}
-        provider={Platform.OS === 'android' || googleMapsKey ? PROVIDER_GOOGLE : undefined}
+        // Google Maps on iOS requires a native build-time SDK key. The app's
+        // JavaScript environment alone cannot configure it, so use the native
+        // Apple provider on iOS and reserve Google Maps for Android.
+        provider={Platform.OS === 'android' ? PROVIDER_GOOGLE : undefined}
         mapType={
           mapLayer === 'satellite'
             ? Platform.OS === 'android'

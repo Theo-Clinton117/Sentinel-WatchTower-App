@@ -33,6 +33,15 @@ let CirclesService = class CirclesService {
     const email = String(body?.email || '').trim().toLowerCase() || null;
     if (!invitedUserId && !email) throw new BadRequestException('Choose a Sentinel user or provide an email address.');
     if (invitedUserId === userId) throw new BadRequestException('You are already in this Circle.');
+    const existing = await this.db.query(`select id, status, expires_at, created_at
+      from safety_circle_invitations
+      where circle_id = $1 and status = 'pending' and expires_at > now()
+        and (($2::uuid is not null and invited_user_id = $2) or ($3::text is not null and lower(invited_email) = lower($3)))
+      order by created_at desc limit 1`, [circleId, invitedUserId, email]);
+    if (existing.rows[0]) {
+      const invitation = existing.rows[0];
+      return { id: invitation.id, status: invitation.status, expiresAt: invitation.expires_at, createdAt: invitation.created_at };
+    }
     const result = await this.db.query(`insert into safety_circle_invitations (circle_id, invited_by_user_id, invited_user_id, invited_email) values ($1, $2, $3, $4) returning id, status, expires_at, created_at`, [circleId, userId, invitedUserId, email]);
     return { id: result.rows[0].id, status: result.rows[0].status, expiresAt: result.rows[0].expires_at, createdAt: result.rows[0].created_at };
   }
@@ -40,7 +49,11 @@ let CirclesService = class CirclesService {
     return this.db.transaction(async (client) => {
       const invitation = (await client.query("select * from safety_circle_invitations where id = $1 and status = 'pending' and expires_at > now() for update", [invitationId])).rows[0];
       if (!invitation) throw new NotFoundException('Invitation not found or expired.');
-      if (invitation.invited_user_id && invitation.invited_user_id !== userId) throw new ForbiddenException('This invitation is for another user.');
+      const recipient = (await client.query('select email from users where id = $1 limit 1', [userId])).rows[0];
+      const matchesUser = invitation.invited_user_id === userId;
+      const matchesEmail = !invitation.invited_user_id && invitation.invited_email && recipient?.email
+        && invitation.invited_email.toLowerCase() === recipient.email.toLowerCase();
+      if (!matchesUser && !matchesEmail) throw new ForbiddenException('This invitation is for another user.');
       await client.query("insert into safety_circle_members (circle_id, user_id, status) values ($1, $2, 'active') on conflict (circle_id, user_id) do update set status = 'active', updated_at = now()", [invitation.circle_id, userId]);
       await client.query("update safety_circle_invitations set status = 'accepted', accepted_at = now(), invited_user_id = $2 where id = $1", [invitationId, userId]);
       return { accepted: true, circleId: invitation.circle_id };

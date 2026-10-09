@@ -17,9 +17,8 @@ test("alert stages keep the expected escalation order", () => {
         "suspicious",
         "soft_alert",
         "high_alert",
-        "critical",
     ]);
-    assert.equal(compareAlertStages("monitoring", "critical") < 0, true);
+    assert.equal(compareAlertStages("monitoring", "high_alert") < 0, true);
     assert.equal(compareAlertStages("critical", "soft_alert") > 0, true);
     assert.equal(compareAlertStages("high_alert", "high_alert"), 0);
 });
@@ -31,18 +30,11 @@ test("normalizeAlertStage falls back to high_alert for unsafe values", () => {
 });
 
 test("alert stage helpers expose stable launch-critical timing", () => {
-    assert.equal(getEscalationLevel("monitoring"), 0);
+    assert.equal(getEscalationLevel("monitoring"), 1);
     assert.equal(getEscalationLevel("critical"), 4);
-    assert.equal(getAlertStageLabel("soft_alert"), "Soft Alert");
-    assert.deepEqual(getNextEscalationPlan("soft_alert"), {
-        targetStage: "high_alert",
-        delayMs: 10 * 1000,
-    });
-    assert.deepEqual(getNextEscalationPlan("high_alert"), {
-        targetStage: "critical",
-        delayMs: 3 * 60 * 1000,
-    });
-    assert.equal(getNextEscalationPlan("critical"), null);
-    assert.equal(getCancelWindowMs("soft_alert"), 10 * 1000);
+    assert.equal(getAlertStageLabel("soft_alert"), "Help Needed");
+    assert.equal(getNextEscalationPlan("soft_alert"), null);
+    assert.equal(getNextEscalationPlan("high_alert"), null);
+    assert.equal(getCancelWindowMs("soft_alert"), 0);
     assert.equal(getCancelWindowMs("high_alert"), 0);
 });

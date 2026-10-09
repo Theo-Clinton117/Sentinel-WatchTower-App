@@ -342,12 +342,15 @@ export const HomeScreen = () => {
     };
   }, [lastKnownLocation, locationPermissionDenied]);
 
-  const handleStartEmergency = useCallback(async () => {
+  const handleStartEmergency = useCallback(async (stage: 'monitoring' | 'high_alert' = 'high_alert') => {
     try {
       setLoading(true);
       setError('');
       setHoldPrompt('');
-      const alert = await createAlert('panic');
+      const alert = await createAlert({
+        triggerSource: stage === 'high_alert' ? 'panic' : 'manual_safety_check',
+        stage,
+      });
       setActiveSession({
         alertId: alert.alertId,
         sessionId: alert.sessionId,
@@ -624,7 +627,7 @@ export const HomeScreen = () => {
           <Pressable
             onPressIn={handleSosPressIn}
             onPressOut={handleSosPressOut}
-            onLongPress={handleStartEmergency}
+            onLongPress={() => void handleStartEmergency('high_alert')}
             delayLongPress={320}
             disabled={loading}
             accessibilityRole="button"
@@ -655,6 +658,18 @@ export const HomeScreen = () => {
               ]}
             />
           </Pressable>
+          {nearbySafetyMeshEnabled ? (
+            <Pressable
+              onPress={() => void handleStartEmergency('monitoring')}
+              disabled={loading}
+              style={({ pressed }) => [styles.meshRestoreButton, pressed && styles.meshRestorePressed]}
+              accessibilityRole="button"
+              accessibilityLabel="Start a private safety check"
+              accessibilityHint="Starts Level 1 monitoring without sending a community alert."
+            >
+              <Text style={styles.meshRestoreText}>Private safety check</Text>
+            </Pressable>
+          ) : null}
           {!nearbySafetyMeshEnabled ? (
             <Pressable
               onPress={handleToggleMesh}

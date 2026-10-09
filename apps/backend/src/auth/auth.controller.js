@@ -29,6 +29,8 @@ let AuthController = class AuthController {
     verifyOtp(dto) {
         return this.authService.verifyOtp(dto);
     }
+    requestPhoneLink(req, body) { return this.authService.requestPhoneLink(req.user.sub, body); }
+    verifyPhoneLink(req, body) { return this.authService.verifyPhoneLink(req.user.sub, body); }
     password(dto) {
         return this.authService.passwordAuth(dto);
     }
@@ -65,6 +67,20 @@ __decorate([
     __metadata("design:paramtypes", [verify_otp_dto_1.VerifyOtpDto]),
     __metadata("design:returntype", void 0)
 ], AuthController.prototype, "verifyOtp", null);
+__decorate([
+    (0, common_1.Post)('phone/request'),
+    (0, common_1.UseGuards)(jwt_auth_guard_1.JwtAuthGuard),
+    (0, rate_limit_decorator_1.RateLimit)({ points: 5, duration: 600 }),
+    __param(0, (0, common_1.Req)()), __param(1, (0, common_1.Body)()),
+    __metadata("design:paramtypes", [Object, Object])
+], AuthController.prototype, "requestPhoneLink", null);
+__decorate([
+    (0, common_1.Post)('phone/verify'),
+    (0, common_1.UseGuards)(jwt_auth_guard_1.JwtAuthGuard),
+    (0, rate_limit_decorator_1.RateLimit)({ points: 8, duration: 600 }),
+    __param(0, (0, common_1.Req)()), __param(1, (0, common_1.Body)()),
+    __metadata("design:paramtypes", [Object, Object])
+], AuthController.prototype, "verifyPhoneLink", null);
 __decorate([
     (0, common_1.Post)('password'),
     (0, rate_limit_decorator_1.RateLimit)({ points: 10, duration: 900 }),

@@ -315,9 +315,8 @@ let AlertsService = class AlertsService {
                 : "panic";
 
         /*
-         * Preserve the established SOS contract: a manual panic alert is a
-         * high-priority emergency unless a caller explicitly starts a softer
-         * safety check stage.
+         * A caller chooses the alert stage. The SOS control explicitly sends
+         * Level 4; non-emergency safety checks can begin at Level 1.
          */
         const alertStage = (0, alert_stages_1.normalizeAlertStage)(
             body?.stage || "high_alert",
@@ -468,7 +467,7 @@ let AlertsService = class AlertsService {
         if (
             (0, alert_stages_1.compareAlertStages)(
                 alertStage,
-                "high_alert",
+                "monitoring",
             ) >= 0
         ) {
             this.queues.enqueueAlertNotifications({
@@ -507,7 +506,7 @@ let AlertsService = class AlertsService {
             (0, alert_stages_1.normalizeAlertStage)(
                 body?.stage ||
                 body?.targetStage ||
-                "high_alert",
+                "soft_alert",
             );
 
         const result = await this.db.transaction(async (client) => {
@@ -709,7 +708,7 @@ let AlertsService = class AlertsService {
             if (
                 (0, alert_stages_1.compareAlertStages)(
                     result.stage,
-                    "high_alert",
+                    "soft_alert",
                 ) >= 0
             ) {
                 this.queues.enqueueAlertNotifications({

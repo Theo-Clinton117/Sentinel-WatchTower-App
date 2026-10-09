@@ -28,17 +28,17 @@ const db_service_1 = require("../db/db.service");
 const ws_service_1 = require("../ws/ws.service");
 
 const LOCATION_COLUMNS =
-    "id, session_id, user_id, lat, lng, accuracy_m, source, recorded_at";
+    "id, session_id, user_id, latitude, longitude, accuracy, recorded_at";
 
 function mapLocationRow(row) {
     return {
         id: row.id,
         sessionId: row.session_id,
         userId: row.user_id,
-        lat: Number(row.lat),
-        lng: Number(row.lng),
-        accuracyM: row.accuracy_m == null ? null : Number(row.accuracy_m),
-        source: row.source || "mobile",
+        lat: Number(row.latitude),
+        lng: Number(row.longitude),
+        accuracyM: row.accuracy == null ? null : Number(row.accuracy),
+        source: "mobile",
         recordedAt: row.recorded_at,
     };
 }
@@ -132,7 +132,7 @@ let LocationsService = class LocationsService {
             const values = [];
 
             const placeholders = normalized.map((location, index) => {
-                const offset = index * 7;
+                const offset = index * 6;
 
                 values.push(
                     sessionId,
@@ -140,7 +140,6 @@ let LocationsService = class LocationsService {
                     location.lat,
                     location.lng,
                     location.accuracyM,
-                    location.source,
                     location.recordedAt
                 );
 
@@ -150,8 +149,7 @@ let LocationsService = class LocationsService {
                     $${offset + 3},
                     $${offset + 4},
                     $${offset + 5},
-                    $${offset + 6},
-                    $${offset + 7}
+                    $${offset + 6}
                 )`;
             });
 
@@ -160,10 +158,9 @@ let LocationsService = class LocationsService {
                 insert into location_logs (
                     session_id,
                     user_id,
-                    lat,
-                    lng,
-                    accuracy_m,
-                    source,
+                    latitude,
+                    longitude,
+                    accuracy,
                     recorded_at
                 )
                 values ${placeholders.join(", ")}
@@ -172,6 +169,10 @@ let LocationsService = class LocationsService {
                 values
             );
 
+            await client.query(
+                "update watch_sessions set last_location_at = now() where id = $1 and user_id = $2",
+                [sessionId, userId],
+            );
             return result.rows;
         });
 
@@ -234,7 +235,7 @@ let LocationsService = class LocationsService {
             throw new common_1.ForbiddenException("This person has not shared their location with you.");
         }
         const location = await this.db.query(`
-            select id, session_id, user_id, lat, lng, accuracy_m, source, recorded_at
+            select id, session_id, user_id, latitude, longitude, accuracy, recorded_at
             from location_logs where user_id = $1 order by recorded_at desc limit 1
         `, [subjectUserId]);
         await this.db.query("insert into location_access_audit_events (subject_user_id, requester_user_id, grant_id, action, outcome, reason) values ($1, $2, $3, 'read_latest_location', 'allowed', $4)", [subjectUserId, requesterUserId, activeGrant.id, activeGrant.purpose]);

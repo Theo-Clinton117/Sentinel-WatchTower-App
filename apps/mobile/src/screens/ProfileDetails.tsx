@@ -5,7 +5,7 @@ import { MotionView } from '../components/MotionView';
 import { DismissibleNoticeCard } from '../components/DismissibleNoticeCard';
 import { ProfileGlyph } from '../components/ProfileGlyph';
 import { ApiError } from '../services/api';
-import { logout } from '../services/auth';
+import { isOtpValid, isPhoneValid, logout, requestPhoneLink, verifyPhoneLink } from '../services/auth';
 import { getCurrentLocation, getReadableLocationLabel } from '../services/location';
 import { requestReviewerRole } from '../services/roles';
 import { getCurrentUser } from '../services/users';
@@ -369,9 +369,26 @@ const SavedPlaceContent = ({
 export const PersonalInfoScreen = () => {
   const theme = useAppTheme();
   const styles = createStyles(theme);
-  const user = useAppStore((state) => state.user);
+  const { user, setUser } = useAppStore((state) => ({ user: state.user, setUser: state.setUser }), shallow);
   const displayName = resolveDisplayName(user?.name, user?.email, user?.phone);
   const roles = user?.roles || ['user'];
+  const [phone, setPhone] = React.useState(user?.phone || '');
+  const [code, setCode] = React.useState('');
+  const [phoneCodeSent, setPhoneCodeSent] = React.useState(false);
+  const [busy, setBusy] = React.useState(false);
+  const [message, setMessage] = React.useState('');
+  const sendPhoneCode = async () => {
+    if (!isPhoneValid(phone)) { setMessage('Enter a valid Nigerian phone number.'); return; }
+    try { setBusy(true); await requestPhoneLink(phone); setPhoneCodeSent(true); setMessage('Verification code sent.'); }
+    catch (error) { setMessage(error instanceof ApiError ? error.message : 'Could not send a verification code.'); }
+    finally { setBusy(false); }
+  };
+  const confirmPhone = async () => {
+    if (!isOtpValid(code)) { setMessage('Enter the verification code.'); return; }
+    try { setBusy(true); const next = await verifyPhoneLink(phone, code); setUser(next); setPhoneCodeSent(false); setCode(''); setMessage('Phone number verified.'); }
+    catch (error) { setMessage(error instanceof ApiError ? error.message : 'Could not verify this phone number.'); }
+    finally { setBusy(false); }
+  };
 
   return (
     <ScreenFrame
@@ -391,7 +408,11 @@ export const PersonalInfoScreen = () => {
       <DetailCard title="Account details" delay={150}>
         <InfoRow label="Full name" value={displayName} />
         <InfoRow label="Email" value={user?.email || 'Not added yet'} />
-        <InfoRow label="Phone" value={user?.phone || 'Not added yet'} />
+        <Text style={styles.infoLabel}>Phone</Text>
+        <TextInput value={phone} onChangeText={setPhone} editable={!busy && !user?.phoneVerified} style={styles.input} placeholder="+2348012345678" placeholderTextColor={theme.colors.muted} keyboardType="phone-pad" />
+        {user?.phoneVerified ? <Text style={styles.helperText}>Verified</Text> : <Pressable style={[styles.secondaryButton, busy && styles.buttonDisabled]} onPress={() => void sendPhoneCode()} disabled={busy}><Text style={styles.secondaryButtonText}>{user?.phone ? 'Verify phone number' : 'Add phone number'}</Text></Pressable>}
+        {phoneCodeSent ? <><TextInput value={code} onChangeText={(value) => setCode(value.replace(/\D/g, ''))} style={styles.input} placeholder="Verification code" placeholderTextColor={theme.colors.muted} keyboardType="number-pad" maxLength={8} /><Pressable style={[styles.primaryButton, busy && styles.buttonDisabled]} onPress={() => void confirmPhone()} disabled={busy}><Text style={styles.primaryButtonText}>Confirm phone</Text></Pressable></> : null}
+        {message ? <Text style={styles.helperText}>{message}</Text> : null}
         <InfoRow label="Account status" value={user?.status || 'Active'} isLast />
       </DetailCard>
 

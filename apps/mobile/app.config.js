@@ -24,9 +24,16 @@ function assertHttpsUrl(name) {
   }
 }
 
+function assertAndroidGoogleMapsKey() {
+  if (IS_PRODUCTION && !readEnv('EXPO_PUBLIC_GOOGLE_MAPS_API_KEY_ANDROID')) {
+    throw new Error('EXPO_PUBLIC_GOOGLE_MAPS_API_KEY_ANDROID must be set for production Android builds.');
+  }
+}
+
 module.exports = ({ config }) => {
   assertHttpsUrl('EXPO_PUBLIC_API_BASE_URL');
   assertHttpsUrl('EXPO_PUBLIC_WS_URL');
+  assertAndroidGoogleMapsKey();
 
   const appConfig = baseConfig.expo;
 
@@ -72,10 +79,6 @@ module.exports = ({ config }) => {
           apiKey: readEnv('EXPO_PUBLIC_GOOGLE_MAPS_API_KEY_ANDROID'),
         },
       },
-      adaptiveIcon: {
-        foregroundImage: './assets/icons/android-icon.png',
-        backgroundColor: '#07101F',
-      },
       permissions: [
         'ACCESS_COARSE_LOCATION',
         'ACCESS_FINE_LOCATION',
@@ -90,11 +93,7 @@ module.exports = ({ config }) => {
       ...appConfig.plugins,
       [
         'expo-notifications',
-        {
-          icon: './assets/icons/android-icon.png',
-          color: '#1E63FF',
-          defaultChannel: 'sentinel-alerts',
-        },
+        { color: '#1E63FF', defaultChannel: 'sentinel-alerts' },
       ],
     ],
     extra: {

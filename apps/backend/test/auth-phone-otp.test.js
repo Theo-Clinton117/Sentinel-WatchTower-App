@@ -250,3 +250,45 @@ test('phone verification query enforces expiry, attempt limit, and consumed stat
   assert.match(queries[0], /attempts < 5/);
   assert.doesNotMatch(queries[0], /select id, name/);
 });
+
+test('authenticated phone linking consumes a valid OTP and persists phone_verified', async () => {
+  await withEnv({ NODE_ENV: 'development', DEV_OTP_CODE: '123456', OTP_CODE_SECRET: 'link-secret' }, async () => {
+    const calls = [];
+    let consumed = false;
+    let failedAttempts = 0;
+    const user = { id: 'user-1', phone_e164: '+2348012345678', phone_verified: true, email: 'member@example.com', email_verified: true, name: 'Member', status: 'active' };
+    const db = {
+      async query(sql, params) {
+        calls.push({ sql, params });
+        if (sql.includes('phone_e164 = $1 and id <> $2')) return { rows: [] };
+        if (sql.includes('insert into phone_otp_challenges')) return { rows: [] };
+        throw new Error(`Unexpected query: ${sql}`);
+      },
+      async transaction(work) {
+        return work({
+          async query(sql, params) {
+            calls.push({ sql, params });
+            if (sql.includes('phone_e164 = $1 and id <> $2')) return { rows: [] };
+            if (sql.includes('from phone_otp_challenges')) return { rows: consumed ? [] : [{ id: 'challenge-1', code_hash: require('crypto').createHmac('sha256', 'link-secret').update('+2348012345678:123456').digest('hex'), attempts: 0 }] };
+            if (sql.includes('set attempts = attempts + 1')) { failedAttempts += 1; return { rows: [] }; }
+            if (sql.includes('set consumed_at')) { consumed = true; return { rows: [] }; }
+            if (sql.includes('update users set phone_e164')) return { rows: [user] };
+            throw new Error(`Unexpected transaction query: ${sql}`);
+          },
+        });
+      },
+    };
+    const service = new AuthService(db, { sign: () => 'token' }, { isEnabled: () => true, sendOtp: async () => true });
+    service.sendPhoneVerification = async () => true;
+    const requested = await service.requestPhoneLink('user-1', { phone: '08012345678' });
+    assert.equal(requested.phone, '+2348012345678');
+    await assert.rejects(() => service.verifyPhoneLink('user-1', { phone: '+2348012345678', code: '000000' }), /Invalid verification code/);
+    assert.equal(failedAttempts, 1);
+    const verified = await service.verifyPhoneLink('user-1', { phone: '+2348012345678', code: '123456' });
+    assert.equal(verified.phoneVerified, true);
+    assert.equal(consumed, true);
+    assert.equal(calls.some(({ sql }) => sql.includes('update users set phone_e164')), true);
+    assert.equal(calls.some(({ sql }) => sql.includes('expires_at > now()') && sql.includes('attempts < 5') && sql.includes('consumed_at is null')), true);
+    await assert.rejects(() => service.verifyPhoneLink('user-1', { phone: '+2348012345678', code: '123456' }), /Invalid verification code/);
+  });
+});

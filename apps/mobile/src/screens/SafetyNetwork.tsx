@@ -13,9 +13,14 @@ import { useAppTheme } from "../theme";
 import { useAppStore } from "../store/useAppStore";
 import {
   createCircle,
+  acceptCircleInvitation,
+  declineCircleInvitation,
+  inviteToCircle,
   listCircleMembers,
   listCircles,
+  listMyCircleInvitations,
   type Circle,
+  type CircleInvitation,
   type CircleMember,
 } from "../services/circles";
 import {
@@ -60,16 +65,20 @@ const Card = ({ children }: { children: React.ReactNode }) => {
 export const CircleScreen = () => {
   const t = useAppTheme(),
     [circles, setCircles] = useState<Circle[]>([]),
+    [invitations, setInvitations] = useState<CircleInvitation[]>([]),
     [members, setMembers] = useState<CircleMember[]>([]),
     [name, setName] = useState(""),
     [kind, setKind] = useState("family"),
+    [inviteEmail, setInviteEmail] = useState(""),
     [selected, setSelected] = useState<string | null>(null),
     [busy, setBusy] = useState(false),
-    [error, setError] = useState("");
+    [error, setError] = useState(""),
+    [notice, setNotice] = useState("");
   const load = async () => {
     try {
-      const r = await listCircles();
+      const [r, incoming] = await Promise.all([listCircles(), listMyCircleInvitations()]);
       setCircles(r);
+      setInvitations(incoming);
       if (!selected && r[0]) setSelected(r[0].id);
     } catch (e) {
       setError(e instanceof Error ? e.message : "Could not load your Circles.");
@@ -96,6 +105,35 @@ export const CircleScreen = () => {
       setName("");
     } catch (e) {
       setError(e instanceof Error ? e.message : "Could not create Circle.");
+    } finally {
+      setBusy(false);
+    }
+  };
+  const invite = async () => {
+    if (!selected || !inviteEmail.trim()) return;
+    setBusy(true);
+    try {
+      await inviteToCircle(selected, { email: inviteEmail.trim() });
+      setInviteEmail("");
+      setError("");
+      setNotice("Invitation created. It will appear for the Sentinel account using that email.");
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "Could not create invitation.");
+    } finally {
+      setBusy(false);
+    }
+  };
+  const respondToInvitation = async (invitation: CircleInvitation, accept: boolean) => {
+    setBusy(true);
+    try {
+      if (accept) await acceptCircleInvitation(invitation.id);
+      else await declineCircleInvitation(invitation.id);
+      await load();
+      if (accept) setSelected(invitation.circleId);
+      setError("");
+      setNotice(accept ? "Invitation accepted." : "Invitation declined.");
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "Could not update invitation.");
     } finally {
       setBusy(false);
     }
@@ -161,6 +199,24 @@ export const CircleScreen = () => {
           </Card>
         </Pressable>
       ))}
+      {invitations.length ? (
+        <Card>
+          <Text style={[s.label, { color: t.colors.text }]}>Circle invitations</Text>
+          {invitations.map((invitation) => (
+            <View key={invitation.id} style={[s.row, { borderTopColor: t.colors.border }]}>
+              <View style={s.invitationCopy}>
+                <Text style={{ color: t.colors.text, fontWeight: "700" }}>{invitation.circleName}</Text>
+                <Text style={{ color: t.colors.muted }}>Invited by {invitation.invitedByName || "a Circle owner"}</Text>
+              </View>
+              <View style={s.invitationActions}>
+                <Pressable disabled={busy} onPress={() => void respondToInvitation(invitation, false)}><Text style={{ color: t.colors.red }}>Decline</Text></Pressable>
+                <Pressable disabled={busy} onPress={() => void respondToInvitation(invitation, true)}><Text style={{ color: t.colors.success }}>Accept</Text></Pressable>
+              </View>
+            </View>
+          ))}
+        </Card>
+      ) : null}
+      {notice ? <Text style={{ color: t.colors.success }}>{notice}</Text> : null}
       {selected ? (
         <Card>
           <Text style={[s.label, { color: t.colors.text }]}>
@@ -170,6 +226,10 @@ export const CircleScreen = () => {
             Safety status is shared here. Live location is always private unless
             someone explicitly shares it.
           </Text>
+          {circles.find((circle) => circle.id === selected)?.role === "owner" ? <>
+            <TextInput value={inviteEmail} onChangeText={setInviteEmail} placeholder="Invite by account email" placeholderTextColor={t.colors.muted} autoCapitalize="none" keyboardType="email-address" style={[s.input, { color: t.colors.text, borderColor: t.colors.border }]} />
+            <Pressable accessibilityRole="button" onPress={() => void invite()} disabled={busy || !inviteEmail.trim()} style={[s.secondary, { borderColor: t.colors.blue }]}><Text style={{ color: t.colors.blue }}>{busy ? "Working…" : "Invite to Circle"}</Text></Pressable>
+          </> : null}
           {members.map((m) => (
             <View
               key={m.id}
@@ -542,5 +602,8 @@ const s = StyleSheet.create({
     flexDirection: "row",
     justifyContent: "space-between",
   },
+  invitationCopy: { flex: 1, gap: 3 },
+  invitationActions: { flexDirection: "row", gap: 14, alignItems: "center" },
+  secondary: { borderWidth: 1, borderRadius: 12, padding: 12, alignItems: "center", marginTop: 12 },
   link: { fontWeight: "800", paddingVertical: 12 },
 });
