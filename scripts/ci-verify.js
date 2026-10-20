@@ -54,6 +54,7 @@ const productionValidationEnv = {
   EXPO_PUBLIC_APP_ENV: "production",
   EXPO_PUBLIC_API_BASE_URL: "https://api.example.com",
   EXPO_PUBLIC_WS_URL: "https://api.example.com",
+  EXPO_PUBLIC_GOOGLE_MAPS_API_KEY_ANDROID: "android-maps-key",
   IOS_BUNDLE_IDENTIFIER: "com.sentinel.watchtower",
   IOS_BUILD_NUMBER: "1",
   ANDROID_PACKAGE: "com.sentinel.watchtower",
@@ -62,6 +63,7 @@ const productionValidationEnv = {
 
 run(npmCommand, ["run", "test:backend"]);
 run(npmCommand, ["--workspace", "apps/mobile", "run", "typecheck"]);
+run(npmCommand, ["--workspace", "apps/mobile", "run", "build"]);
 if (process.env.TEST_DATABASE_URL) {
   run(npmCommand, ["run", "test:integration"]);
 } else if (process.env.CI === "true") {

@@ -42,8 +42,8 @@ function validateMobile() {
   if (!String(process.env.PAYSTACK_SECRET_KEY || "").trim()) {
     warnings.push("PAYSTACK_SECRET_KEY is empty; paid plans should stay disabled in release builds.");
   }
-  if (!String(process.env.EXPO_PUBLIC_GOOGLE_MAPS_API_KEY || "").trim()) {
-    warnings.push("EXPO_PUBLIC_GOOGLE_MAPS_API_KEY is empty; map rendering may be limited in release builds.");
+  if (!String(process.env.EXPO_PUBLIC_GOOGLE_MAPS_API_KEY_ANDROID || "").trim()) {
+    warnings.push("EXPO_PUBLIC_GOOGLE_MAPS_API_KEY_ANDROID is empty; Android release builds cannot be produced.");
   }
   return warnings;
 }

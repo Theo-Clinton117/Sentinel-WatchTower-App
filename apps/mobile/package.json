@@ -26,9 +26,11 @@
     "expo-task-manager": "~57.0.16",
     "lucide-react-native": "^0.542.0",
     "react": "19.2.3",
+    "react-dom": "19.2.3",
     "react-native": "^0.86.3",
     "react-native-maps": "1.27.2",
     "react-native-svg": "15.15.4",
+    "react-native-web": "^0.21.2",
     "socket.io-client": "^4.7.5",
     "zustand": "^4.5.2"
   },
