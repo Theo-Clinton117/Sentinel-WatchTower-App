@@ -653,7 +653,7 @@ let AuthService = class AuthService {
     }
     async sendPhoneVerification(phone, code) {
         if (!(0, kudisms_1.isKudiSmsOtpConfigured)()) {
-            throw new common_1.InternalServerErrorException('KudiSMS OTP is not configured.');
+            throw new common_1.ServiceUnavailableException('Phone verification is temporarily unavailable. Please try again later.');
         }
         try {
             await (0, kudisms_1.sendOtp)(phone, code);
