@@ -61,12 +61,6 @@ let HealthService = class HealthService {
             : emailProvider === 'resend'
                 ? resendEmailConfigured
                 : false;
-                console.log('[KudiSMS config check]', {
-    token: Boolean(process.env.KUDISMS_TOKEN?.trim()),
-    senderId: Boolean(process.env.KUDISMS_SENDER_ID?.trim()),
-    appNameCode: Boolean(process.env.KUDISMS_APP_NAME_CODE?.trim()),
-    templateCode: Boolean(process.env.KUDISMS_TEMPLATE_CODE?.trim()),
-});
         const checks = {
             database: { ok: false },
             redis: { ok: false, configured: configured(process.env.REDIS_URL) },
